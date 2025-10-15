@@ -86,9 +86,9 @@ export default function CategoryManager({ categories, onUpdate }: CategoryManage
                   <button
                     key={color}
                     onClick={() => setNewColor(color)}
-                    className={\`w-8 h-8 rounded-lg transition-all \${ 
+                    className={`w-8 h-8 rounded-lg transition-all ${
                       newColor === color ? 'ring-2 ring-sage-600 ring-offset-2' : ''
-                    }\`}
+                    }`}
                     style={{ backgroundColor: color }}
                   />
                 ))}
