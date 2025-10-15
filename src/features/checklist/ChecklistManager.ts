@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type { Category, Task } from '@/types';
 import type {
-  PostgresChangesPayload,
   RealtimeChannel,
+  RealtimePostgresChangesPayload,
 } from '@supabase/supabase-js';
 
 type ChecklistStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -493,7 +493,7 @@ export class ChecklistManager {
 
     const subscribeToTable = <T extends Task | Category>(
       table: 'tasks' | 'categories',
-      handler: (payload: PostgresChangesPayload<T>) => void,
+      handler: (payload: RealtimePostgresChangesPayload<T>) => void,
     ) => {
       const channel = supabase
         .channel(`realtime:public:${table}`)
@@ -538,7 +538,7 @@ export class ChecklistManager {
     });
   }
 
-  private applyTaskChange(payload: PostgresChangesPayload<Task>) {
+  private applyTaskChange(payload: RealtimePostgresChangesPayload<Task>) {
     const { eventType, new: newTask, old: oldTask } = payload;
 
     if (eventType === 'INSERT' && newTask) {
@@ -577,7 +577,7 @@ export class ChecklistManager {
     }
   }
 
-  private applyCategoryChange(payload: PostgresChangesPayload<Category>) {
+  private applyCategoryChange(payload: RealtimePostgresChangesPayload<Category>) {
     const { eventType, new: newCategory, old: oldCategory } = payload;
 
     if (eventType === 'INSERT' && newCategory) {
