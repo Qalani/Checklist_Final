@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tag, Plus, X, Edit2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -23,19 +23,71 @@ export default function CategoryManager({ categories, onUpdate, userId }: Catego
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const normalizedNames = useMemo(() =>
+    new Set(categories.map((category) => category.name.trim().toLowerCase()))
+  , [categories]);
+
+  const generateLocalId = () => {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+
+    return `local-${Math.random().toString(36).slice(2, 12)}`;
+  };
 
   const handleAdd = async () => {
-    if (!newName.trim()) return;
-    
-    await supabase.from('categories').insert({
-      name: newName.trim(),
+    const trimmedName = newName.trim();
+    if (!trimmedName || isSaving) return;
+
+    const normalized = trimmedName.toLowerCase();
+    if (normalizedNames.has(normalized)) {
+      setError('You already have a category with that name.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    const optimisticCategory: Category = {
+      id: generateLocalId(),
+      name: trimmedName,
       color: newColor,
       user_id: userId,
-    });
-    
-    setNewName('');
-    setIsAdding(false);
-    onUpdate();
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      const { error: insertError } = await supabase.from('categories').insert({
+        id: optimisticCategory.id,
+        name: optimisticCategory.name,
+        color: optimisticCategory.color,
+        user_id: userId,
+      });
+
+      if (insertError) {
+        if ('code' in insertError && insertError.code === '23505') {
+          setError('A category with that name already exists.');
+        } else if ('message' in insertError && typeof insertError.message === 'string') {
+          setError(insertError.message);
+        } else {
+          setError('Unable to save category. Please try again.');
+        }
+        return;
+      }
+
+      setNewName('');
+      setNewColor(PRESET_COLORS[0]);
+      setIsAdding(false);
+      onUpdate();
+    } catch (insertError) {
+      console.error('Error inserting category', insertError);
+      setError('Unable to save category. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleUpdate = async (id: string, name: string, color: string) => {
@@ -67,7 +119,14 @@ export default function CategoryManager({ categories, onUpdate, userId }: Catego
           <h2 className="text-lg font-semibold text-zen-900">Categories</h2>
         </div>
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={() => {
+            if (!isAdding) {
+              setError(null);
+              setNewName('');
+              setNewColor(PRESET_COLORS[0]);
+            }
+            setIsAdding(!isAdding);
+          }}
           className="p-2 rounded-lg hover:bg-sage-100 transition-colors text-sage-600"
         >
           {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -103,11 +162,15 @@ export default function CategoryManager({ categories, onUpdate, userId }: Catego
                   />
                 ))}
               </div>
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
               <button
                 onClick={handleAdd}
-                className="w-full py-2 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors font-medium text-sm"
+                disabled={isSaving}
+                className="w-full py-2 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors font-medium text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Add Category
+                {isSaving ? 'Saving...' : 'Add Category'}
               </button>
             </motion.div>
           )}
