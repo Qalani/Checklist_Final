@@ -106,6 +106,10 @@ INSERT INTO categories (name, color) VALUES
 3. Add environment variables in Vercel project settings
 4. Deploy!
 
+### Android Packaging
+
+Need a Play Store-ready build? Follow the step-by-step guide in [`docs/android-packaging.md`](docs/android-packaging.md) to wrap the app with Capacitor for an offline bundle or ship it as a Trusted Web Activity that points at your hosted deployment.
+
 ### Environment Variables for Production
 
 Set these in your deployment platform:
