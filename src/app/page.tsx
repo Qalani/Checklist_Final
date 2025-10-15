@@ -373,7 +373,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 border-b border-zen-200 shadow-soft">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
                 <Sparkles className="w-5 h-5 text-white" />
@@ -384,7 +384,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap justify-end">
+            <div className="flex flex-wrap items-center gap-3 justify-start lg:justify-end">
               <div className="flex items-center gap-1 p-1 bg-zen-100 rounded-xl">
                 <button
                   onClick={() => setViewMode('grid')}
@@ -413,7 +413,7 @@ export default function HomePage() {
                   setEditingTask(null);
                   setShowTaskForm(true);
                 }}
-                className="px-4 py-2 bg-sage-600 hover:bg-sage-700 text-white rounded-xl shadow-medium hover:shadow-lift transition-all flex items-center gap-2 font-medium"
+                className="px-4 py-2 bg-sage-600 hover:bg-sage-700 text-white rounded-xl shadow-medium hover:shadow-lift transition-all flex items-center justify-center gap-2 font-medium w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 New Task
@@ -424,7 +424,7 @@ export default function HomePage() {
                   onClick={() => {
                     void requestNotificationPermission();
                   }}
-                  className="px-3 py-2 rounded-xl bg-white/80 border border-zen-200 text-sm font-medium text-zen-600 hover:bg-sage-50 hover:border-sage-200 transition-all flex items-center gap-2"
+                  className="px-3 py-2 rounded-xl bg-white/80 border border-zen-200 text-sm font-medium text-zen-600 hover:bg-sage-50 hover:border-sage-200 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   <Bell className="w-4 h-4" />
                   Enable notifications
@@ -432,13 +432,13 @@ export default function HomePage() {
               )}
 
               {notificationPermission === 'denied' && (
-                <div className="px-3 py-2 rounded-xl bg-white/50 border border-zen-200 text-xs text-zen-500">
+                <div className="px-3 py-2 rounded-xl bg-white/50 border border-zen-200 text-xs text-zen-500 w-full sm:w-auto text-center">
                   Notifications disabled in browser settings
                 </div>
               )}
 
               {notificationPermission === 'granted' && (
-                <div className="px-3 py-2 rounded-xl bg-white/70 border border-sage-200 text-sm text-sage-700 flex items-center gap-2">
+                <div className="px-3 py-2 rounded-xl bg-white/70 border border-sage-200 text-sm text-sage-700 flex items-center justify-center gap-2 w-full sm:w-auto">
                   <Bell className="w-4 h-4" />
                   Notifications on
                 </div>
@@ -446,12 +446,12 @@ export default function HomePage() {
 
               <div className="hidden xl:block h-8 w-px bg-zen-200" />
 
-              <div className="flex items-center gap-3 px-3 py-2 bg-white/70 border border-zen-200 rounded-2xl shadow-soft">
-                <div className="text-right">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-2 bg-white/70 border border-zen-200 rounded-2xl shadow-soft w-full sm:w-auto">
+                <div className="w-full sm:text-right">
                   <p className="text-sm font-medium text-zen-900">{user.email ?? 'Account'}</p>
                   <p className="text-xs text-zen-500">Signed in</p>
                   {syncing && (
-                    <p className="mt-1 flex items-center justify-end gap-1 text-xs text-zen-400">
+                    <p className="mt-1 flex items-center sm:justify-end gap-1 text-xs text-zen-400">
                       <span className="h-2 w-2 rounded-full bg-sage-500 animate-pulse" />
                       Syncing
                     </p>
@@ -461,7 +461,7 @@ export default function HomePage() {
                   onClick={async () => {
                     await supabase.auth.signOut();
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-zen-100 hover:bg-zen-200 text-xs font-semibold text-zen-700 transition-colors"
+                  className="px-3 py-1.5 rounded-xl bg-zen-100 hover:bg-zen-200 text-xs font-semibold text-zen-700 transition-colors w-full sm:w-auto"
                 >
                   Sign out
                 </button>
@@ -469,7 +469,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mt-4 flex-wrap">
+          <div className="flex items-center gap-2 mt-2 lg:mt-4 flex-wrap">
             <button
               onClick={() => setFilterPriority(null)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${

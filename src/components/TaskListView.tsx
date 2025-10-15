@@ -2,12 +2,22 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
   arrayMove,
+  sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical, BellRing } from 'lucide-react';
@@ -124,7 +134,7 @@ function SortableTaskItem({
         <div
           {...attributes}
           {...listeners}
-          className="absolute left-3 top-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+          className="absolute left-3 top-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
         >
           <GripVertical className="w-4 h-4 text-zen-400" />
         </div>
@@ -147,7 +157,7 @@ function SortableTaskItem({
                 <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />
                 <button
                   onClick={onExpand}
-                  className="p-1 rounded-lg hover:bg-zen-100 transition-colors opacity-0 group-hover:opacity-100"
+                  className="p-1 rounded-lg hover:bg-zen-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                 >
                   <MoreHorizontal className="w-4 h-4 text-zen-500" />
                 </button>
@@ -231,6 +241,22 @@ export default function TaskListView({
   onReorder,
 }: TaskListViewProps) {
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   if (tasks.length === 0) {
     return (
@@ -267,7 +293,7 @@ export default function TaskListView({
   };
 
   return (
-    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2">
           {tasks.map(task => (

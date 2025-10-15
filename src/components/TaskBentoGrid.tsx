@@ -1,8 +1,17 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical, BellRing } from 'lucide-react';
 import type { Task, Category } from '@/types';
@@ -116,10 +125,10 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
         `}
       >
         {/* Drag Handle */}
-        <div 
-          {...attributes} 
+        <div
+          {...attributes}
           {...listeners}
-          className="absolute left-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+          className="absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
         >
           <GripVertical className="w-4 h-4 text-zen-400" />
         </div>
@@ -237,6 +246,22 @@ export default function TaskBentoGrid({
   onToggle,
   onReorder,
 }: TaskBentoGridProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -269,7 +294,7 @@ export default function TaskBentoGrid({
   }
 
   return (
-    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tasks.map(task => (
