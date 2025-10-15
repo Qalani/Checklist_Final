@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { X, Save, PlusCircle } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { generateLocalId } from '@/lib/localPersistence';
 
 interface TaskFormProps {
   task: Task | null;
@@ -13,6 +14,7 @@ interface TaskFormProps {
   onCategoryCreated: (category: Category) => Promise<void> | void;
   onClose: () => void;
   onSave: (task: Partial<Task>) => Promise<{ error?: string } | void>;
+  isSupabaseConfigured: boolean;
 }
 
 const PRESET_COLORS = [
@@ -37,6 +39,7 @@ export default function TaskForm({
   onCategoryCreated,
   onClose,
   onSave,
+  isSupabaseConfigured,
 }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
@@ -102,6 +105,21 @@ export default function TaskForm({
     setCategoryError(null);
 
     try {
+      if (!isSupabaseConfigured) {
+        const savedCategory: Category = {
+          id: generateLocalId(),
+          name: trimmedName,
+          color: newCategoryColor,
+        };
+        setCategory(savedCategory.name);
+        setCategoryColor(savedCategory.color);
+        setIsCreatingCategory(false);
+        setNewCategoryName('');
+        setNewCategoryColor(PRESET_COLORS[0]);
+        await Promise.resolve(onCategoryCreated(savedCategory));
+        return;
+      }
+
       const { data: sessionResult } = await supabase.auth.getSession();
 
       if (!sessionResult.session) {

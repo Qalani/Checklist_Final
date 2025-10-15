@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tag, Plus, X, Edit2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Category } from '@/types';
+import { generateLocalId, saveLocalCategories } from '@/lib/localPersistence';
 
 interface CategoryManagerProps {
   categories: Category[];
   onUpdate: () => void | Promise<void>;
   onCategoryCreated: (category: Category) => void | Promise<void>;
   userId: string;
+  isSupabaseConfigured: boolean;
 }
 
 const PRESET_COLORS = [
@@ -24,6 +26,7 @@ export default function CategoryManager({
   onUpdate,
   onCategoryCreated,
   userId,
+  isSupabaseConfigured,
 }: CategoryManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -50,6 +53,22 @@ export default function CategoryManager({
     setError(null);
 
     try {
+      if (!isSupabaseConfigured) {
+        const savedCategory: Category = {
+          id: generateLocalId(),
+          name: trimmedName,
+          color: newColor,
+        };
+        const updatedCategories = [...categories, savedCategory];
+        saveLocalCategories(updatedCategories);
+        await Promise.resolve(onCategoryCreated(savedCategory));
+        setNewName('');
+        setNewColor(PRESET_COLORS[0]);
+        setIsAdding(false);
+        await Promise.resolve(onUpdate());
+        return;
+      }
+
       const { data: sessionResult } = await supabase.auth.getSession();
 
       if (!sessionResult.session) {
@@ -102,6 +121,16 @@ export default function CategoryManager({
   };
 
   const handleUpdate = async (id: string, name: string, color: string) => {
+    if (!isSupabaseConfigured) {
+      const updatedCategories = categories.map((category) =>
+        category.id === id ? { ...category, name, color } : category,
+      );
+      saveLocalCategories(updatedCategories);
+      setEditingId(null);
+      await Promise.resolve(onUpdate());
+      return;
+    }
+
     await supabase
       .from('categories')
       .update({ name, color })
@@ -113,6 +142,13 @@ export default function CategoryManager({
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this category? Tasks will keep this label.')) {
+      if (!isSupabaseConfigured) {
+        const updatedCategories = categories.filter((category) => category.id !== id);
+        saveLocalCategories(updatedCategories);
+        await Promise.resolve(onUpdate());
+        return;
+      }
+
       await supabase
         .from('categories')
         .delete()

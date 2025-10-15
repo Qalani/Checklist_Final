@@ -21,11 +21,23 @@ import CategoryManager from '@/components/CategoryManager';
 import ProgressDashboard from '@/components/ProgressDashboard';
 import QuickStats from '@/components/QuickStats';
 import { supabase } from '@/lib/supabase';
+import { hasSupabaseCredentials } from '@/lib/environment';
+import {
+  loadLocalTasks,
+  saveLocalTasks,
+  loadLocalCategories,
+  saveLocalCategories,
+  generateLocalId,
+} from '@/lib/localPersistence';
 import type { Task, Category } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import AuthPanel from '@/components/AuthPanel';
 
 export default function HomePage() {
+  const hasSupabase = hasSupabaseCredentials;
+  const isGuestMode = !hasSupabase;
+  const guestUserId = 'local-user';
+  const guestEmailLabel = 'Guest Mode';
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -37,37 +49,60 @@ export default function HomePage() {
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadTasks = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('user_id', userId)
-      .order('order', { ascending: true });
+  const loadTasks = useCallback(
+    async (userId: string) => {
+      if (!hasSupabase) {
+        const localTasks = loadLocalTasks();
+        setTasks(localTasks);
+        return;
+      }
 
-    if (error) {
-      console.error('Error loading tasks', error);
-      return;
-    }
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('order', { ascending: true });
 
-    if (data) setTasks(data);
-  }, []);
+      if (error) {
+        console.error('Error loading tasks', error);
+        return;
+      }
 
-  const loadCategories = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
+      if (data) setTasks(data);
+    },
+    [hasSupabase],
+  );
 
-    if (error) {
-      console.error('Error loading categories', error);
-      return;
-    }
+  const loadCategories = useCallback(
+    async (userId: string) => {
+      if (!hasSupabase) {
+        const localCategories = loadLocalCategories();
+        setCategories(localCategories);
+        return;
+      }
 
-    if (data) setCategories(data);
-  }, []);
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading categories', error);
+        return;
+      }
+
+      if (data) setCategories(data);
+    },
+    [hasSupabase],
+  );
 
   useEffect(() => {
+    if (!hasSupabase) {
+      setAuthChecked(true);
+      return;
+    }
+
     let isMounted = true;
 
     supabase.auth
@@ -95,9 +130,21 @@ export default function HomePage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [hasSupabase]);
 
   useEffect(() => {
+    if (isGuestMode) {
+      setIsLoading(true);
+      const localTasks = loadLocalTasks();
+      const localCategories = loadLocalCategories();
+      setTasks(localTasks);
+      setCategories(localCategories);
+      setIsLoading(false);
+      setShowTaskForm(false);
+      setEditingTask(null);
+      return;
+    }
+
     if (!user) {
       setTasks([]);
       setCategories([]);
@@ -119,6 +166,12 @@ export default function HomePage() {
 
     loadData();
 
+    if (!hasSupabase) {
+      return () => {
+        isActive = false;
+      };
+    }
+
     const tasksSubscription = supabase
       .channel(`tasks-user-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
@@ -138,30 +191,100 @@ export default function HomePage() {
       tasksSubscription.unsubscribe();
       categoriesSubscription.unsubscribe();
     };
-  }, [user, loadTasks, loadCategories]);
+  }, [user, loadTasks, loadCategories, isGuestMode, hasSupabase]);
 
-  const userId = user?.id;
+  const userId = isGuestMode ? guestUserId : user?.id ?? null;
 
-  const handleCategoryCreated = useCallback(async (createdCategory: Category) => {
-    setCategories((prev) => {
-      const existingIndex = prev.findIndex((category) => category.id === createdCategory.id);
-      if (existingIndex !== -1) {
-        const updated = [...prev];
-        updated[existingIndex] = createdCategory;
-        return updated;
+  const handleCategoryCreated = useCallback(
+    async (createdCategory: Category) => {
+      setCategories((prev) => {
+        const existingIndex = prev.findIndex((category) => category.id === createdCategory.id);
+        if (existingIndex !== -1) {
+          const updated = [...prev];
+          updated[existingIndex] = createdCategory;
+          if (isGuestMode) {
+            saveLocalCategories(updated);
+          }
+          return updated;
+        }
+        const next = [...prev, createdCategory];
+        if (isGuestMode) {
+          saveLocalCategories(next);
+        }
+        return next;
+      });
+
+      if (!userId || isGuestMode) {
+        return;
       }
-      return [...prev, createdCategory];
-    });
 
-    if (!userId) {
-      return;
-    }
-
-    await loadCategories(userId);
-  }, [loadCategories, userId]);
+      await loadCategories(userId);
+    },
+    [loadCategories, userId, isGuestMode],
+  );
 
   const handleTaskSave = useCallback(
     async (taskData: Partial<Task>, existingTask?: Task | null): Promise<{ error?: string } | void> => {
+      if (isGuestMode) {
+        setTasks((prev) => {
+          if (existingTask) {
+            const updatedTask: Task = {
+              ...existingTask,
+              title:
+                typeof taskData.title === 'string'
+                  ? taskData.title.trim()
+                  : existingTask.title,
+              description:
+                typeof taskData.description === 'string'
+                  ? taskData.description.trim() || undefined
+                  : existingTask.description,
+              priority: (taskData.priority as Task['priority']) ?? existingTask.priority,
+              category: typeof taskData.category === 'string' ? taskData.category : existingTask.category,
+              category_color:
+                typeof taskData.category_color === 'string'
+                  ? taskData.category_color
+                  : existingTask.category_color,
+              completed:
+                typeof taskData.completed === 'boolean'
+                  ? taskData.completed
+                  : existingTask.completed,
+              updated_at: new Date().toISOString(),
+            };
+
+            const next = prev.map((task) => (task.id === existingTask.id ? updatedTask : task));
+            saveLocalTasks(next);
+            return next.sort((a, b) => a.order - b.order);
+          }
+
+          const now = new Date().toISOString();
+          const nextOrder = prev.reduce((max, current) => Math.max(max, current.order ?? 0), -1) + 1;
+
+          const newTask: Task = {
+            id: generateLocalId(),
+            title: (taskData.title ?? '').trim(),
+            description:
+              typeof taskData.description === 'string' && taskData.description.trim().length > 0
+                ? taskData.description.trim()
+                : undefined,
+            priority: (taskData.priority as Task['priority']) ?? 'medium',
+            category: taskData.category ?? '',
+            category_color: taskData.category_color ?? '#5a7a5a',
+            completed: typeof taskData.completed === 'boolean' ? taskData.completed : false,
+            order: nextOrder,
+            created_at: now,
+            updated_at: now,
+          };
+
+          const next = [...prev, newTask];
+          saveLocalTasks(next);
+          return next.sort((a, b) => a.order - b.order);
+        });
+
+        setShowTaskForm(false);
+        setEditingTask(null);
+        return;
+      }
+
       if (!userId) {
         return { error: 'You must be signed in to add tasks.' };
       }
@@ -232,10 +355,90 @@ export default function HomePage() {
         return { error: 'Unable to save task. Please try again.' };
       }
     },
-    [loadTasks, tasks, userId],
+    [isGuestMode, loadTasks, tasks, userId],
   );
 
-  if (!authChecked) {
+  const activeUserId = (userId ?? guestUserId) as string;
+
+  const handleDeleteTask = useCallback(
+    async (id: string) => {
+      if (isGuestMode) {
+        setTasks((prev) => {
+          const next = prev
+            .filter((task) => task.id !== id)
+            .map((task, index) => ({ ...task, order: index }));
+          saveLocalTasks(next);
+          return next;
+        });
+        return;
+      }
+
+      if (!activeUserId) {
+        return;
+      }
+
+      await supabase.from('tasks').delete().eq('id', id).eq('user_id', activeUserId);
+      await loadTasks(activeUserId);
+    },
+    [activeUserId, isGuestMode, loadTasks],
+  );
+
+  const handleToggleTask = useCallback(
+    async (id: string, completed: boolean) => {
+      if (isGuestMode) {
+        setTasks((prev) => {
+          const next = prev.map((task) =>
+            task.id === id
+              ? { ...task, completed, updated_at: new Date().toISOString() }
+              : task,
+          );
+          saveLocalTasks(next);
+          return next;
+        });
+        return;
+      }
+
+      if (!activeUserId) {
+        return;
+      }
+
+      await supabase
+        .from('tasks')
+        .update({ completed })
+        .eq('id', id)
+        .eq('user_id', activeUserId);
+      await loadTasks(activeUserId);
+    },
+    [activeUserId, isGuestMode, loadTasks],
+  );
+
+  const handleReorderTasks = useCallback(
+    async (reorderedTasks: Task[]) => {
+      if (isGuestMode) {
+        const normalized = reorderedTasks.map((task, index) => ({ ...task, order: index }));
+        setTasks(normalized);
+        saveLocalTasks(normalized);
+        return;
+      }
+
+      if (!activeUserId) {
+        return;
+      }
+
+      setTasks(reorderedTasks);
+      for (let i = 0; i < reorderedTasks.length; i++) {
+        await supabase
+          .from('tasks')
+          .update({ order: i })
+          .eq('id', reorderedTasks[i].id)
+          .eq('user_id', activeUserId);
+      }
+      await loadTasks(activeUserId);
+    },
+    [activeUserId, isGuestMode, loadTasks],
+  );
+
+  if (hasSupabase && !authChecked) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
@@ -243,7 +446,7 @@ export default function HomePage() {
     );
   }
 
-  if (!user) {
+  if (hasSupabase && !user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex flex-col">
         <header className="px-4 sm:px-6 lg:px-8 py-6">
@@ -272,8 +475,6 @@ export default function HomePage() {
       </div>
     );
   }
-
-  const activeUserId = userId!;
 
   const filteredTasks = tasks.filter(task => {
     if (filterPriority && task.priority !== filterPriority) return false;
@@ -335,17 +536,19 @@ export default function HomePage() {
 
               <div className="flex items-center gap-3 px-3 py-2 bg-white/70 border border-zen-200 rounded-2xl shadow-soft">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-zen-900">{user.email ?? 'Account'}</p>
-                  <p className="text-xs text-zen-500">Signed in</p>
+                  <p className="text-sm font-medium text-zen-900">{isGuestMode ? guestEmailLabel : user?.email ?? 'Account'}</p>
+                  <p className="text-xs text-zen-500">{isGuestMode ? 'Stored on this device' : 'Signed in'}</p>
                 </div>
-                <button
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-zen-100 hover:bg-zen-200 text-xs font-semibold text-zen-700 transition-colors"
-                >
-                  Sign out
-                </button>
+                {hasSupabase && (
+                  <button
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-zen-100 hover:bg-zen-200 text-xs font-semibold text-zen-700 transition-colors"
+                  >
+                    Sign out
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -400,33 +603,9 @@ export default function HomePage() {
                       setEditingTask(task);
                       setShowTaskForm(true);
                     }}
-                    onDelete={async (id) => {
-                      await supabase
-                        .from('tasks')
-                        .delete()
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
-                    }}
-                    onToggle={async (id, completed) => {
-                      await supabase
-                        .from('tasks')
-                        .update({ completed })
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
-                    }}
-                    onReorder={async (reorderedTasks) => {
-                      setTasks(reorderedTasks);
-                      for (let i = 0; i < reorderedTasks.length; i++) {
-                        await supabase
-                            .from('tasks')
-                            .update({ order: i })
-                            .eq('id', reorderedTasks[i].id)
-                            .eq('user_id', activeUserId);
-                      }
-                      await loadTasks(activeUserId);
-                    }}
+                    onDelete={handleDeleteTask}
+                    onToggle={handleToggleTask}
+                    onReorder={handleReorderTasks}
                   />
                 ) : (
                   <TaskListView
@@ -437,22 +616,8 @@ export default function HomePage() {
                       setEditingTask(task);
                       setShowTaskForm(true);
                     }}
-                    onDelete={async (id) => {
-                      await supabase
-                        .from('tasks')
-                        .delete()
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
-                    }}
-                    onToggle={async (id, completed) => {
-                      await supabase
-                        .from('tasks')
-                        .update({ completed })
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
-                    }}
+                    onDelete={handleDeleteTask}
+                    onToggle={handleToggleTask}
                   />
                 )}
               </AnimatePresence>
@@ -465,6 +630,7 @@ export default function HomePage() {
                 onUpdate={() => loadCategories(activeUserId)}
                 onCategoryCreated={handleCategoryCreated}
                 userId={activeUserId}
+                isSupabaseConfigured={hasSupabase}
               />
             </div>
           </div>
@@ -483,6 +649,7 @@ export default function HomePage() {
               setEditingTask(null);
             }}
             onSave={(taskData) => handleTaskSave(taskData, editingTask)}
+            isSupabaseConfigured={hasSupabase}
           />
         )}
       </AnimatePresence>
