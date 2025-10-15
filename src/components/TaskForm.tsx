@@ -10,7 +10,7 @@ interface TaskFormProps {
   task: Task | null;
   categories: Category[];
   userId: string;
-  onCategoryCreated: () => Promise<void> | void;
+  onCategoryCreated: (category: Category) => Promise<void> | void;
   onClose: () => void;
   onSave: (task: Partial<Task>) => void;
 }
@@ -47,6 +47,7 @@ export default function TaskForm({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState(PRESET_COLORS[0]);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   useEffect(() => {
     const selectedCat = categories.find(c => c.name === category);
@@ -68,17 +69,20 @@ export default function TaskForm({
       setCategory('');
       setNewCategoryName('');
       setNewCategoryColor(PRESET_COLORS[0]);
+      setCategoryError(null);
       return;
     }
 
     setIsCreatingCategory(false);
     setCategory(value);
+    setCategoryError(null);
   };
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim() || isSavingCategory) return;
 
     setIsSavingCategory(true);
+    setCategoryError(null);
 
     try {
       const { data, error } = await supabase
@@ -100,10 +104,12 @@ export default function TaskForm({
         setCategoryColor(data.color);
         setIsCreatingCategory(false);
         setNewCategoryName('');
-        await Promise.resolve(onCategoryCreated());
+        setNewCategoryColor(PRESET_COLORS[0]);
+        await Promise.resolve(onCategoryCreated(data));
       }
     } catch (error) {
       console.error('Error creating category', error);
+      setCategoryError('Unable to save category. Please try again.');
     } finally {
       setIsSavingCategory(false);
     }
@@ -264,6 +270,9 @@ export default function TaskForm({
                   <PlusCircle className="w-4 h-4" />
                   {isSavingCategory ? 'Creating...' : 'Create Category'}
                 </button>
+                {categoryError && (
+                  <p className="text-sm text-red-600 text-center">{categoryError}</p>
+                )}
               </div>
             )}
           </div>

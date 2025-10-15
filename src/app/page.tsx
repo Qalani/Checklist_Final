@@ -381,7 +381,15 @@ export default function HomePage() {
             task={editingTask}
             categories={categories}
             userId={userId}
-            onCategoryCreated={() => loadCategories(userId)}
+            onCategoryCreated={async (createdCategory) => {
+              setCategories((prev) => {
+                if (prev.some((category) => category.id === createdCategory.id)) {
+                  return prev;
+                }
+                return [...prev, createdCategory];
+              });
+              await loadCategories(userId);
+            }}
             onClose={() => {
               setShowTaskForm(false);
               setEditingTask(null);
