@@ -380,6 +380,8 @@ export default function HomePage() {
           <TaskForm
             task={editingTask}
             categories={categories}
+            userId={userId}
+            onCategoryCreated={() => loadCategories(userId)}
             onClose={() => {
               setShowTaskForm(false);
               setEditingTask(null);
