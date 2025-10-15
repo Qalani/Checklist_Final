@@ -55,6 +55,34 @@ export default function HomePage() {
   } = useChecklist(user?.id ?? null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 640px)');
+
+    const enforceGridView = (matches: boolean) => {
+      if (matches) {
+        setViewMode('grid');
+      }
+    };
+
+    enforceGridView(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      enforceGridView(event.matches);
+    };
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     supabase.auth
@@ -398,9 +426,9 @@ export default function HomePage() {
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg transition-all ${
-                    viewMode === 'list' 
-                      ? 'bg-white shadow-soft text-sage-600' 
+                  className={`hidden sm:inline-flex p-2 rounded-lg transition-all ${
+                    viewMode === 'list'
+                      ? 'bg-white shadow-soft text-sage-600'
                       : 'text-zen-500 hover:text-zen-700'
                   }`}
                 >
