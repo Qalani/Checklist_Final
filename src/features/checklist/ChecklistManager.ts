@@ -257,6 +257,8 @@ export class ChecklistManager {
           category: taskData.category,
           category_color: taskData.category_color,
           completed: Boolean(taskData.completed),
+          due_date: taskData.due_date ?? null,
+          reminder_minutes_before: taskData.reminder_minutes_before ?? null,
           order: nextOrder,
         }),
       });

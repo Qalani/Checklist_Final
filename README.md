@@ -78,9 +78,15 @@ Follow the steps below to mirror the production-ready configuration locally:
      category text not null,
      category_color text not null,
      "order" integer not null,
+     due_date timestamptz,
+     reminder_minutes_before integer,
      created_at timestamptz default now(),
      updated_at timestamptz default now(),
-     user_id uuid not null references auth.users(id)
+     user_id uuid not null references auth.users(id),
+     constraint tasks_reminder_requires_due_date
+       check (reminder_minutes_before is null or due_date is not null),
+     constraint tasks_reminder_minutes_non_negative
+       check (reminder_minutes_before is null or reminder_minutes_before >= 0)
    );
 
    create table public.categories (
@@ -124,6 +130,13 @@ Follow the steps below to mirror the production-ready configuration locally:
 5. **Confirm Realtime is enabled** for both tables under _Database → Replication → Realtime_. The UI should show that `INSERT`, `UPDATE`, and `DELETE` events are enabled – the app listens for these to refresh the UI without a manual reload.
 
 With those pieces in place the in-app experience will match production: users create accounts, sign in via the Auth panel, and see their personal tasks and categories synced across devices.
+
+### Updating an existing project
+
+If you created the `public.tasks` table before due dates and reminders were introduced, run the migration script in
+[`supabase/migrations/20231015_add_due_date_and_reminder_columns.sql`](supabase/migrations/20231015_add_due_date_and_reminder_columns.sql)
+from the Supabase SQL editor (or your preferred Postgres client). The script adds the new columns, enforces the reminder
+constraints, and creates an index to speed up queries that filter upcoming tasks.
 
 ## 📦 Deployment
 

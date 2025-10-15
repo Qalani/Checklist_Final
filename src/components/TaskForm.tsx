@@ -60,6 +60,25 @@ export default function TaskForm({
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dueDate, setDueDate] = useState(() => {
+    if (!task?.due_date) {
+      return '';
+    }
+
+    const date = new Date(task.due_date);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const offsetMinutes = date.getTimezoneOffset();
+    const local = new Date(date.getTime() - offsetMinutes * 60_000);
+    return local.toISOString().slice(0, 16);
+  });
+  const [reminderMinutes, setReminderMinutes] = useState(
+    task?.reminder_minutes_before != null && !Number.isNaN(task.reminder_minutes_before)
+      ? String(task.reminder_minutes_before)
+      : '',
+  );
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -81,6 +100,12 @@ export default function TaskForm({
       setCategoryColor(categories[0].color);
     }
   }, [categories, category, isCreatingCategory, task]);
+
+  useEffect(() => {
+    if (!dueDate && reminderMinutes) {
+      setReminderMinutes('');
+    }
+  }, [dueDate, reminderMinutes]);
 
   const handleCategorySelection = (value: string) => {
     if (value === '__create__') {
@@ -140,8 +165,25 @@ export default function TaskForm({
       return;
     }
 
-    setIsSubmitting(true);
     setFormError(null);
+
+    if (reminderMinutes && !dueDate) {
+      setFormError('Add a due date before setting a reminder.');
+      return;
+    }
+
+    let dueDateISO: string | null = null;
+    if (dueDate) {
+      const parsed = new Date(dueDate);
+      if (Number.isNaN(parsed.getTime())) {
+        setFormError('Please select a valid due date.');
+        return;
+      }
+
+      dueDateISO = parsed.toISOString();
+    }
+
+    setIsSubmitting(true);
 
     try {
       const result = await onSave({
@@ -151,6 +193,8 @@ export default function TaskForm({
         category,
         category_color: categoryColor,
         completed: task?.completed || false,
+        due_date: dueDateISO,
+        reminder_minutes_before: reminderMinutes ? Number(reminderMinutes) : null,
       });
 
       if (result && typeof result === 'object' && 'error' in result && result.error) {
@@ -248,6 +292,54 @@ export default function TaskForm({
                   {p.charAt(0).toUpperCase() + p.slice(1)}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-zen-700 mb-2">
+                Due date (optional)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
+                />
+                {dueDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDueDate('');
+                      setReminderMinutes('');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-zen-100 text-sm font-medium text-zen-600 hover:bg-zen-200 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zen-700 mb-2">
+                Reminder
+              </label>
+              <select
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(e.target.value)}
+                disabled={!dueDate}
+                className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="">No reminder</option>
+                <option value="5">5 minutes before</option>
+                <option value="15">15 minutes before</option>
+                <option value="30">30 minutes before</option>
+                <option value="60">1 hour before</option>
+                <option value="120">2 hours before</option>
+                <option value="1440">1 day before</option>
+              </select>
             </div>
           </div>
 
