@@ -52,6 +52,8 @@ export async function POST(request: Request) {
     category_color: categoryColor,
     order,
     completed,
+    due_date: dueDate,
+    reminder_minutes_before: reminderMinutesBefore,
   } = body as {
     title?: unknown;
     description?: unknown;
@@ -60,6 +62,8 @@ export async function POST(request: Request) {
     category_color?: unknown;
     order?: unknown;
     completed?: unknown;
+    due_date?: unknown;
+    reminder_minutes_before?: unknown;
   };
 
   if (typeof title !== 'string' || !title.trim()) {
@@ -85,6 +89,36 @@ export async function POST(request: Request) {
   const normalizedDescription =
     typeof description === 'string' && description.trim().length > 0 ? description.trim() : null;
   const normalizedCompleted = typeof completed === 'boolean' ? completed : false;
+  let normalizedDueDate: string | null = null;
+
+  if (typeof dueDate === 'string') {
+    const parsed = new Date(dueDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return NextResponse.json({ error: 'Due date must be a valid date string.' }, { status: 400 });
+    }
+    normalizedDueDate = parsed.toISOString();
+  } else if (dueDate === null || typeof dueDate === 'undefined') {
+    normalizedDueDate = null;
+  } else {
+    return NextResponse.json({ error: 'Due date must be a string or null.' }, { status: 400 });
+  }
+
+  let normalizedReminder: number | null = null;
+
+  if (typeof reminderMinutesBefore === 'number') {
+    if (!Number.isFinite(reminderMinutesBefore) || reminderMinutesBefore < 0) {
+      return NextResponse.json({ error: 'Reminder must be a positive number of minutes.' }, { status: 400 });
+    }
+    normalizedReminder = Math.floor(reminderMinutesBefore);
+  } else if (reminderMinutesBefore === null || typeof reminderMinutesBefore === 'undefined') {
+    normalizedReminder = null;
+  } else {
+    return NextResponse.json({ error: 'Reminder must be a number or null.' }, { status: 400 });
+  }
+
+  if (normalizedReminder !== null && normalizedDueDate === null) {
+    return NextResponse.json({ error: 'A due date is required to schedule a reminder.' }, { status: 400 });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('tasks')
@@ -96,6 +130,8 @@ export async function POST(request: Request) {
       category_color: categoryColor.trim(),
       order,
       completed: normalizedCompleted,
+      due_date: normalizedDueDate,
+      reminder_minutes_before: normalizedReminder,
       user_id: userResult.user.id,
     })
     .select()

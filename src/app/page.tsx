@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -36,6 +36,8 @@ export default function HomePage() {
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'unsupported' | 'pending'
   >('pending');
+  const reminderTimeoutsRef = useRef<Map<string, number>>(new Map());
+  const triggeredRemindersRef = useRef<Map<string, string>>(new Map());
 
   const {
     tasks,
@@ -194,6 +196,116 @@ export default function HomePage() {
     },
     [notificationPermission],
   );
+
+  const showTaskReminderNotification = useCallback(
+    (taskId: string, taskTitle: string, dueDate: Date) => {
+      if (notificationPermission !== 'granted' || typeof window === 'undefined' || !('Notification' in window)) {
+        return;
+      }
+
+      const NotificationAPI = window.Notification;
+
+      if (!NotificationAPI) {
+        return;
+      }
+
+      try {
+        const notification = new NotificationAPI('Task reminder', {
+          body: `"${taskTitle}" is due ${dueDate.toLocaleString()}.`,
+          tag: `task-reminder-${taskId}`,
+        });
+
+        setTimeout(() => {
+          notification.close();
+        }, 8000);
+      } catch (error) {
+        console.error('Unable to display reminder notification', error);
+      }
+    },
+    [notificationPermission],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      reminderTimeoutsRef.current.forEach(timeoutId => window.clearTimeout(timeoutId));
+      reminderTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
+    const registry = reminderTimeoutsRef.current;
+    registry.forEach(timeoutId => {
+      window.clearTimeout(timeoutId);
+    });
+    registry.clear();
+
+    const triggered = triggeredRemindersRef.current;
+
+    if (notificationPermission !== 'granted') {
+      triggered.clear();
+      return;
+    }
+
+    const taskIds = new Set(tasks.map(task => task.id));
+    triggered.forEach((_signature, id) => {
+      if (!taskIds.has(id)) {
+        triggered.delete(id);
+      }
+    });
+
+    tasks.forEach(task => {
+      if (
+        !task.due_date ||
+        task.completed ||
+        task.reminder_minutes_before === null ||
+        typeof task.reminder_minutes_before === 'undefined'
+      ) {
+        triggered.delete(task.id);
+        return;
+      }
+
+      const dueTime = new Date(task.due_date).getTime();
+
+      if (Number.isNaN(dueTime)) {
+        triggered.delete(task.id);
+        return;
+      }
+
+      const reminderTime = dueTime - task.reminder_minutes_before * 60_000;
+      const delay = reminderTime - Date.now();
+      const signature = `${dueTime}-${task.reminder_minutes_before}`;
+
+      if (delay <= 0) {
+        if (triggered.get(task.id) !== signature) {
+          triggered.set(task.id, signature);
+          showTaskReminderNotification(task.id, task.title, new Date(dueTime));
+        }
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        triggered.set(task.id, signature);
+        showTaskReminderNotification(task.id, task.title, new Date(dueTime));
+        registry.delete(task.id);
+      }, delay);
+
+      registry.set(task.id, timeoutId);
+    });
+
+    return () => {
+      registry.forEach(timeoutId => {
+        window.clearTimeout(timeoutId);
+      });
+      registry.clear();
+    };
+  }, [notificationPermission, showTaskReminderNotification, tasks]);
 
   const handleToggleTask = useCallback(
     async (id: string, completed: boolean) => {

@@ -10,7 +10,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical } from 'lucide-react';
+import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical, BellRing } from 'lucide-react';
 import type { Task, Category } from '@/types';
 
 interface TaskListViewProps {
@@ -27,6 +27,24 @@ const priorityColors: Record<Task['priority'], string> = {
   medium: 'text-warm-600',
   high: 'text-red-600',
 };
+
+function formatReminder(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
+  }
+
+  if (minutes % 1440 === 0) {
+    const days = Math.round(minutes / 1440);
+    return `${days} day${days === 1 ? '' : 's'} before`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = Math.round(minutes / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'} before`;
+  }
+
+  return `${minutes} minutes before`;
+}
 
 function SortableTaskItem({
   task,
@@ -54,6 +72,41 @@ function SortableTaskItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const dueDate = task.due_date ? new Date(task.due_date) : null;
+  let dueBadge: { text: string; tone: string } | null = null;
+
+  if (dueDate && !Number.isNaN(dueDate.getTime())) {
+    const diff = dueDate.getTime() - Date.now();
+    const formatted = dueDate.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+
+    if (!task.completed && diff < 0) {
+      dueBadge = {
+        text: `Overdue · ${formatted}`,
+        tone: 'bg-red-100 text-red-700',
+      };
+    } else if (!task.completed && diff <= 86_400_000) {
+      dueBadge = {
+        text: `Due soon · ${formatted}`,
+        tone: 'bg-warm-100 text-warm-700',
+      };
+    } else {
+      dueBadge = {
+        text: `${task.completed ? 'Was due' : 'Due'} · ${formatted}`,
+        tone: task.completed ? 'bg-zen-100 text-zen-500' : 'bg-zen-100 text-zen-600',
+      };
+    }
+  }
+
+  const reminderLabel =
+    typeof task.reminder_minutes_before === 'number' && !Number.isNaN(task.reminder_minutes_before)
+      ? formatReminder(task.reminder_minutes_before)
+      : null;
 
   return (
     <div ref={setNodeRef} style={style} className="group">
@@ -120,6 +173,20 @@ function SortableTaskItem({
                 <span className="text-xs text-zen-500 flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   {new Date(task.created_at).toLocaleDateString()}
+                </span>
+              )}
+
+              {dueBadge && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-lg flex items-center gap-1 ${dueBadge.tone}`}>
+                  <Clock className="w-3 h-3" />
+                  {dueBadge.text}
+                </span>
+              )}
+
+              {reminderLabel && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700 flex items-center gap-1">
+                  <BellRing className="w-3 h-3" />
+                  {reminderLabel}
                 </span>
               )}
             </div>
