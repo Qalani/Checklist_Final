@@ -105,11 +105,11 @@ export default function TaskForm({ task, categories, onClose, onSave }: TaskForm
                   key={p}
                   type="button"
                   onClick={() => setPriority(p)}
-                  className={\`py-2 px-4 rounded-xl font-medium text-sm transition-all \${ 
+                  className={`py-2 px-4 rounded-xl font-medium text-sm transition-all ${
                     priority === p
                       ? 'bg-sage-600 text-white shadow-medium'
                       : 'bg-zen-100 text-zen-700 hover:bg-zen-200'
-                  }\`}
+                  }`}
                 >
                   {p.charAt(0).toUpperCase() + p.slice(1)}
                 </button>
