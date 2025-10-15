@@ -47,7 +47,7 @@ export default function ProgressDashboard({ tasks, categories }: ProgressDashboa
               <div className="relative h-2 bg-zen-100 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: \`\${stat.percentage}%\` }}
+                  animate={{ width: `${stat.percentage}%` }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
                   className="absolute inset-y-0 left-0 rounded-full"
                   style={{ backgroundColor: stat.color }}
