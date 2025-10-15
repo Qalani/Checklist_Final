@@ -442,6 +442,10 @@ export class ChecklistManager {
       throw new Error('You must be signed in to update categories.');
     }
 
+    const previousCategory = this.snapshot.categories.find((category) => category.id === id);
+    const previousCategorySnapshot = previousCategory
+      ? { name: previousCategory.name, color: previousCategory.color }
+      : null;
     const { data, error } = await supabase
       .from('categories')
       .update(updates)
@@ -462,8 +466,37 @@ export class ChecklistManager {
           category.id === id ? { ...category, ...updatedCategory } : category,
         ),
       ),
+      tasks: previousCategorySnapshot
+        ? prev.tasks.map((task) =>
+            task.category === previousCategorySnapshot.name
+              ? {
+                  ...task,
+                  category: updatedCategory.name,
+                  category_color: updatedCategory.color,
+                }
+              : task,
+          )
+        : prev.tasks,
       error: null,
     }));
+
+    if (previousCategorySnapshot) {
+      const { error: tasksError } = await supabase
+        .from('tasks')
+        .update({
+          category: updatedCategory.name,
+          category_color: updatedCategory.color,
+        })
+        .eq('user_id', this.userId)
+        .eq('category', previousCategorySnapshot.name);
+
+      if (tasksError) {
+        await this.refresh(true);
+        throw new Error(
+          tasksError.message || 'Unable to update category. Please try again.',
+        );
+      }
+    }
   }
 
   async deleteCategory(id: string) {
