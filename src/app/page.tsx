@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle2,
   Circle,
@@ -293,40 +293,54 @@ export default function HomePage() {
             <div className="lg:col-span-8">
               <AnimatePresence mode="wait">
                 {viewMode === 'grid' ? (
-                  <TaskBentoGrid
+                  <motion.div
                     key="grid"
-                    tasks={filteredTasks}
-                    categories={categories}
-                    onEdit={(task) => {
-                      setEditingTask(task);
-                      setShowTaskForm(true);
-                    }}
-                    onDelete={(id) => {
-                      void deleteTask(id);
-                    }}
-                    onToggle={(id, completed) => {
-                      void toggleTask(id, completed);
-                    }}
-                    onReorder={(reorderedTasks) => {
-                      void reorderTasks(reorderedTasks);
-                    }}
-                  />
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -16 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                  >
+                    <TaskBentoGrid
+                      tasks={filteredTasks}
+                      categories={categories}
+                      onEdit={(task) => {
+                        setEditingTask(task);
+                        setShowTaskForm(true);
+                      }}
+                      onDelete={(id) => {
+                        void deleteTask(id);
+                      }}
+                      onToggle={(id, completed) => {
+                        void toggleTask(id, completed);
+                      }}
+                      onReorder={(reorderedTasks) => {
+                        void reorderTasks(reorderedTasks);
+                      }}
+                    />
+                  </motion.div>
                 ) : (
-                  <TaskListView
+                  <motion.div
                     key="list"
-                    tasks={filteredTasks}
-                    categories={categories}
-                    onEdit={(task) => {
-                      setEditingTask(task);
-                      setShowTaskForm(true);
-                    }}
-                    onDelete={(id) => {
-                      void deleteTask(id);
-                    }}
-                    onToggle={(id, completed) => {
-                      void toggleTask(id, completed);
-                    }}
-                  />
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -16 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                  >
+                    <TaskListView
+                      tasks={filteredTasks}
+                      categories={categories}
+                      onEdit={(task) => {
+                        setEditingTask(task);
+                        setShowTaskForm(true);
+                      }}
+                      onDelete={(id) => {
+                        void deleteTask(id);
+                      }}
+                      onToggle={(id, completed) => {
+                        void toggleTask(id, completed);
+                      }}
+                    />
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
