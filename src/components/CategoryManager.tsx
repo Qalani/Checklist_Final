@@ -3,14 +3,13 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tag, Plus, X, Edit2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import type { Category } from '@/types';
 
 interface CategoryManagerProps {
   categories: Category[];
-  onUpdate: () => void | Promise<void>;
-  onCategoryCreated: (category: Category) => void | Promise<void>;
-  userId: string;
+  onCreateCategory: (input: { name: string; color: string }) => Promise<Category>;
+  onUpdateCategory: (id: string, input: { name: string; color: string }) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
 }
 
 const PRESET_COLORS = [
@@ -19,11 +18,24 @@ const PRESET_COLORS = [
   '#f59e0b', '#10b981', '#06b6d4', '#6b7280'
 ];
 
+function extractMessage(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+  return fallback;
+}
+
 export default function CategoryManager({
   categories,
-  onUpdate,
-  onCategoryCreated,
-  userId,
+  onCreateCategory,
+  onUpdateCategory,
+  onDeleteCategory,
 }: CategoryManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -50,75 +62,43 @@ export default function CategoryManager({
     setError(null);
 
     try {
-      const { data: sessionResult } = await supabase.auth.getSession();
-
-      if (!sessionResult.session) {
-        setError('You must be signed in to add categories.');
-        return;
-      }
-
-      const response = await fetch('/api/categories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionResult.session.access_token}`,
-        },
-        body: JSON.stringify({
-          name: trimmedName,
-          color: newColor,
-        }),
+      await onCreateCategory({
+        name: trimmedName,
+        color: newColor,
       });
 
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const message = typeof payload?.error === 'string'
-          ? payload.error
-          : 'Unable to save category. Please try again.';
-        setError(message);
-        return;
-      }
-
-      const savedCategory = (payload && typeof payload === 'object'
-        ? (payload as { category?: Category }).category
-        : undefined);
-
-      if (!savedCategory) {
-        setError('Unable to save category. Please try again.');
-        return;
-      }
-
-      await Promise.resolve(onCategoryCreated(savedCategory));
       setNewName('');
       setNewColor(PRESET_COLORS[0]);
       setIsAdding(false);
-      await Promise.resolve(onUpdate());
+      setError(null);
     } catch (insertError) {
       console.error('Error inserting category', insertError);
-      setError('Unable to save category. Please try again.');
+      setError(extractMessage(insertError, 'Unable to save category. Please try again.'));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleUpdate = async (id: string, name: string, color: string) => {
-    await supabase
-      .from('categories')
-      .update({ name, color })
-      .eq('id', id)
-      .eq('user_id', userId);
-    setEditingId(null);
-    onUpdate();
+    try {
+      await onUpdateCategory(id, { name, color });
+      setEditingId(null);
+      setError(null);
+    } catch (updateError) {
+      console.error('Error updating category', updateError);
+      setError(extractMessage(updateError, 'Unable to update category. Please try again.'));
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this category? Tasks will keep this label.')) {
-      await supabase
-        .from('categories')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', userId);
-      onUpdate();
+      try {
+        await onDeleteCategory(id);
+        setError(null);
+      } catch (deleteError) {
+        console.error('Error deleting category', deleteError);
+        setError(extractMessage(deleteError, 'Unable to delete category. Please try again.'));
+      }
     }
   };
 

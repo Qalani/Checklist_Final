@@ -4,13 +4,11 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, Save, PlusCircle } from 'lucide-react';
 import type { Task, Category } from '@/types';
-import { supabase } from '@/lib/supabase';
 
 interface TaskFormProps {
   task: Task | null;
   categories: Category[];
-  userId: string;
-  onCategoryCreated: (category: Category) => Promise<void> | void;
+  onCreateCategory: (input: { name: string; color: string }) => Promise<Category>;
   onClose: () => void;
   onSave: (task: Partial<Task>) => Promise<{ error?: string } | void>;
 }
@@ -30,11 +28,23 @@ const PRESET_COLORS = [
   '#6b7280',
 ];
 
+function extractMessage(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+  return fallback;
+}
+
 export default function TaskForm({
   task,
   categories,
-  userId,
-  onCategoryCreated,
+  onCreateCategory,
   onClose,
   onSave,
 }: TaskFormProps) {
@@ -102,56 +112,20 @@ export default function TaskForm({
     setCategoryError(null);
 
     try {
-      const { data: sessionResult } = await supabase.auth.getSession();
-
-      if (!sessionResult.session) {
-        setCategoryError('You must be signed in to add categories.');
-        return;
-      }
-
-      const response = await fetch('/api/categories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionResult.session.access_token}`,
-        },
-        body: JSON.stringify({
-          name: trimmedName,
-          color: newCategoryColor,
-        }),
+      const savedCategory = await onCreateCategory({
+        name: trimmedName,
+        color: newCategoryColor,
       });
-
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const rawError =
-          typeof (payload as { error?: unknown })?.error === 'string'
-            ? (payload as { error?: string }).error
-            : null;
-        const message = rawError || 'Unable to save category. Please try again.';
-        setCategoryError(message);
-        return;
-      }
-
-      const savedCategory =
-        payload && typeof payload === 'object'
-          ? (payload as { category?: Category }).category
-          : undefined;
-
-      if (!savedCategory) {
-        setCategoryError('Unable to save category. Please try again.');
-        return;
-      }
 
       setCategory(savedCategory.name);
       setCategoryColor(savedCategory.color);
       setIsCreatingCategory(false);
       setNewCategoryName('');
       setNewCategoryColor(PRESET_COLORS[0]);
-      await Promise.resolve(onCategoryCreated(savedCategory));
+      setCategoryError(null);
     } catch (error) {
       console.error('Error creating category', error);
-      setCategoryError('Unable to save category. Please try again.');
+      setCategoryError(extractMessage(error, 'Unable to save category. Please try again.'));
     } finally {
       setIsSavingCategory(false);
     }

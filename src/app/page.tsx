@@ -24,48 +24,31 @@ import { supabase } from '@/lib/supabase';
 import type { Task, Category } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import AuthPanel from '@/components/AuthPanel';
+import { useChecklist } from '@/features/checklist/useChecklist';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const loadTasks = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('user_id', userId)
-      .order('order', { ascending: true });
-
-    if (error) {
-      console.error('Error loading tasks', error);
-      return;
-    }
-
-    if (data) setTasks(data);
-  }, []);
-
-  const loadCategories = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error loading categories', error);
-      return;
-    }
-
-    if (data) setCategories(data);
-  }, []);
+  const {
+    tasks,
+    categories,
+    status,
+    syncing,
+    error: syncError,
+    saveTask,
+    deleteTask,
+    toggleTask,
+    reorderTasks,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+  } = useChecklist(user?.id ?? null);
 
   useEffect(() => {
     let isMounted = true;
@@ -97,134 +80,49 @@ export default function HomePage() {
     };
   }, []);
 
+  const checklistError = syncError;
+
   useEffect(() => {
     if (!user) {
-      setTasks([]);
-      setCategories([]);
-      setIsLoading(false);
       setShowTaskForm(false);
       setEditingTask(null);
-      return;
+      setFilterPriority(null);
+      setFilterCategory(null);
     }
-
-    let isActive = true;
-
-    const loadData = async () => {
-      try {
-        await Promise.all([loadTasks(user.id), loadCategories(user.id)]);
-      } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    setIsLoading(true);
-    loadData();
-
-    const intervalId = setInterval(() => {
-      loadData();
-    }, 5000);
-
-    return () => {
-      isActive = false;
-      clearInterval(intervalId);
-    };
-  }, [user, loadTasks, loadCategories]);
-
-  const userId = user?.id;
-
-  const handleCategoryCreated = useCallback(async (createdCategory: Category) => {
-    setCategories((prev) => {
-      const existingIndex = prev.findIndex((category) => category.id === createdCategory.id);
-      if (existingIndex !== -1) {
-        const updated = [...prev];
-        updated[existingIndex] = createdCategory;
-        return updated;
-      }
-      return [...prev, createdCategory];
-    });
-
-    if (!userId) {
-      return;
-    }
-
-    await loadCategories(userId);
-  }, [loadCategories, userId]);
+  }, [user]);
 
   const handleTaskSave = useCallback(
     async (taskData: Partial<Task>, existingTask?: Task | null): Promise<{ error?: string } | void> => {
-      if (!userId) {
-        return { error: 'You must be signed in to add tasks.' };
+      const result = await saveTask(taskData, existingTask ?? null);
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        return result;
       }
 
-      try {
-        if (existingTask) {
-          const { error } = await supabase
-            .from('tasks')
-            .update(taskData)
-            .eq('id', existingTask.id)
-            .eq('user_id', userId);
-
-          if (error) {
-            console.error('Error updating task', error);
-            return { error: error.message ?? 'Unable to save task. Please try again.' };
-          }
-        } else {
-          const { data: sessionResult } = await supabase.auth.getSession();
-
-          if (!sessionResult.session) {
-            return { error: 'You must be signed in to add tasks.' };
-          }
-
-          const nextOrder = tasks.reduce((max, current) => Math.max(max, current.order ?? 0), -1) + 1;
-
-          const response = await fetch('/api/tasks', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${sessionResult.session.access_token}`,
-            },
-            body: JSON.stringify({
-              ...taskData,
-              order: nextOrder,
-            }),
-          });
-
-          const payload = await response.json().catch(() => ({}));
-
-          if (!response.ok) {
-            const message =
-              typeof (payload as { error?: unknown })?.error === 'string'
-                ? (payload as { error?: string }).error
-                : 'Unable to save task. Please try again.';
-            return { error: message };
-          }
-
-          const savedTask =
-            payload && typeof payload === 'object'
-              ? (payload as { task?: Task }).task
-              : undefined;
-
-          if (!savedTask) {
-            return { error: 'Unable to save task. Please try again.' };
-          }
-
-          setTasks((prev) => {
-            const next = [...prev, savedTask];
-            return next.sort((a, b) => a.order - b.order);
-          });
-        }
-
-        await loadTasks(userId);
-        setShowTaskForm(false);
-        setEditingTask(null);
-      } catch (error) {
-        console.error('Error saving task', error);
-        return { error: 'Unable to save task. Please try again.' };
-      }
+      setShowTaskForm(false);
+      setEditingTask(null);
     },
-    [loadTasks, tasks, userId],
+    [saveTask],
+  );
+
+  const handleCategoryCreate = useCallback(
+    async (input: { name: string; color: string }) => {
+      return createCategory(input);
+    },
+    [createCategory],
+  );
+
+  const handleCategoryUpdate = useCallback(
+    async (id: string, input: { name: string; color: string }) => {
+      await updateCategory(id, input);
+    },
+    [updateCategory],
+  );
+
+  const handleCategoryDelete = useCallback(
+    async (id: string) => {
+      await deleteCategory(id);
+    },
+    [deleteCategory],
   );
 
   if (!authChecked) {
@@ -265,13 +163,13 @@ export default function HomePage() {
     );
   }
 
-  const activeUserId = userId!;
-
   const filteredTasks = tasks.filter(task => {
     if (filterPriority && task.priority !== filterPriority) return false;
     if (filterCategory && task.category !== filterCategory) return false;
     return true;
   });
+
+  const isLoading = status === 'loading';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
@@ -329,6 +227,12 @@ export default function HomePage() {
                 <div className="text-right">
                   <p className="text-sm font-medium text-zen-900">{user.email ?? 'Account'}</p>
                   <p className="text-xs text-zen-500">Signed in</p>
+                  {syncing && (
+                    <p className="mt-1 flex items-center justify-end gap-1 text-xs text-zen-400">
+                      <span className="h-2 w-2 rounded-full bg-sage-500 animate-pulse" />
+                      Syncing
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={async () => {
@@ -346,7 +250,7 @@ export default function HomePage() {
             <button
               onClick={() => setFilterPriority(null)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                !filterPriority 
+                !filterPriority
                   ? 'bg-sage-100 text-sage-700' 
                   : 'bg-zen-100 text-zen-600 hover:bg-zen-200'
               }`}
@@ -371,6 +275,11 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {checklistError && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {checklistError}
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
@@ -392,32 +301,14 @@ export default function HomePage() {
                       setEditingTask(task);
                       setShowTaskForm(true);
                     }}
-                    onDelete={async (id) => {
-                      await supabase
-                        .from('tasks')
-                        .delete()
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
+                    onDelete={(id) => {
+                      void deleteTask(id);
                     }}
-                    onToggle={async (id, completed) => {
-                      await supabase
-                        .from('tasks')
-                        .update({ completed })
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
+                    onToggle={(id, completed) => {
+                      void toggleTask(id, completed);
                     }}
-                    onReorder={async (reorderedTasks) => {
-                      setTasks(reorderedTasks);
-                      for (let i = 0; i < reorderedTasks.length; i++) {
-                        await supabase
-                            .from('tasks')
-                            .update({ order: i })
-                            .eq('id', reorderedTasks[i].id)
-                            .eq('user_id', activeUserId);
-                      }
-                      await loadTasks(activeUserId);
+                    onReorder={(reorderedTasks) => {
+                      void reorderTasks(reorderedTasks);
                     }}
                   />
                 ) : (
@@ -429,21 +320,11 @@ export default function HomePage() {
                       setEditingTask(task);
                       setShowTaskForm(true);
                     }}
-                    onDelete={async (id) => {
-                      await supabase
-                        .from('tasks')
-                        .delete()
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
+                    onDelete={(id) => {
+                      void deleteTask(id);
                     }}
-                    onToggle={async (id, completed) => {
-                      await supabase
-                        .from('tasks')
-                        .update({ completed })
-                        .eq('id', id)
-                        .eq('user_id', activeUserId);
-                      await loadTasks(activeUserId);
+                    onToggle={(id, completed) => {
+                      void toggleTask(id, completed);
                     }}
                   />
                 )}
@@ -454,9 +335,9 @@ export default function HomePage() {
               <ProgressDashboard tasks={tasks} categories={categories} />
               <CategoryManager
                 categories={categories}
-                onUpdate={() => loadCategories(activeUserId)}
-                onCategoryCreated={handleCategoryCreated}
-                userId={activeUserId}
+                onCreateCategory={handleCategoryCreate}
+                onUpdateCategory={handleCategoryUpdate}
+                onDeleteCategory={handleCategoryDelete}
               />
             </div>
           </div>
@@ -468,8 +349,7 @@ export default function HomePage() {
           <TaskForm
             task={editingTask}
             categories={categories}
-            userId={activeUserId}
-            onCategoryCreated={handleCategoryCreated}
+            onCreateCategory={handleCategoryCreate}
             onClose={() => {
               setShowTaskForm(false);
               setEditingTask(null);
