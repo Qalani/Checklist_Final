@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical, BellRing } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import { useState } from 'react';
 
@@ -15,6 +15,24 @@ interface TaskBentoGridProps {
   onDelete: (id: string) => void;
   onToggle: (id: string, completed: boolean) => void;
   onReorder: (tasks: Task[]) => void;
+}
+
+function formatReminder(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
+  }
+
+  if (minutes % 1440 === 0) {
+    const days = Math.round(minutes / 1440);
+    return `${days} day${days === 1 ? '' : 's'} before`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = Math.round(minutes / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'} before`;
+  }
+
+  return `${minutes} minutes before`;
 }
 
 function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
@@ -40,6 +58,41 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const dueDate = task.due_date ? new Date(task.due_date) : null;
+  let dueBadge: { text: string; tone: string } | null = null;
+
+  if (dueDate && !Number.isNaN(dueDate.getTime())) {
+    const diff = dueDate.getTime() - Date.now();
+    const formatted = dueDate.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+
+    if (!task.completed && diff < 0) {
+      dueBadge = {
+        text: `Overdue · ${formatted}`,
+        tone: 'bg-red-100 text-red-700',
+      };
+    } else if (!task.completed && diff <= 86_400_000) {
+      dueBadge = {
+        text: `Due soon · ${formatted}`,
+        tone: 'bg-warm-100 text-warm-700',
+      };
+    } else {
+      dueBadge = {
+        text: `${task.completed ? 'Was due' : 'Due'} · ${formatted}`,
+        tone: task.completed ? 'bg-zen-100 text-zen-500' : 'bg-zen-100 text-zen-600',
+      };
+    }
+  }
+
+  const reminderLabel =
+    typeof task.reminder_minutes_before === 'number' && !Number.isNaN(task.reminder_minutes_before)
+      ? formatReminder(task.reminder_minutes_before)
+      : null;
 
   const priorityColors = {
     low: 'text-zen-500 bg-zen-100',
@@ -134,11 +187,11 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
         {/* Footer */}
         <div className="flex items-center gap-2 flex-wrap">
           {category && (
-            <span 
+            <span
               className="px-2 py-1 rounded-lg text-xs font-medium"
-              style={{ 
+              style={{
                 backgroundColor: `${category.color}15`,
-                color: category.color
+                color: category.color,
               }}
             >
               {category.name}
@@ -154,6 +207,20 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
             <span className="px-2 py-1 rounded-lg text-xs text-zen-500 bg-zen-50 flex items-center gap-1 ml-auto">
               <Clock className="w-3 h-3" />
               {new Date(task.created_at).toLocaleDateString()}
+            </span>
+          )}
+
+          {dueBadge && (
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${dueBadge.tone}`}>
+              <Clock className="w-3 h-3" />
+              {dueBadge.text}
+            </span>
+          )}
+
+          {reminderLabel && (
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1">
+              <BellRing className="w-3 h-3" />
+              {reminderLabel}
             </span>
           )}
         </div>
