@@ -9,6 +9,7 @@ import type { Category } from '@/types';
 interface CategoryManagerProps {
   categories: Category[];
   onUpdate: () => void;
+  userId: string;
 }
 
 const PRESET_COLORS = [
@@ -17,7 +18,7 @@ const PRESET_COLORS = [
   '#f59e0b', '#10b981', '#06b6d4', '#6b7280'
 ];
 
-export default function CategoryManager({ categories, onUpdate }: CategoryManagerProps) {
+export default function CategoryManager({ categories, onUpdate, userId }: CategoryManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -29,6 +30,7 @@ export default function CategoryManager({ categories, onUpdate }: CategoryManage
     await supabase.from('categories').insert({
       name: newName.trim(),
       color: newColor,
+      user_id: userId,
     });
     
     setNewName('');
@@ -37,14 +39,22 @@ export default function CategoryManager({ categories, onUpdate }: CategoryManage
   };
 
   const handleUpdate = async (id: string, name: string, color: string) => {
-    await supabase.from('categories').update({ name, color }).eq('id', id);
+    await supabase
+      .from('categories')
+      .update({ name, color })
+      .eq('id', id)
+      .eq('user_id', userId);
     setEditingId(null);
     onUpdate();
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this category? Tasks will keep this label.')) {
-      await supabase.from('categories').delete().eq('id', id);
+      await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
       onUpdate();
     }
   };

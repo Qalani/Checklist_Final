@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  CheckCircle2, 
-  Circle, 
+import { useState, useEffect, useCallback } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import {
+  CheckCircle2,
+  Circle,
   Plus, 
   LayoutGrid, 
   List, 
@@ -22,8 +22,12 @@ import ProgressDashboard from '@/components/ProgressDashboard';
 import QuickStats from '@/components/QuickStats';
 import { supabase } from '@/lib/supabase';
 import type { Task, Category } from '@/types';
+import type { User } from '@supabase/supabase-js';
+import AuthPanel from '@/components/AuthPanel';
 
 export default function HomePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -33,52 +37,148 @@ export default function HomePage() {
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('user_id', userId)
       .order('order', { ascending: true });
-    
-    if (data) setTasks(data);
-  };
 
-  const loadCategories = async () => {
+    if (error) {
+      console.error('Error loading tasks', error);
+      return;
+    }
+
+    if (data) setTasks(data);
+  }, []);
+
+  const loadCategories = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
+      .eq('user_id', userId)
       .order('created_at', { ascending: true });
-    
+
+    if (error) {
+      console.error('Error loading categories', error);
+      return;
+    }
+
     if (data) setCategories(data);
-  };
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setUser(data.session?.user ?? null);
+        setAuthChecked(true);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        console.error('Error fetching auth session', error);
+        setAuthChecked(true);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
+      setUser(session?.user ?? null);
+      setAuthChecked(true);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setTasks([]);
+      setCategories([]);
+      setIsLoading(false);
+      setShowTaskForm(false);
+      setEditingTask(null);
+      return;
+    }
+
+    let isActive = true;
+
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([loadTasks(), loadCategories()]);
-      setIsLoading(false);
+      await Promise.all([loadTasks(user.id), loadCategories(user.id)]);
+      if (isActive) {
+        setIsLoading(false);
+      }
     };
 
     loadData();
-    
+
     const tasksSubscription = supabase
-      .channel('tasks')
+      .channel(`tasks-user-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        loadTasks();
+        loadTasks(user.id);
       })
       .subscribe();
 
     const categoriesSubscription = supabase
-      .channel('categories')
+      .channel(`categories-user-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        loadCategories();
+        loadCategories(user.id);
       })
       .subscribe();
 
     return () => {
+      isActive = false;
       tasksSubscription.unsubscribe();
       categoriesSubscription.unsubscribe();
     };
-  }, []);
+  }, [user, loadTasks, loadCategories]);
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex flex-col">
+        <header className="px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-7xl mx-auto flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
+              <p className="text-sm text-zen-600">Your mindful workspace</p>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-4 sm:px-6 lg:px-8 pb-12">
+          <div className="max-w-xl text-center lg:text-left space-y-4">
+            <h2 className="text-3xl font-semibold text-zen-900">
+              Stay organized with mindful task management
+            </h2>
+            <p className="text-zen-600 text-base">
+              Create an account or sign in to sync your tasks and categories securely across devices.
+            </p>
+          </div>
+          <AuthPanel />
+        </main>
+      </div>
+    );
+  }
+
+  const userId = user.id;
 
   const filteredTasks = tasks.filter(task => {
     if (filterPriority && task.priority !== filterPriority) return false;
@@ -101,13 +201,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap justify-end">
               <div className="flex items-center gap-1 p-1 bg-zen-100 rounded-xl">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded-lg transition-all ${
-                    viewMode === 'grid' 
-                      ? 'bg-white shadow-soft text-sage-600' 
+                    viewMode === 'grid'
+                      ? 'bg-white shadow-soft text-sage-600'
                       : 'text-zen-500 hover:text-zen-700'
                   }`}
                 >
@@ -135,6 +235,23 @@ export default function HomePage() {
                 <Plus className="w-4 h-4" />
                 New Task
               </button>
+
+              <div className="hidden xl:block h-8 w-px bg-zen-200" />
+
+              <div className="flex items-center gap-3 px-3 py-2 bg-white/70 border border-zen-200 rounded-2xl shadow-soft">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-zen-900">{user.email ?? 'Account'}</p>
+                  <p className="text-xs text-zen-500">Signed in</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-zen-100 hover:bg-zen-200 text-xs font-semibold text-zen-700 transition-colors"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
 
@@ -189,12 +306,20 @@ export default function HomePage() {
                       setShowTaskForm(true);
                     }}
                     onDelete={async (id) => {
-                      await supabase.from('tasks').delete().eq('id', id);
-                      loadTasks();
+                      await supabase
+                        .from('tasks')
+                        .delete()
+                        .eq('id', id)
+                        .eq('user_id', userId);
+                      await loadTasks(userId);
                     }}
                     onToggle={async (id, completed) => {
-                      await supabase.from('tasks').update({ completed }).eq('id', id);
-                      loadTasks();
+                      await supabase
+                        .from('tasks')
+                        .update({ completed })
+                        .eq('id', id)
+                        .eq('user_id', userId);
+                      await loadTasks(userId);
                     }}
                     onReorder={async (reorderedTasks) => {
                       setTasks(reorderedTasks);
@@ -202,8 +327,10 @@ export default function HomePage() {
                         await supabase
                           .from('tasks')
                           .update({ order: i })
-                          .eq('id', reorderedTasks[i].id);
+                          .eq('id', reorderedTasks[i].id)
+                          .eq('user_id', userId);
                       }
+                      await loadTasks(userId);
                     }}
                   />
                 ) : (
@@ -216,12 +343,20 @@ export default function HomePage() {
                       setShowTaskForm(true);
                     }}
                     onDelete={async (id) => {
-                      await supabase.from('tasks').delete().eq('id', id);
-                      loadTasks();
+                      await supabase
+                        .from('tasks')
+                        .delete()
+                        .eq('id', id)
+                        .eq('user_id', userId);
+                      await loadTasks(userId);
                     }}
                     onToggle={async (id, completed) => {
-                      await supabase.from('tasks').update({ completed }).eq('id', id);
-                      loadTasks();
+                      await supabase
+                        .from('tasks')
+                        .update({ completed })
+                        .eq('id', id)
+                        .eq('user_id', userId);
+                      await loadTasks(userId);
                     }}
                   />
                 )}
@@ -230,9 +365,10 @@ export default function HomePage() {
 
             <div className="lg:col-span-4 space-y-6">
               <ProgressDashboard tasks={tasks} categories={categories} />
-              <CategoryManager 
+              <CategoryManager
                 categories={categories}
-                onUpdate={loadCategories}
+                onUpdate={() => loadCategories(userId)}
+                userId={userId}
               />
             </div>
           </div>
@@ -250,14 +386,19 @@ export default function HomePage() {
             }}
             onSave={async (taskData) => {
               if (editingTask) {
-                await supabase.from('tasks').update(taskData).eq('id', editingTask.id);
+                await supabase
+                  .from('tasks')
+                  .update(taskData)
+                  .eq('id', editingTask.id)
+                  .eq('user_id', userId);
               } else {
                 await supabase.from('tasks').insert({
                   ...taskData,
                   order: tasks.length,
+                  user_id: userId,
                 });
               }
-              loadTasks();
+              await loadTasks(userId);
               setShowTaskForm(false);
               setEditingTask(null);
             }}
