@@ -30,14 +30,6 @@ const PRESET_COLORS = [
   '#6b7280',
 ];
 
-const generateLocalId = () => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `local-${Math.random().toString(36).slice(2, 12)}`;
-};
-
 export default function TaskForm({
   task,
   categories,
@@ -101,40 +93,49 @@ export default function TaskForm({
     setCategoryError(null);
 
     try {
-      const newCategory: Category = {
-        id: generateLocalId(),
-        name: trimmedName,
-        color: newCategoryColor,
-        user_id: userId,
-        created_at: new Date().toISOString(),
-      };
+      const { data: sessionResult } = await supabase.auth.getSession();
 
-      const { error } = await supabase
-        .from('categories')
-        .insert({
-          id: newCategory.id,
-          name: newCategory.name,
-          color: newCategory.color,
-          user_id: userId,
-        });
-
-      if (error) {
-        if ('code' in error && error.code === '23505') {
-          setCategoryError('A category with that name already exists.');
-        } else if ('message' in error && typeof error.message === 'string') {
-          setCategoryError(error.message);
-        } else {
-          setCategoryError('Unable to save category. Please try again.');
-        }
+      if (!sessionResult.session) {
+        setCategoryError('You must be signed in to add categories.');
         return;
       }
 
-      setCategory(newCategory.name);
-      setCategoryColor(newCategory.color);
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionResult.session.access_token}`,
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          color: newCategoryColor,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message = typeof payload.error === 'string'
+          ? payload.error
+          : 'Unable to save category. Please try again.';
+        setCategoryError(message);
+        return;
+      }
+
+      const payload = await response.json() as { category?: Category };
+
+      if (!payload.category) {
+        setCategoryError('Unable to save category. Please try again.');
+        return;
+      }
+
+      const savedCategory = payload.category;
+
+      setCategory(savedCategory.name);
+      setCategoryColor(savedCategory.color);
       setIsCreatingCategory(false);
       setNewCategoryName('');
       setNewCategoryColor(PRESET_COLORS[0]);
-      await Promise.resolve(onCategoryCreated(newCategory));
+      await Promise.resolve(onCategoryCreated(savedCategory));
     } catch (error) {
       console.error('Error creating category', error);
       setCategoryError('Unable to save category. Please try again.');
