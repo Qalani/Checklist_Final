@@ -57,45 +57,73 @@ npm run dev
 
 ## 🗄️ Supabase Setup
 
-1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Get your project URL and anon key from API settings
-3. Run these SQL commands in the Supabase SQL editor:
+The application uses Supabase for three core capabilities:
 
-### Tasks Table
-```sql
-CREATE TABLE tasks (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT,
-  completed BOOLEAN DEFAULT FALSE,
-  priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
-  category TEXT NOT NULL,
-  category_color TEXT NOT NULL,
-  "order" INTEGER NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  user_id UUID REFERENCES auth.users(id)
-);
-```
+1. **Email authentication** – handled via `supabase.auth` in [`src/components/AuthPanel.tsx`](src/components/AuthPanel.tsx), with sessions surfaced to the app shell in [`src/app/page.tsx`](src/app/page.tsx).
+2. **Row-level access control** – every task and category row is tied to the authenticated `user_id`, and RLS policies ensure people can only see their own data.
+3. **Realtime updates** – the home page subscribes to Supabase Realtime channels so that task and category changes made from other tabs/devices appear instantly.
 
-### Categories Table
-```sql
-CREATE TABLE categories (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  color TEXT NOT NULL,
-  user_id UUID REFERENCES auth.users(id),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+Follow the steps below to mirror the production-ready configuration locally:
 
-### Insert Default Categories
-```sql
-INSERT INTO categories (name, color) VALUES
-  ('Work', '#5a7a5a'),
-  ('Personal', '#7a957a'),
-  ('Shopping', '#a89478');
-```
+1. **Create a project** at [supabase.com](https://supabase.com) and copy the Project URL and anon key into `.env.local` (see [Getting Started](#-getting-started)). Make sure **Email** auth is enabled under _Authentication → Providers_.
+2. **Create the database tables** by running the SQL below in the Supabase SQL editor. This version enforces that every row belongs to a user.
+
+   ```sql
+   create table public.tasks (
+     id uuid default gen_random_uuid() primary key,
+     title text not null,
+     description text,
+     completed boolean default false,
+     priority text check (priority in ('low', 'medium', 'high')) default 'medium',
+     category text not null,
+     category_color text not null,
+     "order" integer not null,
+     created_at timestamptz default now(),
+     updated_at timestamptz default now(),
+     user_id uuid not null references auth.users(id)
+   );
+
+   create table public.categories (
+     id uuid default gen_random_uuid() primary key,
+     name text not null,
+     color text not null,
+     user_id uuid not null references auth.users(id),
+     created_at timestamptz default now()
+   );
+   ```
+
+3. **Enable Row Level Security (RLS)** for both tables and add policies that scope reads and writes to the authenticated user. Supabase provides a shortcut via the dashboard, or you can run the SQL below:
+
+   ```sql
+   alter table public.tasks enable row level security;
+   alter table public.categories enable row level security;
+
+   create policy "Individuals can manage their own tasks"
+     on public.tasks
+     using (auth.uid() = user_id)
+     with check (auth.uid() = user_id);
+
+   create policy "Individuals can manage their own categories"
+     on public.categories
+     using (auth.uid() = user_id)
+     with check (auth.uid() = user_id);
+   ```
+
+4. **Seed optional starter categories** that belong to a specific user by running:
+
+   ```sql
+   insert into public.categories (name, color, user_id)
+   values
+     ('Work', '#5a7a5a', auth.uid()),
+     ('Personal', '#7a957a', auth.uid()),
+     ('Wellness', '#c8d5b9', auth.uid());
+   ```
+
+   Execute this snippet while logged in via the Supabase SQL editor to stamp the rows with your user id, or replace `auth.uid()` with a concrete UUID from your `auth.users` table for automated migrations.
+
+5. **Confirm Realtime is enabled** for both tables under _Database → Replication → Realtime_. The UI should show that `INSERT`, `UPDATE`, and `DELETE` events are enabled – the app listens for these to refresh the UI without a manual reload.
+
+With those pieces in place the in-app experience will match production: users create accounts, sign in via the Auth panel, and see their personal tasks and categories synced across devices.
 
 ## 📦 Deployment
 
