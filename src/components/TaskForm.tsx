@@ -30,6 +30,14 @@ const PRESET_COLORS = [
   '#6b7280',
 ];
 
+const generateLocalId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `local-${Math.random().toString(36).slice(2, 12)}`;
+};
+
 export default function TaskForm({
   task,
   categories,
@@ -79,34 +87,54 @@ export default function TaskForm({
   };
 
   const handleCreateCategory = async () => {
-    if (!newCategoryName.trim() || isSavingCategory) return;
+    const trimmedName = newCategoryName.trim();
+    if (!trimmedName || isSavingCategory) {
+      return;
+    }
+
+    if (categories.some(existing => existing.name.toLowerCase() === trimmedName.toLowerCase())) {
+      setCategoryError('You already have a category with that name.');
+      return;
+    }
 
     setIsSavingCategory(true);
     setCategoryError(null);
 
     try {
-      const { data, error } = await supabase
+      const newCategory: Category = {
+        id: generateLocalId(),
+        name: trimmedName,
+        color: newCategoryColor,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
         .from('categories')
         .insert({
-          name: newCategoryName.trim(),
-          color: newCategoryColor,
+          id: newCategory.id,
+          name: newCategory.name,
+          color: newCategory.color,
           user_id: userId,
-        })
-        .select()
-        .single();
+        });
 
       if (error) {
-        throw error;
+        if ('code' in error && error.code === '23505') {
+          setCategoryError('A category with that name already exists.');
+        } else if ('message' in error && typeof error.message === 'string') {
+          setCategoryError(error.message);
+        } else {
+          setCategoryError('Unable to save category. Please try again.');
+        }
+        return;
       }
 
-      if (data) {
-        setCategory(data.name);
-        setCategoryColor(data.color);
-        setIsCreatingCategory(false);
-        setNewCategoryName('');
-        setNewCategoryColor(PRESET_COLORS[0]);
-        await Promise.resolve(onCategoryCreated(data));
-      }
+      setCategory(newCategory.name);
+      setCategoryColor(newCategory.color);
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+      setNewCategoryColor(PRESET_COLORS[0]);
+      await Promise.resolve(onCategoryCreated(newCategory));
     } catch (error) {
       console.error('Error creating category', error);
       setCategoryError('Unable to save category. Please try again.');
