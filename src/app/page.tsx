@@ -121,16 +121,24 @@ export default function HomePage() {
 
     const tasksSubscription = supabase
       .channel(`tasks-user-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        loadTasks(user.id);
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` },
+        () => {
+          loadTasks(user.id);
+        },
+      )
       .subscribe();
 
     const categoriesSubscription = supabase
       .channel(`categories-user-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        loadCategories(user.id);
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories', filter: `user_id=eq.${user.id}` },
+        () => {
+          loadCategories(user.id);
+        },
+      )
       .subscribe();
 
     return () => {
