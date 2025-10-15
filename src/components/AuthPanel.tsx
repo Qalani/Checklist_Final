@@ -9,6 +9,7 @@ export default function AuthPanel() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +51,34 @@ export default function AuthPanel() {
       setError('Unexpected error. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setError('Please enter your email to reset your password.');
+      setMessage(null);
+      return;
+    }
+
+    setIsResetting(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail);
+
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setMessage('If an account exists for this email, a reset link has been sent.');
+      }
+    } catch (_err) {
+      setError('Unexpected error. Please try again.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -97,6 +126,18 @@ export default function AuthPanel() {
             placeholder="••••••••"
             required
           />
+          {mode === 'sign_in' && (
+            <div className="mt-2 text-right">
+              <button
+                type="button"
+                onClick={handlePasswordReset}
+                className="text-sm font-medium text-sage-600 hover:text-sage-700 disabled:opacity-60"
+                disabled={isSubmitting || isResetting}
+              >
+                {isResetting ? 'Sending reset link...' : 'Forgot password?'}
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -114,7 +155,7 @@ export default function AuthPanel() {
         <button
           type="submit"
           className="w-full py-3 rounded-xl bg-sage-600 hover:bg-sage-700 text-white font-medium transition-colors disabled:opacity-60"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isResetting}
         >
           {isSubmitting
             ? 'Please wait...'
