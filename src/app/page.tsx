@@ -160,6 +160,81 @@ export default function HomePage() {
     await loadCategories(userId);
   }, [loadCategories, userId]);
 
+  const handleTaskSave = useCallback(
+    async (taskData: Partial<Task>, existingTask?: Task | null): Promise<{ error?: string } | void> => {
+      if (!userId) {
+        return { error: 'You must be signed in to add tasks.' };
+      }
+
+      try {
+        if (existingTask) {
+          const { error } = await supabase
+            .from('tasks')
+            .update(taskData)
+            .eq('id', existingTask.id)
+            .eq('user_id', userId);
+
+          if (error) {
+            console.error('Error updating task', error);
+            return { error: error.message ?? 'Unable to save task. Please try again.' };
+          }
+        } else {
+          const { data: sessionResult } = await supabase.auth.getSession();
+
+          if (!sessionResult.session) {
+            return { error: 'You must be signed in to add tasks.' };
+          }
+
+          const nextOrder = tasks.reduce((max, current) => Math.max(max, current.order ?? 0), -1) + 1;
+
+          const response = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${sessionResult.session.access_token}`,
+            },
+            body: JSON.stringify({
+              ...taskData,
+              order: nextOrder,
+            }),
+          });
+
+          const payload = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            const message =
+              typeof (payload as { error?: unknown })?.error === 'string'
+                ? (payload as { error?: string }).error
+                : 'Unable to save task. Please try again.';
+            return { error: message };
+          }
+
+          const savedTask =
+            payload && typeof payload === 'object'
+              ? (payload as { task?: Task }).task
+              : undefined;
+
+          if (!savedTask) {
+            return { error: 'Unable to save task. Please try again.' };
+          }
+
+          setTasks((prev) => {
+            const next = [...prev, savedTask];
+            return next.sort((a, b) => a.order - b.order);
+          });
+        }
+
+        await loadTasks(userId);
+        setShowTaskForm(false);
+        setEditingTask(null);
+      } catch (error) {
+        console.error('Error saving task', error);
+        return { error: 'Unable to save task. Please try again.' };
+      }
+    },
+    [loadTasks, tasks, userId],
+  );
+
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex items-center justify-center">
@@ -407,24 +482,7 @@ export default function HomePage() {
               setShowTaskForm(false);
               setEditingTask(null);
             }}
-            onSave={async (taskData) => {
-              if (editingTask) {
-                await supabase
-                  .from('tasks')
-                  .update(taskData)
-                  .eq('id', editingTask.id)
-                  .eq('user_id', activeUserId);
-              } else {
-                await supabase.from('tasks').insert({
-                  ...taskData,
-                  order: tasks.length,
-                  user_id: activeUserId,
-                });
-              }
-              await loadTasks(activeUserId);
-              setShowTaskForm(false);
-              setEditingTask(null);
-            }}
+            onSave={(taskData) => handleTaskSave(taskData, editingTask)}
           />
         )}
       </AnimatePresence>

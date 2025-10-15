@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, Save, PlusCircle } from 'lucide-react';
 import type { Task, Category } from '@/types';
@@ -12,7 +12,7 @@ interface TaskFormProps {
   userId: string;
   onCategoryCreated: (category: Category) => Promise<void> | void;
   onClose: () => void;
-  onSave: (task: Partial<Task>) => void;
+  onSave: (task: Partial<Task>) => Promise<{ error?: string } | void>;
 }
 
 const PRESET_COLORS = [
@@ -48,6 +48,15 @@ export default function TaskForm({
   const [newCategoryColor, setNewCategoryColor] = useState(PRESET_COLORS[0]);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const selectedCat = categories.find(c => c.name === category);
@@ -112,23 +121,26 @@ export default function TaskForm({
         }),
       });
 
+      const payload = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        const message = typeof payload.error === 'string'
-          ? payload.error
-          : 'Unable to save category. Please try again.';
+        const message =
+          typeof (payload as { error?: unknown })?.error === 'string'
+            ? (payload as { error?: string }).error
+            : 'Unable to save category. Please try again.';
         setCategoryError(message);
         return;
       }
 
-      const payload = await response.json() as { category?: Category };
+      const savedCategory =
+        payload && typeof payload === 'object'
+          ? (payload as { category?: Category }).category
+          : undefined;
 
-      if (!payload.category) {
+      if (!savedCategory) {
         setCategoryError('Unable to save category. Please try again.');
         return;
       }
-
-      const savedCategory = payload.category;
 
       setCategory(savedCategory.name);
       setCategoryColor(savedCategory.color);
@@ -144,19 +156,47 @@ export default function TaskForm({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     if (isCreatingCategory || !category) return;
 
-    onSave({
-      title: title.trim(),
-      description: description.trim(),
-      priority: priority,
-      category,
-      category_color: categoryColor,
-      completed: task?.completed || false,
-    });
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError(null);
+
+    try {
+      const result = await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        priority: priority,
+        category,
+        category_color: categoryColor,
+        completed: task?.completed || false,
+      });
+
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        if (!isMountedRef.current) {
+          return;
+        }
+        setFormError(result.error);
+        return;
+      }
+    } catch (error) {
+      console.error('Error saving task', error);
+      if (!isMountedRef.current) {
+        return;
+      }
+      setFormError('Unable to save task. Please try again.');
+      return;
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+    }
   };
 
   return (
@@ -306,6 +346,10 @@ export default function TaskForm({
             )}
           </div>
 
+          {formError && (
+            <p className="text-sm text-red-600 text-center">{formError}</p>
+          )}
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -316,10 +360,11 @@ export default function TaskForm({
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-sage-600 hover:bg-sage-700 shadow-medium hover:shadow-lift transition-all flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-sage-600 hover:bg-sage-700 shadow-medium hover:shadow-lift transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              Save Task
+              {isSubmitting ? 'Saving...' : 'Save Task'}
             </button>
           </div>
         </form>
