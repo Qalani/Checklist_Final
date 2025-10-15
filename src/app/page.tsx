@@ -22,7 +22,7 @@ import ProgressDashboard from '@/components/ProgressDashboard';
 import QuickStats from '@/components/QuickStats';
 import { supabase } from '@/lib/supabase';
 import type { Task, Category } from '@/types';
-import type { RealtimePostgresChangesPayload, User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import AuthPanel from '@/components/AuthPanel';
 
 export default function HomePage() {
@@ -67,78 +67,6 @@ export default function HomePage() {
     if (data) setCategories(data);
   }, []);
 
-  const handleRealtimeTaskChange = useCallback(
-    (payload: RealtimePostgresChangesPayload<Task>) => {
-      const { eventType } = payload;
-
-      setTasks((current) => {
-        switch (eventType) {
-          case 'INSERT':
-          case 'UPDATE': {
-            const nextTask = payload.new;
-            if (!nextTask || nextTask.user_id !== user?.id) {
-              return current;
-            }
-
-            const existingIndex = current.findIndex((task) => task.id === nextTask.id);
-            const updated =
-              existingIndex === -1
-                ? [...current, nextTask]
-                : current.map((task, index) => (index === existingIndex ? nextTask : task));
-            return [...updated].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-          }
-          case 'DELETE': {
-            const deletedTask = payload.old;
-            if (!deletedTask) {
-              return current;
-            }
-            return current.filter((task) => task.id !== deletedTask.id);
-          }
-          default:
-            return current;
-        }
-      });
-    },
-    [user?.id],
-  );
-
-  const handleRealtimeCategoryChange = useCallback(
-    (payload: RealtimePostgresChangesPayload<Category>) => {
-      const { eventType } = payload;
-
-      setCategories((current) => {
-        switch (eventType) {
-          case 'INSERT':
-          case 'UPDATE': {
-            const nextCategory = payload.new;
-            if (!nextCategory || nextCategory.user_id !== user?.id) {
-              return current;
-            }
-
-            const existingIndex = current.findIndex((category) => category.id === nextCategory.id);
-            if (existingIndex === -1) {
-              return [...current, nextCategory];
-            }
-
-            const updated = [...current];
-            updated[existingIndex] = nextCategory;
-            return updated;
-          }
-          case 'DELETE': {
-            const deletedCategory = payload.old;
-            if (!deletedCategory) {
-              return current;
-            }
-            return current.filter((category) => category.id !== deletedCategory.id);
-          }
-          default:
-            return current;
-        }
-      });
-    },
-    [user?.id],
-  );
-
   useEffect(() => {
     let isMounted = true;
 
@@ -182,39 +110,27 @@ export default function HomePage() {
     let isActive = true;
 
     const loadData = async () => {
-      setIsLoading(true);
-      await Promise.all([loadTasks(user.id), loadCategories(user.id)]);
-      if (isActive) {
-        setIsLoading(false);
+      try {
+        await Promise.all([loadTasks(user.id), loadCategories(user.id)]);
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
       }
     };
 
+    setIsLoading(true);
     loadData();
 
-    const tasksSubscription = supabase
-      .channel(`tasks-user-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` },
-        handleRealtimeTaskChange,
-      )
-      .subscribe();
-
-    const categoriesSubscription = supabase
-      .channel(`categories-user-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'categories', filter: `user_id=eq.${user.id}` },
-        handleRealtimeCategoryChange,
-      )
-      .subscribe();
+    const intervalId = setInterval(() => {
+      loadData();
+    }, 5000);
 
     return () => {
       isActive = false;
-      tasksSubscription.unsubscribe();
-      categoriesSubscription.unsubscribe();
+      clearInterval(intervalId);
     };
-  }, [user, loadTasks, loadCategories, handleRealtimeTaskChange, handleRealtimeCategoryChange]);
+  }, [user, loadTasks, loadCategories]);
 
   const userId = user?.id;
 
