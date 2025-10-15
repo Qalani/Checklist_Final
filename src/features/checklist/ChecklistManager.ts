@@ -1,5 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import type { Category, Task } from '@/types';
+import type {
+  PostgresChangesPayload,
+  RealtimeChannel,
+} from '@supabase/supabase-js';
 
 type ChecklistStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -85,7 +89,7 @@ export class ChecklistManager {
 
   private userId: string | null = null;
   private subscribers = new Set<Subscriber>();
-  private pollingTimer: ReturnType<typeof setInterval> | null = null;
+  private channel: RealtimeChannel | null = null;
   private refreshPromise: Promise<void> | null = null;
 
   subscribe(subscriber: Subscriber) {
@@ -101,7 +105,7 @@ export class ChecklistManager {
   }
 
   dispose() {
-    this.stopPolling();
+    this.unsubscribeFromRealtime();
     this.subscribers.clear();
   }
 
@@ -110,7 +114,7 @@ export class ChecklistManager {
       return;
     }
 
-    this.stopPolling();
+    this.unsubscribeFromRealtime();
 
     if (!userId) {
       this.userId = null;
@@ -134,7 +138,7 @@ export class ChecklistManager {
     });
 
     await this.refresh(true);
-    this.startPolling();
+    this.subscribeToRealtime(userId);
   }
 
   async refresh(force = false) {
@@ -484,20 +488,127 @@ export class ChecklistManager {
     }));
   }
 
-  private startPolling() {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-    }
+  private subscribeToRealtime(userId: string) {
+    this.unsubscribeFromRealtime();
 
-    this.pollingTimer = setInterval(() => {
-      void this.refresh();
-    }, 5000);
+    const channel = supabase
+      .channel(`checklist-sync-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
+        (payload: PostgresChangesPayload<Task>) => {
+          this.applyTaskChange(payload);
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'categories',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload: PostgresChangesPayload<Category>) => {
+          this.applyCategoryChange(payload);
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Supabase realtime channel error');
+        }
+
+        if (status === 'CLOSED') {
+          this.channel = null;
+        }
+      });
+
+    this.channel = channel;
   }
 
-  private stopPolling() {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
+  private unsubscribeFromRealtime() {
+    if (this.channel) {
+      void this.channel.unsubscribe();
+      this.channel = null;
+    }
+  }
+
+  private applyTaskChange(payload: PostgresChangesPayload<Task>) {
+    const { eventType, new: newTask, old: oldTask } = payload;
+
+    if (eventType === 'INSERT' && newTask) {
+      this.setSnapshot((prev) => {
+        const exists = prev.tasks.some((task) => task.id === newTask.id);
+        if (exists) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          tasks: [...prev.tasks, newTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          error: null,
+        };
+      });
+      return;
+    }
+
+    if (eventType === 'UPDATE' && newTask) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        tasks: prev.tasks
+          .map((task) => (task.id === newTask.id ? { ...task, ...newTask } : task))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        error: null,
+      }));
+      return;
+    }
+
+    if (eventType === 'DELETE' && oldTask) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        tasks: prev.tasks.filter((task) => task.id !== oldTask.id),
+        error: null,
+      }));
+    }
+  }
+
+  private applyCategoryChange(payload: PostgresChangesPayload<Category>) {
+    const { eventType, new: newCategory, old: oldCategory } = payload;
+
+    if (eventType === 'INSERT' && newCategory) {
+      this.setSnapshot((prev) => {
+        const exists = prev.categories.some((category) => category.id === newCategory.id);
+        if (exists) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          categories: sortCategories([...prev.categories, newCategory]),
+          error: null,
+        };
+      });
+      return;
+    }
+
+    if (eventType === 'UPDATE' && newCategory) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        categories: sortCategories(
+          prev.categories.map((category) =>
+            category.id === newCategory.id ? { ...category, ...newCategory } : category,
+          ),
+        ),
+        error: null,
+      }));
+      return;
+    }
+
+    if (eventType === 'DELETE' && oldCategory) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        categories: sortCategories(prev.categories.filter((category) => category.id !== oldCategory.id)),
+        error: null,
+      }));
     }
   }
 
