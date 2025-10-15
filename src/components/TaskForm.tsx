@@ -15,7 +15,7 @@ interface TaskFormProps {
 export default function TaskForm({ task, categories, onClose, onSave }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
-  const [priority, setPriority] = useState(task?.priority || 'medium');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(task?.priority || 'medium');
   const [category, setCategory] = useState(task?.category || categories[0]?.name || '');
   const [categoryColor, setCategoryColor] = useState(task?.category_color || categories[0]?.color || '#5a7a5a');
 
@@ -33,7 +33,7 @@ export default function TaskForm({ task, categories, onClose, onSave }: TaskForm
     onSave({
       title: title.trim(),
       description: description.trim(),
-      priority: priority as 'low' | 'medium' | 'high',
+      priority: priority,
       category,
       category_color: categoryColor,
       completed: task?.completed || false,
@@ -100,7 +100,7 @@ export default function TaskForm({ task, categories, onClose, onSave }: TaskForm
               Priority
             </label>
             <div className="grid grid-cols-3 gap-2">
-              {['low', 'medium', 'high'].map((p) => (
+              {(['low', 'medium', 'high'] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
