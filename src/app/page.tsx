@@ -30,6 +30,7 @@ export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
@@ -169,6 +170,10 @@ export default function HomePage() {
     return true;
   });
 
+  const activeTasks = filteredTasks.filter(task => !task.completed);
+  const completedTasks = filteredTasks.filter(task => task.completed);
+  const displayedTasks = taskTab === 'active' ? activeTasks : completedTasks;
+
   const isLoading = status === 'loading';
 
   return (
@@ -291,6 +296,30 @@ export default function HomePage() {
             </div>
 
             <div className="lg:col-span-8">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div className="flex items-center gap-1 p-1 bg-white/70 border border-zen-200 rounded-xl shadow-soft">
+                  {[
+                    { key: 'active' as const, label: `Active (${activeTasks.length})` },
+                    { key: 'completed' as const, label: `Completed (${completedTasks.length})` },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setTaskTab(tab.key)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                        taskTab === tab.key
+                          ? 'bg-sage-100 text-sage-700 shadow-soft'
+                          : 'text-zen-600 hover:bg-zen-100'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-zen-500">
+                  <span className="hidden sm:inline">Drag and drop to reorder tasks</span>
+                  <span className="sm:hidden">Drag to reorder</span>
+                </div>
+              </div>
               <AnimatePresence mode="wait">
                 {viewMode === 'grid' ? (
                   <motion.div
@@ -301,7 +330,7 @@ export default function HomePage() {
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                   >
                     <TaskBentoGrid
-                      tasks={filteredTasks}
+                      tasks={displayedTasks}
                       categories={categories}
                       onEdit={(task) => {
                         setEditingTask(task);
@@ -327,7 +356,7 @@ export default function HomePage() {
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                   >
                     <TaskListView
-                      tasks={filteredTasks}
+                      tasks={displayedTasks}
                       categories={categories}
                       onEdit={(task) => {
                         setEditingTask(task);
@@ -338,6 +367,9 @@ export default function HomePage() {
                       }}
                       onToggle={(id, completed) => {
                         void toggleTask(id, completed);
+                      }}
+                      onReorder={(reorderedTasks) => {
+                        void reorderTasks(reorderedTasks);
                       }}
                     />
                   </motion.div>
