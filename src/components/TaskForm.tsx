@@ -124,10 +124,11 @@ export default function TaskForm({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        const message =
+        const rawError =
           typeof (payload as { error?: unknown })?.error === 'string'
             ? (payload as { error?: string }).error
-            : 'Unable to save category. Please try again.';
+            : null;
+        const message = rawError || 'Unable to save category. Please try again.';
         setCategoryError(message);
         return;
       }
