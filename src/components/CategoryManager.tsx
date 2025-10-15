@@ -8,7 +8,8 @@ import type { Category } from '@/types';
 
 interface CategoryManagerProps {
   categories: Category[];
-  onUpdate: () => void;
+  onUpdate: () => void | Promise<void>;
+  onCategoryCreated: (category: Category) => void | Promise<void>;
   userId: string;
 }
 
@@ -18,7 +19,12 @@ const PRESET_COLORS = [
   '#f59e0b', '#10b981', '#06b6d4', '#6b7280'
 ];
 
-export default function CategoryManager({ categories, onUpdate, userId }: CategoryManagerProps) {
+export default function CategoryManager({
+  categories,
+  onUpdate,
+  onCategoryCreated,
+  userId,
+}: CategoryManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -63,19 +69,30 @@ export default function CategoryManager({ categories, onUpdate, userId }: Catego
         }),
       });
 
+      const payload = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        const message = typeof payload.error === 'string'
+        const message = typeof payload?.error === 'string'
           ? payload.error
           : 'Unable to save category. Please try again.';
         setError(message);
         return;
       }
 
+      const savedCategory = (payload && typeof payload === 'object'
+        ? (payload as { category?: Category }).category
+        : undefined);
+
+      if (!savedCategory) {
+        setError('Unable to save category. Please try again.');
+        return;
+      }
+
+      await Promise.resolve(onCategoryCreated(savedCategory));
       setNewName('');
       setNewColor(PRESET_COLORS[0]);
       setIsAdding(false);
-      onUpdate();
+      await Promise.resolve(onUpdate());
     } catch (insertError) {
       console.error('Error inserting category', insertError);
       setError('Unable to save category. Please try again.');

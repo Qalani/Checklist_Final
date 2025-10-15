@@ -140,6 +140,26 @@ export default function HomePage() {
     };
   }, [user, loadTasks, loadCategories]);
 
+  const userId = user?.id;
+
+  const handleCategoryCreated = useCallback(async (createdCategory: Category) => {
+    setCategories((prev) => {
+      const existingIndex = prev.findIndex((category) => category.id === createdCategory.id);
+      if (existingIndex !== -1) {
+        const updated = [...prev];
+        updated[existingIndex] = createdCategory;
+        return updated;
+      }
+      return [...prev, createdCategory];
+    });
+
+    if (!userId) {
+      return;
+    }
+
+    await loadCategories(userId);
+  }, [loadCategories, userId]);
+
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex items-center justify-center">
@@ -178,7 +198,7 @@ export default function HomePage() {
     );
   }
 
-  const userId = user.id;
+  const activeUserId = userId!;
 
   const filteredTasks = tasks.filter(task => {
     if (filterPriority && task.priority !== filterPriority) return false;
@@ -310,27 +330,27 @@ export default function HomePage() {
                         .from('tasks')
                         .delete()
                         .eq('id', id)
-                        .eq('user_id', userId);
-                      await loadTasks(userId);
+                        .eq('user_id', activeUserId);
+                      await loadTasks(activeUserId);
                     }}
                     onToggle={async (id, completed) => {
                       await supabase
                         .from('tasks')
                         .update({ completed })
                         .eq('id', id)
-                        .eq('user_id', userId);
-                      await loadTasks(userId);
+                        .eq('user_id', activeUserId);
+                      await loadTasks(activeUserId);
                     }}
                     onReorder={async (reorderedTasks) => {
                       setTasks(reorderedTasks);
                       for (let i = 0; i < reorderedTasks.length; i++) {
                         await supabase
-                          .from('tasks')
-                          .update({ order: i })
-                          .eq('id', reorderedTasks[i].id)
-                          .eq('user_id', userId);
+                            .from('tasks')
+                            .update({ order: i })
+                            .eq('id', reorderedTasks[i].id)
+                            .eq('user_id', activeUserId);
                       }
-                      await loadTasks(userId);
+                      await loadTasks(activeUserId);
                     }}
                   />
                 ) : (
@@ -347,16 +367,16 @@ export default function HomePage() {
                         .from('tasks')
                         .delete()
                         .eq('id', id)
-                        .eq('user_id', userId);
-                      await loadTasks(userId);
+                        .eq('user_id', activeUserId);
+                      await loadTasks(activeUserId);
                     }}
                     onToggle={async (id, completed) => {
                       await supabase
                         .from('tasks')
                         .update({ completed })
                         .eq('id', id)
-                        .eq('user_id', userId);
-                      await loadTasks(userId);
+                        .eq('user_id', activeUserId);
+                      await loadTasks(activeUserId);
                     }}
                   />
                 )}
@@ -367,8 +387,9 @@ export default function HomePage() {
               <ProgressDashboard tasks={tasks} categories={categories} />
               <CategoryManager
                 categories={categories}
-                onUpdate={() => loadCategories(userId)}
-                userId={userId}
+                onUpdate={() => loadCategories(activeUserId)}
+                onCategoryCreated={handleCategoryCreated}
+                userId={activeUserId}
               />
             </div>
           </div>
@@ -380,16 +401,8 @@ export default function HomePage() {
           <TaskForm
             task={editingTask}
             categories={categories}
-            userId={userId}
-            onCategoryCreated={async (createdCategory) => {
-              setCategories((prev) => {
-                if (prev.some((category) => category.id === createdCategory.id)) {
-                  return prev;
-                }
-                return [...prev, createdCategory];
-              });
-              await loadCategories(userId);
-            }}
+            userId={activeUserId}
+            onCategoryCreated={handleCategoryCreated}
             onClose={() => {
               setShowTaskForm(false);
               setEditingTask(null);
@@ -400,15 +413,15 @@ export default function HomePage() {
                   .from('tasks')
                   .update(taskData)
                   .eq('id', editingTask.id)
-                  .eq('user_id', userId);
+                  .eq('user_id', activeUserId);
               } else {
                 await supabase.from('tasks').insert({
                   ...taskData,
                   order: tasks.length,
-                  user_id: userId,
+                  user_id: activeUserId,
                 });
               }
-              await loadTasks(userId);
+              await loadTasks(activeUserId);
               setShowTaskForm(false);
               setEditingTask(null);
             }}
