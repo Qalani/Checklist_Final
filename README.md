@@ -127,7 +127,7 @@ Follow the steps below to mirror the production-ready configuration locally:
 
    Execute this snippet while logged in via the Supabase SQL editor to stamp the rows with your user id, or replace `auth.uid()` with a concrete UUID from your `auth.users` table for automated migrations.
 
-5. **Confirm Realtime is enabled** for both tables under _Database → Replication → Realtime_. The UI should show that `INSERT`, `UPDATE`, and `DELETE` events are enabled – the app listens for these to refresh the UI without a manual reload.
+5. **Confirm Realtime is enabled** for both tables from the _Database → Realtime_ section of the dashboard. Open each table and toggle on the `INSERT`, `UPDATE`, and `DELETE` events, then save. Those switches wire the tables into Supabase Realtime without needing access to the legacy Replication screen, and the app depends on them to receive push updates.
 
 With those pieces in place the in-app experience will match production: users create accounts, sign in via the Auth panel, and see their personal tasks and categories synced across devices.
 

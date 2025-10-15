@@ -89,7 +89,7 @@ export class ChecklistManager {
 
   private userId: string | null = null;
   private subscribers = new Set<Subscriber>();
-  private channel: RealtimeChannel | null = null;
+  private channels: RealtimeChannel[] = [];
   private refreshPromise: Promise<void> | null = null;
 
   subscribe(subscriber: Subscriber) {
@@ -491,45 +491,51 @@ export class ChecklistManager {
   private subscribeToRealtime(userId: string) {
     this.unsubscribeFromRealtime();
 
-    const channel = supabase
-      .channel(`checklist-sync-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
-        (payload: PostgresChangesPayload<Task>) => {
-          this.applyTaskChange(payload);
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'categories',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: PostgresChangesPayload<Category>) => {
-          this.applyCategoryChange(payload);
-        },
-      )
-      .subscribe((status) => {
+    const subscribeToTable = <T extends Task | Category>(
+      table: 'tasks' | 'categories',
+      handler: (payload: PostgresChangesPayload<T>) => void,
+    ) => {
+      const channel = supabase
+        .channel(`realtime:public:${table}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table, filter: `user_id=eq.${userId}` },
+          handler,
+        );
+
+      this.channels.push(channel);
+
+      channel.subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('Supabase realtime channel error');
+          console.error(`Supabase realtime channel error for ${table}`);
         }
 
         if (status === 'CLOSED') {
-          this.channel = null;
+          this.channels = this.channels.filter((existing) => existing !== channel);
         }
       });
+    };
 
-    this.channel = channel;
+    subscribeToTable<Task>('tasks', (payload) => {
+      this.applyTaskChange(payload);
+    });
+
+    subscribeToTable<Category>('categories', (payload) => {
+      this.applyCategoryChange(payload);
+    });
   }
 
   private unsubscribeFromRealtime() {
-    if (this.channel) {
-      void this.channel.unsubscribe();
-      this.channel = null;
+    if (!this.channels.length) {
+      return;
     }
+
+    const channels = this.channels;
+    this.channels = [];
+
+    channels.forEach((channel) => {
+      void channel.unsubscribe();
+    });
   }
 
   private applyTaskChange(payload: PostgresChangesPayload<Task>) {
