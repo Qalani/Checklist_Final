@@ -5,14 +5,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle2,
   Circle,
-  Plus, 
-  LayoutGrid, 
-  List, 
-  Filter,
-  TrendingUp,
-  Calendar,
+  Plus,
+  LayoutGrid,
+  List,
   Clock,
-  Sparkles
+  Sparkles,
+  Bell
 } from 'lucide-react';
 import TaskBentoGrid from '@/components/TaskBentoGrid';
 import TaskListView from '@/components/TaskListView';
@@ -35,6 +33,9 @@ export default function HomePage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | 'unsupported' | 'pending'
+  >('pending');
 
   const {
     tasks,
@@ -84,6 +85,26 @@ export default function HomePage() {
   const checklistError = syncError;
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    const NotificationAPI = window.Notification;
+
+    if (!NotificationAPI) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    setNotificationPermission(NotificationAPI.permission);
+  }, []);
+
+  useEffect(() => {
     if (!user) {
       setShowTaskForm(false);
       setEditingTask(null);
@@ -124,6 +145,66 @@ export default function HomePage() {
       await deleteCategory(id);
     },
     [deleteCategory],
+  );
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    const NotificationAPI = window.Notification;
+
+    if (!NotificationAPI) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    try {
+      const permission = await NotificationAPI.requestPermission();
+      setNotificationPermission(permission);
+    } catch (error) {
+      console.error('Failed to request notification permission', error);
+    }
+  }, []);
+
+  const showTaskCompletionNotification = useCallback(
+    (taskTitle: string) => {
+      if (notificationPermission !== 'granted' || typeof window === 'undefined' || !('Notification' in window)) {
+        return;
+      }
+
+      const NotificationAPI = window.Notification;
+
+      if (!NotificationAPI) {
+        return;
+      }
+
+      try {
+        const notification = new NotificationAPI('Task completed', {
+          body: `Nice work! "${taskTitle}" is done.`,
+        });
+
+        setTimeout(() => {
+          notification.close();
+        }, 5000);
+      } catch (error) {
+        console.error('Unable to display notification', error);
+      }
+    },
+    [notificationPermission],
+  );
+
+  const handleToggleTask = useCallback(
+    async (id: string, completed: boolean) => {
+      const task = tasks.find(currentTask => currentTask.id === id);
+      await toggleTask(id, completed);
+
+      if (completed && task) {
+        showTaskCompletionNotification(task.title);
+      }
+    },
+    [showTaskCompletionNotification, tasks, toggleTask],
   );
 
   if (!authChecked) {
@@ -225,6 +306,31 @@ export default function HomePage() {
                 <Plus className="w-4 h-4" />
                 New Task
               </button>
+
+              {notificationPermission === 'default' && (
+                <button
+                  onClick={() => {
+                    void requestNotificationPermission();
+                  }}
+                  className="px-3 py-2 rounded-xl bg-white/80 border border-zen-200 text-sm font-medium text-zen-600 hover:bg-sage-50 hover:border-sage-200 transition-all flex items-center gap-2"
+                >
+                  <Bell className="w-4 h-4" />
+                  Enable notifications
+                </button>
+              )}
+
+              {notificationPermission === 'denied' && (
+                <div className="px-3 py-2 rounded-xl bg-white/50 border border-zen-200 text-xs text-zen-500">
+                  Notifications disabled in browser settings
+                </div>
+              )}
+
+              {notificationPermission === 'granted' && (
+                <div className="px-3 py-2 rounded-xl bg-white/70 border border-sage-200 text-sm text-sage-700 flex items-center gap-2">
+                  <Bell className="w-4 h-4" />
+                  Notifications on
+                </div>
+              )}
 
               <div className="hidden xl:block h-8 w-px bg-zen-200" />
 
@@ -340,7 +446,7 @@ export default function HomePage() {
                         void deleteTask(id);
                       }}
                       onToggle={(id, completed) => {
-                        void toggleTask(id, completed);
+                        void handleToggleTask(id, completed);
                       }}
                       onReorder={(reorderedTasks) => {
                         void reorderTasks(reorderedTasks);
@@ -366,7 +472,7 @@ export default function HomePage() {
                         void deleteTask(id);
                       }}
                       onToggle={(id, completed) => {
-                        void toggleTask(id, completed);
+                        void handleToggleTask(id, completed);
                       }}
                       onReorder={(reorderedTasks) => {
                         void reorderTasks(reorderedTasks);
