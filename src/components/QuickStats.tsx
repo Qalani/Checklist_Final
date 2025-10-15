@@ -69,7 +69,7 @@ export default function QuickStats({ tasks, categories }: QuickStatsProps) {
         >
           <div className="flex items-start justify-between mb-4">
             <div 
-              className={\`w-12 h-12 rounded-xl bg-gradient-to-br \${colorClasses[stat.color as keyof typeof colorClasses]} flex items-center justify-center shadow-medium\`}
+              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorClasses[stat.color as keyof typeof colorClasses]} flex items-center justify-center shadow-medium`}
             >
               <stat.icon className="w-6 h-6 text-white" />
             </div>
