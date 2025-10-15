@@ -1,23 +1,91 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { X, Save } from 'lucide-react';
+import { X, Save, PlusCircle } from 'lucide-react';
 import type { Task, Category } from '@/types';
 
 interface TaskFormProps {
   task: Task | null;
   categories: Category[];
+  onCreateCategory: (input: { name: string; color: string }) => Promise<Category>;
   onClose: () => void;
-  onSave: (task: Partial<Task>) => void;
+  onSave: (task: Partial<Task>) => Promise<{ error?: string } | void>;
 }
 
-export default function TaskForm({ task, categories, onClose, onSave }: TaskFormProps) {
+const PRESET_COLORS = [
+  '#5a7a5a',
+  '#7a957a',
+  '#a89478',
+  '#8b7961',
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#f43f5e',
+  '#f59e0b',
+  '#10b981',
+  '#06b6d4',
+  '#6b7280',
+];
+
+function extractMessage(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+  return fallback;
+}
+
+export default function TaskForm({
+  task,
+  categories,
+  onCreateCategory,
+  onClose,
+  onSave,
+}: TaskFormProps) {
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(task?.priority || 'medium');
   const [category, setCategory] = useState(task?.category || categories[0]?.name || '');
   const [categoryColor, setCategoryColor] = useState(task?.category_color || categories[0]?.color || '#5a7a5a');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(categories.length === 0);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState(PRESET_COLORS[0]);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dueDate, setDueDate] = useState(() => {
+    if (!task?.due_date) {
+      return '';
+    }
+
+    const date = new Date(task.due_date);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const offsetMinutes = date.getTimezoneOffset();
+    const local = new Date(date.getTime() - offsetMinutes * 60_000);
+    return local.toISOString().slice(0, 16);
+  });
+  const [reminderMinutes, setReminderMinutes] = useState(
+    task?.reminder_minutes_before != null && !Number.isNaN(task.reminder_minutes_before)
+      ? String(task.reminder_minutes_before)
+      : '',
+  );
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const selectedCat = categories.find(c => c.name === category);
@@ -26,18 +94,128 @@ export default function TaskForm({ task, categories, onClose, onSave }: TaskForm
     }
   }, [category, categories]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!task && !isCreatingCategory && !category && categories[0]) {
+      setCategory(categories[0].name);
+      setCategoryColor(categories[0].color);
+    }
+  }, [categories, category, isCreatingCategory, task]);
+
+  useEffect(() => {
+    if (!dueDate && reminderMinutes) {
+      setReminderMinutes('');
+    }
+  }, [dueDate, reminderMinutes]);
+
+  const handleCategorySelection = (value: string) => {
+    if (value === '__create__') {
+      setIsCreatingCategory(true);
+      setCategory('');
+      setNewCategoryName('');
+      setNewCategoryColor(PRESET_COLORS[0]);
+      setCategoryError(null);
+      return;
+    }
+
+    setIsCreatingCategory(false);
+    setCategory(value);
+    setCategoryError(null);
+  };
+
+  const handleCreateCategory = async () => {
+    const trimmedName = newCategoryName.trim();
+    if (!trimmedName || isSavingCategory) {
+      return;
+    }
+
+    if (categories.some(existing => existing.name.toLowerCase() === trimmedName.toLowerCase())) {
+      setCategoryError('You already have a category with that name.');
+      return;
+    }
+
+    setIsSavingCategory(true);
+    setCategoryError(null);
+
+    try {
+      const savedCategory = await onCreateCategory({
+        name: trimmedName,
+        color: newCategoryColor,
+      });
+
+      setCategory(savedCategory.name);
+      setCategoryColor(savedCategory.color);
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+      setNewCategoryColor(PRESET_COLORS[0]);
+      setCategoryError(null);
+    } catch (error) {
+      console.error('Error creating category', error);
+      setCategoryError(extractMessage(error, 'Unable to save category. Please try again.'));
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (isCreatingCategory || !category) return;
 
-    onSave({
-      title: title.trim(),
-      description: description.trim(),
-      priority: priority,
-      category,
-      category_color: categoryColor,
-      completed: task?.completed || false,
-    });
+    if (isSubmitting) {
+      return;
+    }
+
+    setFormError(null);
+
+    if (reminderMinutes && !dueDate) {
+      setFormError('Add a due date before setting a reminder.');
+      return;
+    }
+
+    let dueDateISO: string | null = null;
+    if (dueDate) {
+      const parsed = new Date(dueDate);
+      if (Number.isNaN(parsed.getTime())) {
+        setFormError('Please select a valid due date.');
+        return;
+      }
+
+      dueDateISO = parsed.toISOString();
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        priority: priority,
+        category,
+        category_color: categoryColor,
+        completed: task?.completed || false,
+        due_date: dueDateISO,
+        reminder_minutes_before: reminderMinutes ? Number(reminderMinutes) : null,
+      });
+
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        if (!isMountedRef.current) {
+          return;
+        }
+        setFormError(result.error);
+        return;
+      }
+    } catch (error) {
+      console.error('Error saving task', error);
+      if (!isMountedRef.current) {
+        return;
+      }
+      setFormError('Unable to save task. Please try again.');
+      return;
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+    }
   };
 
   return (
@@ -117,22 +295,127 @@ export default function TaskForm({ task, categories, onClose, onSave }: TaskForm
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zen-700 mb-2">
-              Category
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
-            >
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.name}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-zen-700 mb-2">
+                Due date (optional)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
+                />
+                {dueDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDueDate('');
+                      setReminderMinutes('');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-zen-100 text-sm font-medium text-zen-600 hover:bg-zen-200 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zen-700 mb-2">
+                Reminder
+              </label>
+              <select
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(e.target.value)}
+                disabled={!dueDate}
+                className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="">No reminder</option>
+                <option value="5">5 minutes before</option>
+                <option value="15">15 minutes before</option>
+                <option value="30">30 minutes before</option>
+                <option value="60">1 hour before</option>
+                <option value="120">2 hours before</option>
+                <option value="1440">1 day before</option>
+              </select>
+            </div>
           </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-zen-700 mb-2">
+                Category
+              </label>
+              <select
+                value={isCreatingCategory ? '__create__' : category}
+                onChange={(e) => handleCategorySelection(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))}
+                <option value="__create__">+ Create new category</option>
+              </select>
+            </div>
+
+            {isCreatingCategory && (
+              <div className="rounded-2xl border border-dashed border-sage-300 bg-sage-50/50 p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-sage-700 mb-1">
+                      New category name
+                    </label>
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="e.g. Wellness"
+                      className="w-full px-3 py-2 rounded-xl border-2 border-sage-200 focus:border-sage-500 focus:ring-0 outline-none text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-sage-700 mb-2">
+                    Color
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewCategoryColor(color)}
+                        className={`w-8 h-8 rounded-xl transition-all ${
+                          newCategoryColor === color ? 'ring-2 ring-offset-2 ring-sage-600' : ''
+                        }`}
+                        style={{ backgroundColor: color }}
+                        aria-label={`Select color ${color}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={isSavingCategory}
+                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sage-600 text-white text-sm font-medium hover:bg-sage-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  {isSavingCategory ? 'Creating...' : 'Create Category'}
+                </button>
+                {categoryError && (
+                  <p className="text-sm text-red-600 text-center">{categoryError}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {formError && (
+            <p className="text-sm text-red-600 text-center">{formError}</p>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button
@@ -144,10 +427,11 @@ export default function TaskForm({ task, categories, onClose, onSave }: TaskForm
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-sage-600 hover:bg-sage-700 shadow-medium hover:shadow-lift transition-all flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-sage-600 hover:bg-sage-700 shadow-medium hover:shadow-lift transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              Save Task
+              {isSubmitting ? 'Saving...' : 'Save Task'}
             </button>
           </div>
         </form>

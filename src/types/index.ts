@@ -10,6 +10,8 @@ export interface Task {
   created_at?: string;
   updated_at?: string;
   user_id?: string;
+  due_date?: string | null;
+  reminder_minutes_before?: number | null;
 }
 
 export interface Category {
