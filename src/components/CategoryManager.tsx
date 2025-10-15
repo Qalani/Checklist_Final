@@ -197,7 +197,7 @@ export default function CategoryManager({
               </span>
             )}
 
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => setEditingId(editingId === category.id ? null : category.id)}
                 className="p-1 rounded hover:bg-zen-200 transition-colors"
