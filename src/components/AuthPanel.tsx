@@ -79,6 +79,11 @@ export default function AuthPanel() {
             'Google rejected the redirect URI. Confirm that the Supabase callback and every domain in '
               + '`NEXT_PUBLIC_SITE_URL` are listed under Authorized redirect URIs in your Google credential.'
           );
+        } else if (normalized.includes('app_not_configured_for_user') || normalized.includes('access_denied')) {
+          setError(
+            'This Google app is still in Testing mode. Add your account under Test users or publish the consent screen before '
+              + 'sharing the sign-in link.'
+          );
         } else {
           setError(message);
         }
