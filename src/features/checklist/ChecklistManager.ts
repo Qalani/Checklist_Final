@@ -360,12 +360,25 @@ export class ChecklistManager {
       return;
     }
 
+    const reorderedTaskIds = new Set(reorderedTasks.map((task) => task.id));
+    const preservedOrders = this.snapshot.tasks
+      .filter((task) => reorderedTaskIds.has(task.id))
+      .sort((a, b) => a.order - b.order)
+      .map((task) => task.order);
+
+    const updatedReorderedTasks = reorderedTasks.map((task, index) => ({
+      ...task,
+      order: preservedOrders[index] ?? task.order,
+    }));
+    const updatedTasksById = new Map(
+      updatedReorderedTasks.map((task) => [task.id, task] as const),
+    );
+
     try {
-      for (let index = 0; index < reorderedTasks.length; index += 1) {
-        const task = reorderedTasks[index];
+      for (const task of updatedReorderedTasks) {
         const { error } = await supabase
           .from('tasks')
-          .update({ order: index })
+          .update({ order: task.order })
           .eq('id', task.id)
           .eq('user_id', this.userId as string);
 
@@ -376,7 +389,9 @@ export class ChecklistManager {
 
       this.setSnapshot((prev) => ({
         ...prev,
-        tasks: reorderedTasks.map((task, index) => ({ ...task, order: index })),
+        tasks: prev.tasks
+          .map((task) => updatedTasksById.get(task.id) ?? task)
+          .sort((a, b) => a.order - b.order),
         error: null,
       }));
     } catch (error) {
