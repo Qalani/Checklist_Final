@@ -173,6 +173,11 @@ export default function AuthPanel() {
           </svg>
           {isOAuthLoading ? 'Signing in...' : 'Continue with Google'}
         </button>
+        <p className="text-xs text-zen-500 text-center leading-relaxed">
+          While Google keeps the consent screen in Testing mode, project owners/editors and anyone who previously granted
+          consent can still sign in even if they are not listed under Test users. Revoke their access from Google Account
+          settings or move the consent screen to Production when you need to open the app to a wider audience.
+        </p>
       </div>
 
       <div className="relative my-6">
