@@ -80,8 +80,27 @@ export default function CategoryManager({
   };
 
   const handleUpdate = async (id: string, name: string, color: string) => {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      setError('Category name is required.');
+      setEditingId(id);
+      return;
+    }
+
+    const normalized = trimmedName.toLowerCase();
+    const hasDuplicate = categories.some((category) => (
+      category.id !== id && category.name.trim().toLowerCase() === normalized
+    ));
+
+    if (hasDuplicate) {
+      setError('You already have a category with that name.');
+      setEditingId(id);
+      return;
+    }
+
     try {
-      await onUpdateCategory(id, { name, color });
+      await onUpdateCategory(id, { name: trimmedName, color });
       setEditingId(null);
       setError(null);
     } catch (updateError) {
