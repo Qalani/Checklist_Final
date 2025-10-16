@@ -72,7 +72,16 @@ export default function AuthPanel() {
       });
 
       if (oauthError) {
-        setError(oauthError.message);
+        const message = oauthError.message ?? 'Google rejected the sign-in request.';
+        const normalized = message.toLowerCase();
+        if (normalized.includes('redirect_uri_mismatch')) {
+          setError(
+            'Google rejected the redirect URI. Confirm that the Supabase callback and every domain in '
+              + '`NEXT_PUBLIC_SITE_URL` are listed under Authorized redirect URIs in your Google credential.'
+          );
+        } else {
+          setError(message);
+        }
         setIsOAuthLoading(false);
       }
       // Supabase will redirect on success so we don't need to clear the loading state.

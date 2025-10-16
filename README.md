@@ -140,6 +140,7 @@ With those pieces in place the in-app experience will match production: users cr
 2. **Authorize the Supabase callback** – Add `https://<PROJECT_REF>.supabase.co/auth/v1/callback` (and `http://localhost:54321/auth/v1/callback` if you use the Supabase CLI) under **Authorized redirect URIs**.
 3. **Enable the provider in Supabase** – Paste the generated Client ID and secret into _Authentication → Providers → Google_ inside the Supabase dashboard.
 4. **Confirm URLs match** – Ensure the Supabase **Site URL**, your deployed domain(s), and `NEXT_PUBLIC_SITE_URL` all share the same origin. A mismatch between these values is the most common cause of Google’s `redirect_uri_mismatch` error.
+5. **Troubleshoot `redirect_uri_mismatch`** – If Google still blocks the flow, open your OAuth client and verify that both the Supabase callback (`https://<PROJECT_REF>.supabase.co/auth/v1/callback`) and every domain you pass via `NEXT_PUBLIC_SITE_URL` (e.g. `http://localhost:3000`, `https://your-production-domain.com`) appear under **Authorized redirect URIs**. Google must list each value exactly as Supabase sends it.
 
 ### Updating an existing project
 
