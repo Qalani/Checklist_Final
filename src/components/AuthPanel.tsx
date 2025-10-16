@@ -10,6 +10,7 @@ export default function AuthPanel() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +52,47 @@ export default function AuthPanel() {
       setError('Unexpected error. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setMessage(null);
+    setIsOAuthLoading(true);
+
+    const configuredRedirect =
+      typeof window === 'undefined'
+        ? process.env.NEXT_PUBLIC_SITE_URL?.trim()
+        : process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? window.location.origin;
+
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: configuredRedirect ? { redirectTo: configuredRedirect } : undefined,
+      });
+
+      if (oauthError) {
+        const message = oauthError.message ?? 'Google rejected the sign-in request.';
+        const normalized = message.toLowerCase();
+        if (normalized.includes('redirect_uri_mismatch')) {
+          setError(
+            'Google rejected the redirect URI. Confirm that the Supabase callback and every domain in '
+              + '`NEXT_PUBLIC_SITE_URL` are listed under Authorized redirect URIs in your Google credential.'
+          );
+        } else if (normalized.includes('app_not_configured_for_user') || normalized.includes('access_denied')) {
+          setError(
+            'This Google app is still in Testing mode. Add your account under Test users or publish the consent screen before '
+              + 'sharing the sign-in link.'
+          );
+        } else {
+          setError(message);
+        }
+        setIsOAuthLoading(false);
+      }
+      // Supabase will redirect on success so we don't need to clear the loading state.
+    } catch (_err) {
+      setError('Unexpected error. Please try again.');
+      setIsOAuthLoading(false);
     }
   };
 
@@ -99,6 +141,54 @@ export default function AuthPanel() {
         </p>
       </div>
 
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border-2 border-zen-200 hover:border-sage-500 text-zen-800 font-medium transition-colors disabled:opacity-60"
+          disabled={isSubmitting || isResetting || isOAuthLoading}
+        >
+          <svg
+            className="w-5 h-5"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            <path
+              d="M12 10.8v3.84h5.33c-.23 1.26-.93 2.33-1.97 3.05l3.18 2.47c1.85-1.71 2.92-4.23 2.92-7.2 0-.69-.06-1.35-.18-1.99H12Z"
+              fill="#4285F4"
+            />
+            <path
+              d="M6.54 14.32l-.86.65-2.54 1.98A9.96 9.96 0 0 0 12 21c2.7 0 4.96-.89 6.61-2.39l-3.18-2.47c-.87.6-1.98.97-3.43.97-2.64 0-4.88-1.78-5.68-4.16Z"
+              fill="#34A853"
+            />
+            <path
+              d="M3.14 7.98A9.96 9.96 0 0 0 2 12c0 1.52.36 2.95.99 4.21l3.55-2.74a5.88 5.88 0 0 1-.31-1.87c0-.65.11-1.27.3-1.86Z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M12 6.34c1.47 0 2.78.51 3.81 1.51l2.85-2.85C16.95 2.98 14.7 2 12 2 7.64 2 3.89 4.5 3.14 7.98l3.59 2.74C7.54 8.12 9.76 6.34 12 6.34Z"
+              fill="#EA4335"
+            />
+            <path d="M2 2h20v20H2Z" fill="none" />
+          </svg>
+          {isOAuthLoading ? 'Signing in...' : 'Continue with Google'}
+        </button>
+        <p className="text-xs text-zen-500 text-center leading-relaxed">
+          While Google keeps the consent screen in Testing mode, project owners/editors and anyone who previously granted
+          consent can still sign in even if they are not listed under Test users. Revoke their access from Google Account
+          settings or move the consent screen to Production when you need to open the app to a wider audience.
+        </p>
+      </div>
+
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-zen-200" />
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-4 bg-white/90 text-zen-500">or continue with email</span>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-zen-700 mb-2">
@@ -132,7 +222,7 @@ export default function AuthPanel() {
                 type="button"
                 onClick={handlePasswordReset}
                 className="text-sm font-medium text-sage-600 hover:text-sage-700 disabled:opacity-60"
-                disabled={isSubmitting || isResetting}
+                disabled={isSubmitting || isResetting || isOAuthLoading}
               >
                 {isResetting ? 'Sending reset link...' : 'Forgot password?'}
               </button>
@@ -155,7 +245,7 @@ export default function AuthPanel() {
         <button
           type="submit"
           className="w-full py-3 rounded-xl bg-sage-600 hover:bg-sage-700 text-white font-medium transition-colors disabled:opacity-60"
-          disabled={isSubmitting || isResetting}
+          disabled={isSubmitting || isResetting || isOAuthLoading}
         >
           {isSubmitting
             ? 'Please wait...'
