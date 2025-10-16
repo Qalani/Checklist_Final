@@ -41,12 +41,15 @@ npm install
 cp .env.local.example .env.local
 ```
 
-Edit `.env.local` with your Supabase credentials:
+Edit `.env.local` with your Supabase credentials and site URL:
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
+
+`NEXT_PUBLIC_SITE_URL` should match the origin you configured in both Supabase **Site URL** settings and Google’s **Authorized JavaScript origins** list (e.g. `https://your-production-domain.com`). Leaving it blank falls back to the current browser origin.
 
 4. Run the development server:
 ```bash
@@ -130,6 +133,13 @@ Follow the steps below to mirror the production-ready configuration locally:
 5. **Confirm Realtime is enabled** for both tables from the _Database → Realtime_ section of the dashboard. Open each table and toggle on the `INSERT`, `UPDATE`, and `DELETE` events, then save. Those switches wire the tables into Supabase Realtime without needing access to the legacy Replication screen, and the app depends on them to receive push updates.
 
 With those pieces in place the in-app experience will match production: users create accounts, sign in via the Auth panel, and see their personal tasks and categories synced across devices.
+
+### Google OAuth configuration
+
+1. **Prepare Google Cloud** – In <https://console.cloud.google.com>, configure the OAuth consent screen and add each UI origin (development + production) to **Authorized JavaScript origins** when creating a Web application credential.
+2. **Authorize the Supabase callback** – Add `https://<PROJECT_REF>.supabase.co/auth/v1/callback` (and `http://localhost:54321/auth/v1/callback` if you use the Supabase CLI) under **Authorized redirect URIs**.
+3. **Enable the provider in Supabase** – Paste the generated Client ID and secret into _Authentication → Providers → Google_ inside the Supabase dashboard.
+4. **Confirm URLs match** – Ensure the Supabase **Site URL**, your deployed domain(s), and `NEXT_PUBLIC_SITE_URL` all share the same origin. A mismatch between these values is the most common cause of Google’s `redirect_uri_mismatch` error.
 
 ### Updating an existing project
 

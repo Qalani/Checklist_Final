@@ -60,12 +60,15 @@ export default function AuthPanel() {
     setMessage(null);
     setIsOAuthLoading(true);
 
+    const configuredRedirect =
+      typeof window === 'undefined'
+        ? process.env.NEXT_PUBLIC_SITE_URL?.trim()
+        : process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? window.location.origin;
+
     try {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-        },
+        options: configuredRedirect ? { redirectTo: configuredRedirect } : undefined,
       });
 
       if (oauthError) {
