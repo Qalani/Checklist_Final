@@ -79,14 +79,36 @@ export default function CategoryManager({
     }
   };
 
-  const handleUpdate = async (id: string, name: string, color: string) => {
+  const handleUpdate = async (id: string, name: string, color: string): Promise<boolean> => {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      setError('Category name is required.');
+      setEditingId(id);
+      return false;
+    }
+
+    const normalized = trimmedName.toLowerCase();
+    const hasDuplicate = categories.some((category) => (
+      category.id !== id && category.name.trim().toLowerCase() === normalized
+    ));
+
+    if (hasDuplicate) {
+      setError('You already have a category with that name.');
+      setEditingId(id);
+      return false;
+    }
+
     try {
-      await onUpdateCategory(id, { name, color });
+      await onUpdateCategory(id, { name: trimmedName, color });
       setEditingId(null);
       setError(null);
+      return true;
     } catch (updateError) {
       console.error('Error updating category', updateError);
       setError(extractMessage(updateError, 'Unable to update category. Please try again.'));
+      setEditingId(id);
+      return false;
     }
   };
 
@@ -182,10 +204,25 @@ export default function CategoryManager({
               <input
                 type="text"
                 defaultValue={category.name}
-                onBlur={(e) => handleUpdate(category.id, e.target.value, category.color)}
+                onBlur={(e) => {
+                  const input = e.currentTarget;
+                  const value = input.value;
+                  handleUpdate(category.id, value, category.color).then((success) => {
+                    if (!success) {
+                      requestAnimationFrame(() => input.focus());
+                    }
+                  });
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    handleUpdate(category.id, e.currentTarget.value, category.color);
+                    e.preventDefault();
+                    const input = e.currentTarget;
+                    const value = input.value;
+                    handleUpdate(category.id, value, category.color).then((success) => {
+                      if (!success) {
+                        requestAnimationFrame(() => input.focus());
+                      }
+                    });
                   }
                 }}
                 className="flex-1 px-2 py-1 rounded border border-sage-300 outline-none text-sm"
