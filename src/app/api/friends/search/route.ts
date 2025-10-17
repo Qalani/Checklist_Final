@@ -26,10 +26,6 @@ function resolveDisplayName(profile: ProfileRecord | undefined): string | null {
   return null;
 }
 
-function escapeLikeTerm(input: string) {
-  return input.replace(/[%_]/g, (match) => `\\${match}`);
-}
-
 export async function GET(request: Request) {
   try {
     const { user } = await authenticateRequest(request);
@@ -45,17 +41,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: [] as FriendSearchResult[] });
     }
 
-    const normalized = escapeLikeTerm(query);
-    const likePattern = `%${normalized}%`;
-
     const [profilesResult, friendsResult, requestsResult, blockedResult, blockedByResult] = await Promise.all([
-      supabaseAdmin
-        .schema('auth')
-        .from('users')
-        .select('id, email, raw_user_meta_data')
-        .or(`email.ilike.${likePattern},raw_user_meta_data->>full_name.ilike.${likePattern}`)
-        .limit(20)
-        .returns<ProfileRecord[]>(),
+      supabaseAdmin.rpc('friends_search_auth_users', {
+        search_term: query,
+        limit_count: 20,
+      }),
       supabaseAdmin
         .from('friends')
         .select('friend_id')
@@ -80,7 +70,9 @@ export async function GET(request: Request) {
     if (blockedResult.error) throw blockedResult.error;
     if (blockedByResult.error) throw blockedByResult.error;
 
-    const profiles = (profilesResult.data ?? []).filter((profile) => profile.id !== user.id);
+    const profileRows = Array.isArray(profilesResult.data) ? profilesResult.data : [];
+
+    const profiles = profileRows.filter((profile) => profile.id !== user.id);
 
     const friendSet = new Set<string>((friendsResult.data ?? []).map((record) => record.friend_id as string));
 
