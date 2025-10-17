@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { LayoutGrid, List as ListIcon, Sparkles, CalendarClock, ArrowRight } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Sparkles, CalendarClock, ArrowRight, Users } from 'lucide-react';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import AuthPanel from '@/components/AuthPanel';
@@ -11,6 +11,7 @@ import QuickStats from '@/components/QuickStats';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useLists } from '@/features/lists/useLists';
+import { useFriends } from '@/features/friends/useFriends';
 
 function LoadingScreen() {
   return (
@@ -36,9 +37,16 @@ export default function HomePage() {
     status: listsStatus,
     syncing: listsSyncing,
   } = useLists(user?.id ?? null);
+  const {
+    friends,
+    incomingRequests,
+    status: friendsStatus,
+    syncing: friendsSyncing,
+  } = useFriends(user?.id ?? null);
 
   const isTasksLoading = checklistStatus === 'loading' || checklistSyncing;
   const isListsLoading = listsStatus === 'loading' || listsSyncing;
+  const isFriendsLoading = friendsStatus === 'loading' || friendsSyncing;
 
   const activeTasksCount = useMemo(() => tasks.filter(task => !task.completed).length, [tasks]);
   const completedTasksCount = useMemo(() => tasks.filter(task => task.completed).length, [tasks]);
@@ -129,6 +137,20 @@ export default function HomePage() {
         : lists.length > 0
           ? 'Tap to explore your collections'
           : 'Start your first list',
+    },
+    {
+      key: 'friends',
+      title: 'Friends',
+      description: 'Add people you trust and collaborate in real time.',
+      href: '/friends',
+      icon: Users,
+      primaryStat: isFriendsLoading ? '—' : friends.length,
+      primaryLabel: 'Friends connected',
+      secondaryLabel: isFriendsLoading
+        ? 'Syncing friends…'
+        : incomingRequests.length > 0
+          ? `${incomingRequests.length} pending invitations`
+          : 'Invite someone new today',
     },
   ];
 

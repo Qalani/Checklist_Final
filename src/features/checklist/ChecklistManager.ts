@@ -51,17 +51,18 @@ function sortCategories(categories: Category[]): Category[] {
 }
 
 async function fetchTasks(userId: string): Promise<Task[]> {
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('user_id', userId)
-    .order('order', { ascending: true });
+  const { data, error } = await supabase.rpc('get_tasks_with_access');
 
   if (error) {
     throw new Error(error.message || 'Failed to load tasks.');
   }
 
-  return data ?? [];
+  const records = Array.isArray(data) ? data : [];
+
+  return records.map((record) => ({
+    ...record,
+    access_role: (record as { access_role?: Task['access_role'] }).access_role ?? (record.user_id === userId ? 'owner' : undefined),
+  })) as Task[];
 }
 
 async function fetchCategories(userId: string): Promise<Category[]> {
@@ -195,6 +196,10 @@ export class ChecklistManager {
 
     try {
       if (existingTask) {
+        if (existingTask.access_role && existingTask.access_role !== 'owner') {
+          throw new Error('You can only edit tasks that you own.');
+        }
+
         const sanitizedInput: Record<string, unknown> = {
           ...taskData,
         };
@@ -219,7 +224,7 @@ export class ChecklistManager {
           throw new Error(error.message || 'Unable to save task.');
         }
 
-        const updatedTask = (data ?? existingTask) as Task;
+        const updatedTask = this.normalizeTask((data ?? existingTask) as Task, existingTask);
         this.setSnapshot((prev) => ({
           ...prev,
           tasks: prev.tasks
@@ -243,7 +248,8 @@ export class ChecklistManager {
         throw new Error('Task is missing required information.');
       }
 
-      const nextOrder = this.snapshot.tasks.reduce(
+      const ownedTasks = this.snapshot.tasks.filter((task) => task.user_id === this.userId);
+      const nextOrder = ownedTasks.reduce(
         (max, current) => Math.max(max, current.order ?? 0),
         -1,
       ) + 1;
@@ -286,11 +292,13 @@ export class ChecklistManager {
         throw new Error('Unable to save task. Please try again.');
       }
 
+      const normalizedTask = this.normalizeTask(savedTask as Task);
+
       this.setSnapshot((prev) => {
-        const existingTasks = prev.tasks.filter((task) => task.id !== savedTask.id);
+        const existingTasks = prev.tasks.filter((task) => task.id !== normalizedTask.id);
         return {
           ...prev,
-          tasks: [...existingTasks, savedTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          tasks: [...existingTasks, normalizedTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
           error: null,
         };
       });
@@ -303,6 +311,16 @@ export class ChecklistManager {
 
   async deleteTask(id: string) {
     if (!this.userId) {
+      return;
+    }
+
+    const targetTask = this.snapshot.tasks.find((task) => task.id === id);
+
+    if (!targetTask || targetTask.user_id !== this.userId) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        error: 'You can only delete tasks that you own.',
+      }));
       return;
     }
 
@@ -333,13 +351,27 @@ export class ChecklistManager {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .update({ completed })
-      .eq('id', id)
-      .eq('user_id', this.userId)
-      .select()
-      .single();
+    const targetTask = this.snapshot.tasks.find((task) => task.id === id);
+
+    if (!targetTask) {
+      return;
+    }
+
+    if (targetTask.access_role && !['owner', 'editor'].includes(targetTask.access_role)) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        error: 'You do not have permission to update this task.',
+      }));
+      return;
+    }
+
+    let query = supabase.from('tasks').update({ completed }).eq('id', id);
+
+    if (targetTask.user_id === this.userId) {
+      query = query.eq('user_id', this.userId);
+    }
+
+    const { data, error } = await query.select().single();
 
     if (error) {
       console.error('Error toggling task', error);
@@ -350,7 +382,7 @@ export class ChecklistManager {
       return;
     }
 
-    const updatedTask = data as Task;
+    const updatedTask = this.normalizeTask(data as Task, targetTask);
     this.setSnapshot((prev) => ({
       ...prev,
       tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
@@ -360,6 +392,16 @@ export class ChecklistManager {
 
   async reorderTasks(reorderedTasks: Task[]) {
     if (!this.userId) {
+      return;
+    }
+
+    const invalidTask = reorderedTasks.find((task) => task.user_id !== this.userId);
+
+    if (invalidTask) {
+      this.setSnapshot((prev) => ({
+        ...prev,
+        error: 'You can only reorder tasks that you own.',
+      }));
       return;
     }
 
@@ -542,8 +584,8 @@ export class ChecklistManager {
   private subscribeToRealtime(userId: string) {
     this.unsubscribeFromRealtime();
 
-    const subscribeToTable = <T extends Task | Category>(
-      table: 'tasks' | 'categories',
+    const subscribeToTable = <T>(
+      table: 'tasks' | 'categories' | 'task_collaborators',
       handler: (payload: RealtimePostgresChangesPayload<T>) => void,
     ) => {
       const channel = supabase
@@ -574,6 +616,16 @@ export class ChecklistManager {
     subscribeToTable<Category>('categories', (payload) => {
       this.applyCategoryChange(payload);
     });
+
+    subscribeToTable<{ user_id?: string }>('task_collaborators', (payload) => {
+      const newRecord = payload.new as { user_id?: string } | null;
+      const oldRecord = payload.old as { user_id?: string } | null;
+      const affectedUserId = newRecord?.user_id ?? oldRecord?.user_id;
+
+      if (affectedUserId === userId) {
+        void this.refresh(true);
+      }
+    });
   }
 
   private unsubscribeFromRealtime() {
@@ -589,12 +641,19 @@ export class ChecklistManager {
     });
   }
 
+  private normalizeTask(incoming: Task, previous?: Task): Task {
+    const accessRole = incoming.access_role ?? previous?.access_role ?? (incoming.user_id === this.userId ? 'owner' : previous?.access_role);
+    return { ...incoming, access_role: accessRole };
+  }
+
   private applyTaskChange(payload: RealtimePostgresChangesPayload<Task>) {
     const { eventType, new: newTask, old: oldTask } = payload;
 
     if (eventType === 'INSERT' && newTask) {
       this.setSnapshot((prev) => {
-        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), newTask].sort(
+        const existing = prev.tasks.find((task) => task.id === newTask.id);
+        const normalizedTask = this.normalizeTask(newTask, existing);
+        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), normalizedTask].sort(
           (a, b) => (a.order ?? 0) - (b.order ?? 0),
         );
 
@@ -609,7 +668,9 @@ export class ChecklistManager {
 
     if (eventType === 'UPDATE' && newTask) {
       this.setSnapshot((prev) => {
-        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), newTask].sort(
+        const existing = prev.tasks.find((task) => task.id === newTask.id);
+        const normalizedTask = this.normalizeTask(newTask, existing);
+        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), normalizedTask].sort(
           (a, b) => (a.order ?? 0) - (b.order ?? 0),
         );
 

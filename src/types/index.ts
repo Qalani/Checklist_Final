@@ -12,6 +12,7 @@ export interface Task {
   user_id?: string;
   due_date?: string | null;
   reminder_minutes_before?: number | null;
+  access_role?: 'owner' | 'editor' | 'viewer';
 }
 
 export interface Category {
@@ -40,4 +41,46 @@ export interface ListMember {
   user_email?: string | null;
   role: 'owner' | 'editor' | 'viewer';
   created_at?: string;
+}
+
+export interface Friend {
+  id: string;
+  user_id: string;
+  friend_id: string;
+  friend_email: string;
+  friend_name?: string | null;
+  created_at?: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  requester_id: string;
+  requested_id: string;
+  requester_email?: string | null;
+  requested_email?: string | null;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  message?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  responded_at?: string | null;
+}
+
+export interface BlockedUser {
+  id: string;
+  user_id: string;
+  blocked_user_id: string;
+  blocked_email?: string | null;
+  blocked_name?: string | null;
+  reason?: string | null;
+  created_at?: string;
+}
+
+export interface FriendSearchResult {
+  user_id: string;
+  email: string;
+  name?: string | null;
+  is_friend: boolean;
+  has_pending_request: boolean;
+  incoming_request: boolean;
+  is_blocked: boolean;
 }
