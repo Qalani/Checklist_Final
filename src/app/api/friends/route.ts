@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, AuthError, supabaseAdmin } from '@/lib/api/supabase-admin';
 import type { BlockedUser, Friend, FriendRequest } from '@/types';
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
 
     const userId = user.id;
 
-    const [friendsResult, requestsResult, blocksResult] = await Promise.all([
+    const [friendsResult, requestsResult, blocksResult, friendCodeResult] = await Promise.all([
       supabaseAdmin
         .from('friends')
         .select('id, user_id, friend_id, created_at')
@@ -78,6 +79,11 @@ export async function GET(request: Request) {
         .select('id, user_id, blocked_user_id, reason, created_at')
         .eq('user_id', userId)
         .returns<RawBlocked[]>(),
+      supabaseAdmin
+        .from('friend_codes')
+        .select('code')
+        .eq('user_id', userId)
+        .maybeSingle<{ code: string }>(),
     ]);
 
     if (friendsResult.error) {
@@ -90,6 +96,10 @@ export async function GET(request: Request) {
 
     if (blocksResult.error) {
       throw blocksResult.error;
+    }
+
+    if (friendCodeResult?.error) {
+      throw friendCodeResult.error;
     }
 
     const friends = friendsResult.data ?? [];
@@ -172,11 +182,15 @@ export async function GET(request: Request) {
       } satisfies BlockedUser;
     });
 
+    const existingCode = friendCodeResult?.data?.code ?? null;
+    const friendCode = existingCode ?? (await generateFriendCodeForUser(userId));
+
     return NextResponse.json({
       friends: friendsPayload,
       incomingRequests,
       outgoingRequests,
       blocked: blockedUsers,
+      friendCode,
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -186,4 +200,61 @@ export async function GET(request: Request) {
     console.error('Failed to load friend data', error);
     return NextResponse.json({ error: 'Unable to load friend data.' }, { status: 500 });
   }
+}
+
+function createCodeCandidate(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(8);
+  let result = '';
+
+  for (let index = 0; index < 8; index += 1) {
+    const byte = bytes[index];
+    result += alphabet[byte % alphabet.length];
+  }
+
+  return result;
+}
+
+async function generateFriendCodeForUser(userId: string): Promise<string> {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase is not configured on the server.');
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = createCodeCandidate();
+    const { data, error } = await supabaseAdmin
+      .from('friend_codes')
+      .insert({ user_id: userId, code })
+      .select('code')
+      .single<{ code: string }>();
+
+    if (!error && data?.code) {
+      return data.code;
+    }
+
+    if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+      const existing = await supabaseAdmin
+        .from('friend_codes')
+        .select('code')
+        .eq('user_id', userId)
+        .maybeSingle<{ code: string }>();
+
+      if (existing.error) {
+        throw existing.error;
+      }
+
+      if (existing.data?.code) {
+        return existing.data.code;
+      }
+
+      // Collision on code; try another candidate.
+      continue;
+    }
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  throw new Error('Unable to generate a unique friend code.');
 }

@@ -11,10 +11,12 @@ type FriendsResponse = {
   incomingRequests: FriendRequest[];
   outgoingRequests: FriendRequest[];
   blocked: BlockedUser[];
+  friendCode: string;
 };
 
 type ActionPayload =
   | { action: 'send_request'; targetUserId: string; message?: string | null }
+  | { action: 'send_request_by_code'; friendCode: string; message?: string | null }
   | { action: 'respond_request'; requestId: string; decision: 'accepted' | 'declined' }
   | { action: 'cancel_request'; requestId: string }
   | { action: 'remove_friend'; friendUserId: string }
@@ -30,6 +32,7 @@ interface FriendsState {
   outgoingRequests: FriendRequest[];
   blocked: BlockedUser[];
   error: string | null;
+  friendCode: string;
 }
 
 const INITIAL_STATE: FriendsState = {
@@ -40,6 +43,7 @@ const INITIAL_STATE: FriendsState = {
   outgoingRequests: [],
   blocked: [],
   error: null,
+  friendCode: '',
 };
 
 async function getAccessToken(): Promise<string> {
@@ -115,6 +119,7 @@ export interface UseFriendsResult extends FriendsState {
   refresh: (force?: boolean) => Promise<void>;
   search: (query: string) => Promise<FriendSearchResult[] | ActionError>;
   sendRequest: (targetUserId: string, message?: string | null) => Promise<void | ActionError>;
+  sendRequestByCode: (friendCode: string, message?: string | null) => Promise<void | ActionError>;
   respondToRequest: (requestId: string, decision: 'accepted' | 'declined') => Promise<void | ActionError>;
   cancelRequest: (requestId: string) => Promise<void | ActionError>;
   removeFriend: (friendUserId: string) => Promise<void | ActionError>;
@@ -168,6 +173,7 @@ export function useFriends(userId: string | null): UseFriendsResult {
             outgoingRequests: data.outgoingRequests,
             blocked: data.blocked,
             error: null,
+            friendCode: data.friendCode ?? '',
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unable to load friends.';
@@ -249,6 +255,13 @@ export function useFriends(userId: string | null): UseFriendsResult {
     search,
     sendRequest: (targetUserId, message) =>
       executeAction({ action: 'send_request', targetUserId, message: message ?? null }),
+    sendRequestByCode: (friendCode, message) => {
+      const normalized = friendCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (!normalized) {
+        return Promise.resolve({ error: 'Enter a friend code to continue.' });
+      }
+      return executeAction({ action: 'send_request_by_code', friendCode: normalized, message: message ?? null });
+    },
     respondToRequest: (requestId, decision) =>
       executeAction({ action: 'respond_request', requestId, decision }),
     cancelRequest: (requestId) => executeAction({ action: 'cancel_request', requestId }),
