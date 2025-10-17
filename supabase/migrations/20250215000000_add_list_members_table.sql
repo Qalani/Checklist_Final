@@ -1,10 +1,11 @@
-create table if not exists public.list_members (
-  id uuid primary key default gen_random_uuid(),
+create table public.list_members (
+  id uuid not null default gen_random_uuid(),
   list_id uuid not null references public.lists(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   user_email text,
   role text not null check (role in ('owner', 'editor', 'viewer')) default 'viewer',
   created_at timestamptz not null default timezone('utc', now()),
+  constraint list_members_pkey primary key (id),
   constraint list_members_unique_user unique (list_id, user_id)
 );
 
