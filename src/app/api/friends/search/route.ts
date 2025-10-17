@@ -41,7 +41,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: [] as FriendSearchResult[] });
     }
 
-    const [profilesResult, friendsResult, requestsResult, blockedResult, blockedByResult] = await Promise.all([
+    const [
+      profilesResult,
+      friendsResult,
+      outgoingRequestsResult,
+      incomingRequestsResult,
+      blockedResult,
+      blockedByResult,
+    ] = await Promise.all([
       supabaseAdmin.rpc('friends_search_auth_users', {
         search_term: query,
         limit_count: 20,
@@ -53,7 +60,11 @@ export async function GET(request: Request) {
       supabaseAdmin
         .from('friend_requests')
         .select('requester_id, requested_id, status')
-        .or(`requester_id.eq.${user.id},requested_id.eq.${user.id}`),
+        .eq('requester_id', user.id),
+      supabaseAdmin
+        .from('friend_requests')
+        .select('requester_id, requested_id, status')
+        .eq('requested_id', user.id),
       supabaseAdmin
         .from('user_blocks')
         .select('blocked_user_id')
@@ -66,7 +77,8 @@ export async function GET(request: Request) {
 
     if (profilesResult.error) throw profilesResult.error;
     if (friendsResult.error) throw friendsResult.error;
-    if (requestsResult.error) throw requestsResult.error;
+    if (outgoingRequestsResult.error) throw outgoingRequestsResult.error;
+    if (incomingRequestsResult.error) throw incomingRequestsResult.error;
     if (blockedResult.error) throw blockedResult.error;
     if (blockedByResult.error) throw blockedByResult.error;
 
@@ -79,7 +91,12 @@ export async function GET(request: Request) {
     const outgoingRequests = new Set<string>();
     const incomingRequests = new Set<string>();
 
-    (requestsResult.data ?? []).forEach((record) => {
+    const requestRows = [
+      ...(outgoingRequestsResult.data ?? []),
+      ...(incomingRequestsResult.data ?? []),
+    ];
+
+    requestRows.forEach((record) => {
       if (record.status !== 'pending') {
         return;
       }
