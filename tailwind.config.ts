@@ -1,15 +1,5 @@
 import type { Config } from "tailwindcss";
 
-const withOpacityValue = (variable: string) => {
-  return ({ opacityValue }: { opacityValue?: string }) => {
-    if (opacityValue !== undefined) {
-      return `rgb(var(${variable}) / ${opacityValue})`;
-    }
-
-    return `rgb(var(${variable}))`;
-  };
-};
-
 const config: Config = {
   darkMode: "class",
   content: [
@@ -21,42 +11,42 @@ const config: Config = {
     extend: {
       colors: {
         zen: {
-          50: withOpacityValue("--color-zen-50"),
-          100: withOpacityValue("--color-zen-100"),
-          200: withOpacityValue("--color-zen-200"),
-          300: withOpacityValue("--color-zen-300"),
-          400: withOpacityValue("--color-zen-400"),
-          500: withOpacityValue("--color-zen-500"),
-          600: withOpacityValue("--color-zen-600"),
-          700: withOpacityValue("--color-zen-700"),
-          800: withOpacityValue("--color-zen-800"),
-          900: withOpacityValue("--color-zen-900"),
+          50: "rgb(var(--color-zen-50) / <alpha-value>)",
+          100: "rgb(var(--color-zen-100) / <alpha-value>)",
+          200: "rgb(var(--color-zen-200) / <alpha-value>)",
+          300: "rgb(var(--color-zen-300) / <alpha-value>)",
+          400: "rgb(var(--color-zen-400) / <alpha-value>)",
+          500: "rgb(var(--color-zen-500) / <alpha-value>)",
+          600: "rgb(var(--color-zen-600) / <alpha-value>)",
+          700: "rgb(var(--color-zen-700) / <alpha-value>)",
+          800: "rgb(var(--color-zen-800) / <alpha-value>)",
+          900: "rgb(var(--color-zen-900) / <alpha-value>)",
         },
         sage: {
-          50: withOpacityValue("--color-sage-50"),
-          100: withOpacityValue("--color-sage-100"),
-          200: withOpacityValue("--color-sage-200"),
-          300: withOpacityValue("--color-sage-300"),
-          400: withOpacityValue("--color-sage-400"),
-          500: withOpacityValue("--color-sage-500"),
-          600: withOpacityValue("--color-sage-600"),
-          700: withOpacityValue("--color-sage-700"),
-          800: withOpacityValue("--color-sage-800"),
-          900: withOpacityValue("--color-sage-900"),
+          50: "rgb(var(--color-sage-50) / <alpha-value>)",
+          100: "rgb(var(--color-sage-100) / <alpha-value>)",
+          200: "rgb(var(--color-sage-200) / <alpha-value>)",
+          300: "rgb(var(--color-sage-300) / <alpha-value>)",
+          400: "rgb(var(--color-sage-400) / <alpha-value>)",
+          500: "rgb(var(--color-sage-500) / <alpha-value>)",
+          600: "rgb(var(--color-sage-600) / <alpha-value>)",
+          700: "rgb(var(--color-sage-700) / <alpha-value>)",
+          800: "rgb(var(--color-sage-800) / <alpha-value>)",
+          900: "rgb(var(--color-sage-900) / <alpha-value>)",
         },
         warm: {
-          50: withOpacityValue("--color-warm-50"),
-          100: withOpacityValue("--color-warm-100"),
-          200: withOpacityValue("--color-warm-200"),
-          300: withOpacityValue("--color-warm-300"),
-          400: withOpacityValue("--color-warm-400"),
-          500: withOpacityValue("--color-warm-500"),
-          600: withOpacityValue("--color-warm-600"),
-          700: withOpacityValue("--color-warm-700"),
-          800: withOpacityValue("--color-warm-800"),
-          900: withOpacityValue("--color-warm-900"),
+          50: "rgb(var(--color-warm-50) / <alpha-value>)",
+          100: "rgb(var(--color-warm-100) / <alpha-value>)",
+          200: "rgb(var(--color-warm-200) / <alpha-value>)",
+          300: "rgb(var(--color-warm-300) / <alpha-value>)",
+          400: "rgb(var(--color-warm-400) / <alpha-value>)",
+          500: "rgb(var(--color-warm-500) / <alpha-value>)",
+          600: "rgb(var(--color-warm-600) / <alpha-value>)",
+          700: "rgb(var(--color-warm-700) / <alpha-value>)",
+          800: "rgb(var(--color-warm-800) / <alpha-value>)",
+          900: "rgb(var(--color-warm-900) / <alpha-value>)",
         },
-        surface: withOpacityValue("--color-surface"),
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
       },
       boxShadow: {
         'neo': '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',

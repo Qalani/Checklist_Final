@@ -28,12 +28,14 @@ export default function ThemeSwitcher() {
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       if (!containerRef.current) {
         return;
       }
 
-      if (!containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node | null;
+
+      if (!target || !containerRef.current.contains(target)) {
         setOpen(false);
       }
     };
