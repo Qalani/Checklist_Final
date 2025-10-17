@@ -286,11 +286,14 @@ export class ChecklistManager {
         throw new Error('Unable to save task. Please try again.');
       }
 
-      this.setSnapshot((prev) => ({
-        ...prev,
-        tasks: [...prev.tasks, savedTask].sort((a, b) => a.order - b.order),
-        error: null,
-      }));
+      this.setSnapshot((prev) => {
+        const existingTasks = prev.tasks.filter((task) => task.id !== savedTask.id);
+        return {
+          ...prev,
+          tasks: [...existingTasks, savedTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          error: null,
+        };
+      });
       return {};
     } catch (error) {
       const message = extractErrorMessage(error, 'Unable to save task. Please try again.');
@@ -591,14 +594,13 @@ export class ChecklistManager {
 
     if (eventType === 'INSERT' && newTask) {
       this.setSnapshot((prev) => {
-        const exists = prev.tasks.some((task) => task.id === newTask.id);
-        if (exists) {
-          return prev;
-        }
+        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), newTask].sort(
+          (a, b) => (a.order ?? 0) - (b.order ?? 0),
+        );
 
         return {
           ...prev,
-          tasks: [...prev.tasks, newTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          tasks,
           error: null,
         };
       });
@@ -606,13 +608,17 @@ export class ChecklistManager {
     }
 
     if (eventType === 'UPDATE' && newTask) {
-      this.setSnapshot((prev) => ({
-        ...prev,
-        tasks: prev.tasks
-          .map((task) => (task.id === newTask.id ? { ...task, ...newTask } : task))
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-        error: null,
-      }));
+      this.setSnapshot((prev) => {
+        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), newTask].sort(
+          (a, b) => (a.order ?? 0) - (b.order ?? 0),
+        );
+
+        return {
+          ...prev,
+          tasks,
+          error: null,
+        };
+      });
       return;
     }
 
