@@ -11,7 +11,6 @@ import QuickStats from '@/components/QuickStats';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useLists } from '@/features/lists/useLists';
-import { supabase } from '@/lib/supabase';
 
 function LoadingScreen() {
   return (
@@ -25,7 +24,7 @@ function LoadingScreen() {
 }
 
 export default function HomePage() {
-  const { user, authChecked } = useAuthSession();
+  const { user, authChecked, signOut } = useAuthSession();
   const {
     tasks,
     categories,
@@ -155,7 +154,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    void supabase.auth.signOut();
+                    void signOut();
                   }}
                   className="px-4 py-2 rounded-lg bg-zen-900 text-white text-sm font-medium shadow-soft hover:bg-zen-800 transition-colors"
                 >
