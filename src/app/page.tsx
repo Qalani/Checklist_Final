@@ -362,13 +362,19 @@ export default function HomePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex flex-col">
         <header className="px-4 sm:px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
-              <Sparkles className="w-5 h-5 text-white" />
+          <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
+                <p className="text-sm text-zen-600">Your mindful workspace</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
-              <p className="text-sm text-zen-600">Your mindful workspace</p>
+
+            <div className="w-full sm:w-auto">
+              <ThemeSwitcher />
             </div>
           </div>
         </header>
