@@ -14,7 +14,7 @@ const schema = {
     ...defaultSchema.attributes,
     u: [],
   },
-} satisfies Parameters<typeof rehypeSanitize>[1];
+} satisfies Parameters<typeof rehypeSanitize>[0];
 
 const components: Components = {
   p: ({ node, ...props }) => (
