@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import type { Task, Category } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import AuthPanel from '@/components/AuthPanel';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
 import { useChecklist } from '@/features/checklist/useChecklist';
 
 export default function HomePage() {
@@ -254,12 +255,14 @@ export default function HomePage() {
   );
 
   useEffect(() => {
+    const registry = reminderTimeoutsRef.current;
+
     return () => {
       if (typeof window === 'undefined') {
         return;
       }
-      reminderTimeoutsRef.current.forEach(timeoutId => window.clearTimeout(timeoutId));
-      reminderTimeoutsRef.current.clear();
+      registry.forEach(timeoutId => window.clearTimeout(timeoutId));
+      registry.clear();
     };
   }, []);
 
@@ -399,7 +402,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 border-b border-zen-200 shadow-soft">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-surface/70 border-b border-zen-200 shadow-soft">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
@@ -413,12 +416,13 @@ export default function HomePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-start lg:justify-end">
+              <ThemeSwitcher />
               <div className="flex items-center gap-1 p-1 bg-zen-100 rounded-xl">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded-lg transition-all ${
                     viewMode === 'grid'
-                      ? 'bg-white shadow-soft text-sage-600'
+                      ? 'bg-surface shadow-soft text-sage-600'
                       : 'text-zen-500 hover:text-zen-700'
                   }`}
                 >
@@ -428,7 +432,7 @@ export default function HomePage() {
                   onClick={() => setViewMode('list')}
                   className={`hidden sm:inline-flex p-2 rounded-lg transition-all ${
                     viewMode === 'list'
-                      ? 'bg-white shadow-soft text-sage-600'
+                      ? 'bg-surface shadow-soft text-sage-600'
                       : 'text-zen-500 hover:text-zen-700'
                   }`}
                 >
@@ -452,7 +456,7 @@ export default function HomePage() {
                   onClick={() => {
                     void requestNotificationPermission();
                   }}
-                  className="px-3 py-2 rounded-xl bg-white/80 border border-zen-200 text-sm font-medium text-zen-600 hover:bg-sage-50 hover:border-sage-200 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
+                className="px-3 py-2 rounded-xl bg-surface/80 border border-zen-200 text-sm font-medium text-zen-600 hover:bg-sage-50 hover:border-sage-200 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   <Bell className="w-4 h-4" />
                   Enable notifications
@@ -460,13 +464,13 @@ export default function HomePage() {
               )}
 
               {notificationPermission === 'denied' && (
-                <div className="px-3 py-2 rounded-xl bg-white/50 border border-zen-200 text-xs text-zen-500 w-full sm:w-auto text-center">
+                <div className="px-3 py-2 rounded-xl bg-surface/50 border border-zen-200 text-xs text-zen-500 w-full sm:w-auto text-center">
                   Notifications disabled in browser settings
                 </div>
               )}
 
               {notificationPermission === 'granted' && (
-                <div className="px-3 py-2 rounded-xl bg-white/70 border border-sage-200 text-sm text-sage-700 flex items-center justify-center gap-2 w-full sm:w-auto">
+                <div className="px-3 py-2 rounded-xl bg-surface/70 border border-sage-200 text-sm text-sage-700 flex items-center justify-center gap-2 w-full sm:w-auto">
                   <Bell className="w-4 h-4" />
                   Notifications on
                 </div>
@@ -474,7 +478,7 @@ export default function HomePage() {
 
               <div className="hidden xl:block h-8 w-px bg-zen-200" />
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-2 bg-white/70 border border-zen-200 rounded-2xl shadow-soft w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-2 bg-surface/70 border border-zen-200 rounded-2xl shadow-soft w-full sm:w-auto">
                 <div className="w-full sm:text-right">
                   <p className="text-sm font-medium text-zen-900">{user.email ?? 'Account'}</p>
                   <p className="text-xs text-zen-500">Signed in</p>
@@ -543,7 +547,7 @@ export default function HomePage() {
 
             <div className="lg:col-span-8">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                <div className="flex items-center gap-1 p-1 bg-white/70 border border-zen-200 rounded-xl shadow-soft">
+                <div className="flex items-center gap-1 p-1 bg-surface/70 border border-zen-200 rounded-xl shadow-soft">
                   {[
                     { key: 'active' as const, label: `Active (${activeTasks.length})` },
                     { key: 'completed' as const, label: `Completed (${completedTasks.length})` },

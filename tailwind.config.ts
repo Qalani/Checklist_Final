@@ -1,5 +1,15 @@
 import type { Config } from "tailwindcss";
 
+const withOpacityValue = (variable: string) => {
+  return ({ opacityValue }: { opacityValue?: string }) => {
+    if (opacityValue !== undefined) {
+      return `rgb(var(${variable}) / ${opacityValue})`;
+    }
+
+    return `rgb(var(${variable}))`;
+  };
+};
+
 const config: Config = {
   darkMode: "class",
   content: [
@@ -11,41 +21,42 @@ const config: Config = {
     extend: {
       colors: {
         zen: {
-          50: '#f8f9fa',
-          100: '#f1f3f5',
-          200: '#e9ecef',
-          300: '#dee2e6',
-          400: '#ced4da',
-          500: '#adb5bd',
-          600: '#868e96',
-          700: '#495057',
-          800: '#343a40',
-          900: '#212529',
+          50: withOpacityValue("--color-zen-50"),
+          100: withOpacityValue("--color-zen-100"),
+          200: withOpacityValue("--color-zen-200"),
+          300: withOpacityValue("--color-zen-300"),
+          400: withOpacityValue("--color-zen-400"),
+          500: withOpacityValue("--color-zen-500"),
+          600: withOpacityValue("--color-zen-600"),
+          700: withOpacityValue("--color-zen-700"),
+          800: withOpacityValue("--color-zen-800"),
+          900: withOpacityValue("--color-zen-900"),
         },
         sage: {
-          50: '#f6f8f6',
-          100: '#e8ede8',
-          200: '#d1dbd1',
-          300: '#a8bba8',
-          400: '#7a957a',
-          500: '#5a7a5a',
-          600: '#466246',
-          700: '#384e38',
-          800: '#2d3f2d',
-          900: '#243324',
+          50: withOpacityValue("--color-sage-50"),
+          100: withOpacityValue("--color-sage-100"),
+          200: withOpacityValue("--color-sage-200"),
+          300: withOpacityValue("--color-sage-300"),
+          400: withOpacityValue("--color-sage-400"),
+          500: withOpacityValue("--color-sage-500"),
+          600: withOpacityValue("--color-sage-600"),
+          700: withOpacityValue("--color-sage-700"),
+          800: withOpacityValue("--color-sage-800"),
+          900: withOpacityValue("--color-sage-900"),
         },
         warm: {
-          50: '#faf9f7',
-          100: '#f5f2ed',
-          200: '#e8e1d5',
-          300: '#d9cdb8',
-          400: '#c4b49a',
-          500: '#a89478',
-          600: '#8b7961',
-          700: '#6f614e',
-          800: '#594d3f',
-          900: '#483f34',
-        }
+          50: withOpacityValue("--color-warm-50"),
+          100: withOpacityValue("--color-warm-100"),
+          200: withOpacityValue("--color-warm-200"),
+          300: withOpacityValue("--color-warm-300"),
+          400: withOpacityValue("--color-warm-400"),
+          500: withOpacityValue("--color-warm-500"),
+          600: withOpacityValue("--color-warm-600"),
+          700: withOpacityValue("--color-warm-700"),
+          800: withOpacityValue("--color-warm-800"),
+          900: withOpacityValue("--color-warm-900"),
+        },
+        surface: withOpacityValue("--color-surface"),
       },
       boxShadow: {
         'neo': '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',

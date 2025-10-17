@@ -120,7 +120,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
           relative p-5 rounded-2xl border-2 transition-all cursor-pointer
           ${task.completed 
             ? 'bg-zen-50/50 border-zen-200 opacity-60' 
-            : 'bg-white border-zen-100 hover:border-sage-300 shadow-soft hover:shadow-medium'
+            : 'bg-surface border-zen-100 hover:border-sage-300 shadow-soft hover:shadow-medium'
           }
         `}
       >
@@ -167,7 +167,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
             </button>
 
             {showMenu && (
-              <div className="absolute right-0 top-8 w-32 bg-white rounded-xl shadow-lift border border-zen-200 py-1 z-10">
+              <div className="absolute right-0 top-8 w-32 bg-surface rounded-xl shadow-lift border border-zen-200 py-1 z-10">
                 <button
                   onClick={() => {
                     onEdit();

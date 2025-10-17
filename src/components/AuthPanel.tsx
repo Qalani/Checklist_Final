@@ -128,7 +128,7 @@ export default function AuthPanel() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-md bg-white/90 backdrop-blur-xl border border-zen-200 shadow-soft rounded-3xl p-8"
+      className="w-full max-w-md bg-surface/90 backdrop-blur-xl border border-zen-200 shadow-soft rounded-3xl p-8"
     >
       <div className="mb-6 text-center">
         <h2 className="text-2xl font-semibold text-zen-900">
@@ -185,7 +185,7 @@ export default function AuthPanel() {
           <span className="w-full border-t border-zen-200" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-4 bg-white/90 text-zen-500">or continue with email</span>
+          <span className="px-4 bg-surface/90 text-zen-500">or continue with email</span>
         </div>
       </div>
 

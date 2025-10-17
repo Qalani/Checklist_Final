@@ -65,7 +65,7 @@ export default function QuickStats({ tasks, categories }: QuickStatsProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1 }}
-          className="relative overflow-hidden bg-white rounded-2xl p-6 shadow-soft hover:shadow-medium transition-shadow border border-zen-100"
+          className="relative overflow-hidden bg-surface rounded-2xl p-6 shadow-soft hover:shadow-medium transition-shadow border border-zen-100"
         >
           <div className="flex items-start justify-between mb-4">
             <div 

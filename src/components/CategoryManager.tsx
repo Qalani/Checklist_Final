@@ -125,7 +125,7 @@ export default function CategoryManager({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-soft border border-zen-100">
+    <div className="bg-surface rounded-2xl p-6 shadow-soft border border-zen-100">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Tag className="w-5 h-5 text-sage-600" />
