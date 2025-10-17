@@ -143,10 +143,12 @@ export default function ListsPage() {
                 <button
                   type="button"
                   onClick={() => router.push('/')}
-                  className="hidden lg:flex items-center gap-2 text-sm font-medium text-zen-500 hover:text-zen-700 transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface/80 border border-zen-200 text-sm font-medium text-zen-600 hover:text-zen-800 hover:border-sage-200 transition-colors shadow-soft"
+                  aria-label="Back to dashboard"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Dashboard
+                  <span className="hidden sm:inline">Dashboard</span>
+                  <span className="sm:hidden">Back</span>
                 </button>
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
                   <Sparkles className="w-5 h-5 text-white" />
