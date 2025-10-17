@@ -110,7 +110,8 @@ export async function GET(request: Request) {
 
     if (relatedUserIds.size > 0) {
       const profileQuery = await supabaseAdmin
-        .from('auth.users')
+        .schema('auth')
+        .from('users')
         .select('id, email, raw_user_meta_data')
         .in('id', Array.from(relatedUserIds))
         .returns<ProfileRecord[]>();

@@ -75,7 +75,8 @@ async function ensureFriendship(client: SupabaseClient, userId: string, friendUs
 
 async function getFriendEmail(client: SupabaseClient, friendUserId: string) {
   const { data, error } = await client
-    .from('auth.users')
+    .schema('auth')
+    .from('users')
     .select('id, email')
     .eq('id', friendUserId)
     .maybeSingle<ProfileRecord>();

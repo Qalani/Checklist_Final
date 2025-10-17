@@ -50,7 +50,8 @@ export async function GET(request: Request) {
 
     const [profilesResult, friendsResult, requestsResult, blockedResult, blockedByResult] = await Promise.all([
       supabaseAdmin
-        .from('auth.users')
+        .schema('auth')
+        .from('users')
         .select('id, email, raw_user_meta_data')
         .or(`email.ilike.${likePattern},raw_user_meta_data->>full_name.ilike.${likePattern}`)
         .limit(20)
