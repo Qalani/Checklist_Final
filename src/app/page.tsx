@@ -23,6 +23,7 @@ import type { Task, Category } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import AuthPanel from '@/components/AuthPanel';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
+import ParallaxBackground from '@/components/ParallaxBackground';
 import { useChecklist } from '@/features/checklist/useChecklist';
 
 export default function HomePage() {
@@ -352,44 +353,50 @@ export default function HomePage() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+        <ParallaxBackground />
+        <div className="relative z-10 flex min-h-screen items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 flex flex-col">
-        <header className="px-4 sm:px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
-                <Sparkles className="w-5 h-5 text-white" />
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+        <ParallaxBackground />
+        <div className="relative z-10 flex min-h-screen flex-col">
+          <header className="px-4 sm:px-6 lg:px-8 py-6">
+            <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
+                  <p className="text-sm text-zen-600">Your mindful workspace</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
-                <p className="text-sm text-zen-600">Your mindful workspace</p>
+
+              <div className="w-full sm:w-auto">
+                <ThemeSwitcher />
               </div>
             </div>
+          </header>
 
-            <div className="w-full sm:w-auto">
-              <ThemeSwitcher />
+          <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-4 sm:px-6 lg:px-8 pb-12">
+            <div className="max-w-xl text-center lg:text-left space-y-4">
+              <h2 className="text-3xl font-semibold text-zen-900">
+                Stay organized with mindful task management
+              </h2>
+              <p className="text-zen-600 text-base">
+                Create an account or sign in to sync your tasks and categories securely across devices.
+              </p>
             </div>
-          </div>
-        </header>
-
-        <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-4 sm:px-6 lg:px-8 pb-12">
-          <div className="max-w-xl text-center lg:text-left space-y-4">
-            <h2 className="text-3xl font-semibold text-zen-900">
-              Stay organized with mindful task management
-            </h2>
-            <p className="text-zen-600 text-base">
-              Create an account or sign in to sync your tasks and categories securely across devices.
-            </p>
-          </div>
-          <AuthPanel />
-        </main>
+            <AuthPanel />
+          </main>
+        </div>
       </div>
     );
   }
@@ -407,8 +414,10 @@ export default function HomePage() {
   const isLoading = status === 'loading';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-surface/70 border-b border-zen-200 shadow-soft">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+      <ParallaxBackground />
+      <div className="relative z-10 min-h-screen">
+        <header className="sticky top-0 z-50 backdrop-blur-xl bg-surface/70 border-b border-zen-200 shadow-soft">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
@@ -535,7 +544,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {checklistError && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {checklistError}
@@ -644,22 +653,23 @@ export default function HomePage() {
             </div>
           </div>
         )}
-      </main>
+        </main>
 
-      <AnimatePresence>
-        {showTaskForm && (
-          <TaskForm
-            task={editingTask}
-            categories={categories}
-            onCreateCategory={handleCategoryCreate}
-            onClose={() => {
-              setShowTaskForm(false);
-              setEditingTask(null);
-            }}
-            onSave={(taskData) => handleTaskSave(taskData, editingTask)}
-          />
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {showTaskForm && (
+            <TaskForm
+              task={editingTask}
+              categories={categories}
+              onCreateCategory={handleCategoryCreate}
+              onClose={() => {
+                setShowTaskForm(false);
+                setEditingTask(null);
+              }}
+              onSave={(taskData) => handleTaskSave(taskData, editingTask)}
+            />
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
