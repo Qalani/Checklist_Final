@@ -28,4 +28,16 @@ export interface List {
   description?: string | null;
   created_at?: string;
   user_id?: string;
+  owner_id?: string;
+  access_role?: 'owner' | 'editor' | 'viewer';
+  members?: ListMember[];
+}
+
+export interface ListMember {
+  id: string;
+  list_id: string;
+  user_id: string;
+  user_email?: string | null;
+  role: 'owner' | 'editor' | 'viewer';
+  created_at?: string;
 }
