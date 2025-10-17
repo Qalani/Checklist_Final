@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 
 export default function AuthPanel() {
+  const router = useRouter();
   const [mode, setMode] = useState<'sign_in' | 'sign_up'>('sign_in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,6 +15,39 @@ export default function AuthPanel() {
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { redirectForRouter, redirectForSupabase } = useMemo(() => {
+    const configuredRedirect = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+    try {
+      if (configuredRedirect && configuredRedirect.length > 0) {
+        const parsed = new URL(configuredRedirect);
+        parsed.pathname = '/';
+        parsed.hash = '';
+        parsed.search = '';
+        return {
+          redirectForRouter: '/',
+          redirectForSupabase: parsed.toString(),
+        };
+      }
+    } catch (error) {
+      console.warn('Invalid NEXT_PUBLIC_SITE_URL provided, falling back to window origin.', error);
+    }
+
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      const normalizedOrigin = origin.endsWith('/') ? origin : `${origin}/`;
+      return {
+        redirectForRouter: '/',
+        redirectForSupabase: normalizedOrigin,
+      };
+    }
+
+    return {
+      redirectForRouter: '/',
+      redirectForSupabase: undefined,
+    };
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,6 +81,8 @@ export default function AuthPanel() {
 
         if (error) {
           setError(error.message);
+        } else if (redirectForRouter) {
+          router.replace(redirectForRouter);
         }
       }
     } catch (err) {
@@ -60,15 +97,10 @@ export default function AuthPanel() {
     setMessage(null);
     setIsOAuthLoading(true);
 
-    const configuredRedirect =
-      typeof window === 'undefined'
-        ? process.env.NEXT_PUBLIC_SITE_URL?.trim()
-        : process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? window.location.origin;
-
     try {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: configuredRedirect ? { redirectTo: configuredRedirect } : undefined,
+        options: redirectForSupabase ? { redirectTo: redirectForSupabase } : undefined,
       });
 
       if (oauthError) {

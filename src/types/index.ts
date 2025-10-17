@@ -21,3 +21,11 @@ export interface Category {
   user_id?: string;
   created_at?: string;
 }
+
+export interface List {
+  id: string;
+  name: string;
+  description?: string | null;
+  created_at?: string;
+  user_id?: string;
+}
