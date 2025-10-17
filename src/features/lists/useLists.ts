@@ -68,15 +68,28 @@ interface ListMembershipRow {
 async function fetchLists(userId: string): Promise<List[]> {
   const { data, error } = await supabase
     .from('list_members')
-    .select('role, list_id, list:lists(id, name, description, created_at, user_id)')
+    .select(
+      `
+        role,
+        list_id,
+        list:lists(
+          id,
+          name,
+          description,
+          created_at,
+          user_id
+        )
+      `,
+    )
     .eq('user_id', userId)
-    .order('list(created_at)', { ascending: true });
+    .order('list(created_at)', { ascending: true })
+    .returns<ListMembershipRow[]>();
 
   if (error) {
     throw new Error(error.message || 'Failed to load lists.');
   }
 
-  const records = (data ?? []) as ListMembershipRow[];
+  const records = data ?? [];
 
   return records
     .filter(record => record.list !== null)
