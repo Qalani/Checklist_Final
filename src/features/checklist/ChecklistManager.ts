@@ -584,7 +584,7 @@ export class ChecklistManager {
   private subscribeToRealtime(userId: string) {
     this.unsubscribeFromRealtime();
 
-    const subscribeToTable = <T>(
+    const subscribeToTable = <T extends Record<string, unknown>>(
       table: 'tasks' | 'categories' | 'task_collaborators',
       handler: (payload: RealtimePostgresChangesPayload<T>) => void,
     ) => {

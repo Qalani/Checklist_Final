@@ -9,9 +9,13 @@ type RawFriend = {
   created_at: string | null;
 };
 
-type RawFriendRequest = RawFriend & {
+type RawFriendRequest = {
+  id: string;
+  requester_id: string;
+  requested_id: string;
   message: string | null;
   status: FriendRequest['status'];
+  created_at: string | null;
   updated_at: string | null;
   responded_at: string | null;
 };

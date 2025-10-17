@@ -1,4 +1,4 @@
-export interface Task {
+export interface Task extends Record<string, unknown> {
   id: string;
   title: string;
   description?: string;
@@ -15,7 +15,7 @@ export interface Task {
   access_role?: 'owner' | 'editor' | 'viewer';
 }
 
-export interface Category {
+export interface Category extends Record<string, unknown> {
   id: string;
   name: string;
   color: string;
