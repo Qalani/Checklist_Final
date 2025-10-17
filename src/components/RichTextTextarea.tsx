@@ -183,6 +183,10 @@ function ToolbarButton({ onClick, label, children }: ToolbarButtonProps) {
     <button
       type="button"
       onClick={onClick}
+      onMouseDown={event => {
+        // Prevent the toolbar button from stealing focus so the current selection is preserved
+        event.preventDefault();
+      }}
       className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zen-500 hover:text-sage-600 hover:bg-sage-50 transition-colors"
       aria-label={label}
     >
