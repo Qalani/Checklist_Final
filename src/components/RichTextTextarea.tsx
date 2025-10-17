@@ -153,7 +153,7 @@ export default function RichTextTextarea({
           onBlur={handleBlur}
           onPaste={handlePaste}
           spellCheck={spellCheck}
-          className={`relative w-full px-4 py-3 rounded-b-[calc(theme(borderRadius.xl)-2px)] bg-transparent focus:outline-none focus:ring-0 text-sm text-zen-900 leading-relaxed ${
+          className={`relative w-full px-4 py-3 rounded-b-[calc(theme(borderRadius.xl)-2px)] bg-transparent focus:outline-none focus:ring-0 text-sm text-zen-900 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:marker:text-sage-500 ${
             className ?? ''
           } before:pointer-events-none before:absolute before:left-4 before:top-3 before:text-sm before:text-zen-400 before:opacity-60 before:transition-opacity before:content-[attr(data-placeholder)] data-[empty=false]:before:opacity-0`}
           data-placeholder={placeholder}
