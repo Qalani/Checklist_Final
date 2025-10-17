@@ -125,7 +125,7 @@ function SortableTaskItem({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className={`
-          relative bg-white rounded-xl p-4 border-2 transition-all
+          relative bg-surface rounded-xl p-4 border-2 transition-all
           ${task.completed
             ? 'border-zen-200 opacity-60'
             : 'border-zen-100 hover:border-sage-300 hover:shadow-soft'}

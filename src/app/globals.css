@@ -2,9 +2,153 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --color-surface: 255 255 255;
+  --color-zen-50: 248 249 250;
+  --color-zen-100: 241 243 245;
+  --color-zen-200: 233 236 239;
+  --color-zen-300: 222 226 230;
+  --color-zen-400: 206 212 218;
+  --color-zen-500: 173 181 189;
+  --color-zen-600: 134 142 150;
+  --color-zen-700: 73 80 87;
+  --color-zen-800: 52 58 64;
+  --color-zen-900: 33 37 41;
+  --color-sage-50: 246 248 246;
+  --color-sage-100: 232 237 232;
+  --color-sage-200: 209 219 209;
+  --color-sage-300: 168 187 168;
+  --color-sage-400: 122 149 122;
+  --color-sage-500: 90 122 90;
+  --color-sage-600: 70 98 70;
+  --color-sage-700: 56 78 56;
+  --color-sage-800: 45 63 45;
+  --color-sage-900: 36 51 36;
+  --color-warm-50: 250 249 247;
+  --color-warm-100: 245 242 237;
+  --color-warm-200: 232 225 213;
+  --color-warm-300: 217 205 184;
+  --color-warm-400: 196 180 154;
+  --color-warm-500: 168 148 120;
+  --color-warm-600: 139 121 97;
+  --color-warm-700: 111 97 78;
+  --color-warm-800: 89 77 63;
+  --color-warm-900: 72 63 52;
+}
+
+:root[data-theme='zen-light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dawn-light'] {
+  color-scheme: light;
+  --color-surface: 255 250 244;
+  --color-zen-50: 254 249 245;
+  --color-zen-100: 253 243 234;
+  --color-zen-200: 252 233 216;
+  --color-zen-300: 248 220 192;
+  --color-zen-400: 243 207 168;
+  --color-zen-500: 230 184 132;
+  --color-zen-600: 212 156 92;
+  --color-zen-700: 185 127 63;
+  --color-zen-800: 147 99 49;
+  --color-zen-900: 110 73 37;
+  --color-sage-50: 255 245 242;
+  --color-sage-100: 255 229 219;
+  --color-sage-200: 255 204 184;
+  --color-sage-300: 255 165 133;
+  --color-sage-400: 255 129 92;
+  --color-sage-500: 242 99 58;
+  --color-sage-600: 209 73 40;
+  --color-sage-700: 166 53 31;
+  --color-sage-800: 127 38 24;
+  --color-sage-900: 89 26 17;
+  --color-warm-50: 255 249 240;
+  --color-warm-100: 255 241 217;
+  --color-warm-200: 255 227 179;
+  --color-warm-300: 255 208 131;
+  --color-warm-400: 255 190 85;
+  --color-warm-500: 242 167 58;
+  --color-warm-600: 209 134 43;
+  --color-warm-700: 169 105 32;
+  --color-warm-800: 127 79 23;
+  --color-warm-900: 89 55 16;
+}
+
+:root[data-theme='midnight-dark'] {
+  color-scheme: dark;
+  --color-surface: 33 41 61;
+  --color-zen-50: 16 18 27;
+  --color-zen-100: 20 24 38;
+  --color-zen-200: 26 31 51;
+  --color-zen-300: 33 39 65;
+  --color-zen-400: 40 48 78;
+  --color-zen-500: 50 59 98;
+  --color-zen-600: 69 80 121;
+  --color-zen-700: 98 112 156;
+  --color-zen-800: 142 156 204;
+  --color-zen-900: 208 216 245;
+  --color-sage-50: 12 28 36;
+  --color-sage-100: 15 39 49;
+  --color-sage-200: 18 50 64;
+  --color-sage-300: 22 63 81;
+  --color-sage-400: 26 77 99;
+  --color-sage-500: 31 95 121;
+  --color-sage-600: 37 116 153;
+  --color-sage-700: 45 141 188;
+  --color-sage-800: 56 167 223;
+  --color-sage-900: 108 199 247;
+  --color-warm-50: 31 19 36;
+  --color-warm-100: 41 24 48;
+  --color-warm-200: 52 30 61;
+  --color-warm-300: 64 37 75;
+  --color-warm-400: 76 47 91;
+  --color-warm-500: 92 59 112;
+  --color-warm-600: 116 74 140;
+  --color-warm-700: 145 96 172;
+  --color-warm-800: 184 126 209;
+  --color-warm-900: 232 180 255;
+}
+
+:root[data-theme='forest-dark'] {
+  color-scheme: dark;
+  --color-surface: 36 48 40;
+  --color-zen-50: 15 22 19;
+  --color-zen-100: 21 30 25;
+  --color-zen-200: 28 41 33;
+  --color-zen-300: 34 52 42;
+  --color-zen-400: 41 64 52;
+  --color-zen-500: 49 76 63;
+  --color-zen-600: 63 99 81;
+  --color-zen-700: 84 128 106;
+  --color-zen-800: 119 161 139;
+  --color-zen-900: 179 208 192;
+  --color-sage-50: 17 32 25;
+  --color-sage-100: 22 51 37;
+  --color-sage-200: 27 70 50;
+  --color-sage-300: 31 90 65;
+  --color-sage-400: 36 111 81;
+  --color-sage-500: 42 134 99;
+  --color-sage-600: 52 165 121;
+  --color-sage-700: 70 197 147;
+  --color-sage-800: 109 224 175;
+  --color-sage-900: 165 247 207;
+  --color-warm-50: 29 23 16;
+  --color-warm-100: 40 31 21;
+  --color-warm-200: 52 40 24;
+  --color-warm-300: 64 52 29;
+  --color-warm-400: 77 64 34;
+  --color-warm-500: 94 77 41;
+  --color-warm-600: 120 99 58;
+  --color-warm-700: 150 126 78;
+  --color-warm-800: 186 159 105;
+  --color-warm-900: 226 201 150;
+}
+
 @layer base {
   body {
-    @apply bg-zen-50 text-zen-900;
+    @apply bg-zen-50 text-zen-900 transition-colors duration-300;
   }
 }
 

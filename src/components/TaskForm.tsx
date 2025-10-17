@@ -231,7 +231,7 @@ export default function TaskForm({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl shadow-lift max-w-lg w-full p-8 border border-zen-200"
+        className="bg-surface rounded-3xl shadow-lift max-w-lg w-full p-8 border border-zen-200"
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold text-zen-900">
