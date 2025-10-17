@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       supabaseAdmin
         .from('friend_requests')
         .select('requester_id, requested_id, status')
-        .or(`requester_id.eq.${user.id},requested_id.eq.${user.id})`),
+        .or(`requester_id.eq.${user.id},requested_id.eq.${user.id}`),
       supabaseAdmin
         .from('user_blocks')
         .select('blocked_user_id')
