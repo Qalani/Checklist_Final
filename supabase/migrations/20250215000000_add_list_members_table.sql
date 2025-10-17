@@ -66,15 +66,6 @@ create policy "List members can view their membership"
 create policy "Owners can manage memberships"
   on public.list_members
   for insert
-  using (
-    exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = list_members.list_id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
-  )
   with check (
     exists (
       select 1
