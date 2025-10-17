@@ -42,7 +42,9 @@ export default function RichTextTextarea({
   ...rest
 }: RichTextTextareaProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const [htmlValue, setHtmlValue] = useState('');
+  const [htmlValue, setHtmlValue] = useState(() => markdownToHtml(value));
+  const lastSyncedMarkdownRef = useRef(value);
+  const initialHtmlRef = useRef(htmlValue);
 
   const isEditorEmpty = useMemo(() => isHtmlContentEmpty(htmlValue), [htmlValue]);
 
@@ -52,26 +54,40 @@ export default function RichTextTextarea({
     return `${rows * lineHeightRem}rem`;
   }, [rows]);
 
-  const synchroniseValues = useCallback(() => {
+  const synchroniseValues = useCallback((options?: { applyToDom?: boolean }) => {
     const editor = editorRef.current;
     if (!editor) return;
 
     const normalisedHtml = normaliseEditorHtml(editor.innerHTML);
+    if (options?.applyToDom && editor.innerHTML !== normalisedHtml) {
+      editor.innerHTML = normalisedHtml || '';
+    }
     setHtmlValue(prev => (prev !== normalisedHtml ? normalisedHtml : prev));
 
     const markdown = htmlToMarkdown(normalisedHtml);
-    if (markdown !== value) {
+    if (markdown !== lastSyncedMarkdownRef.current) {
+      lastSyncedMarkdownRef.current = markdown;
       onChange(markdown);
     }
-  }, [onChange, value]);
+  }, [onChange]);
 
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
 
+    editor.innerHTML = initialHtmlRef.current || '';
+  }, []);
+
+  useEffect(() => {
+    if (value === lastSyncedMarkdownRef.current) {
+      return;
+    }
+
     const nextHtml = markdownToHtml(value);
+    lastSyncedMarkdownRef.current = value;
     setHtmlValue(prev => (prev === nextHtml ? prev : nextHtml));
-    if (editor.innerHTML !== nextHtml) {
+    const editor = editorRef.current;
+    if (editor && editor.innerHTML !== nextHtml) {
       editor.innerHTML = nextHtml || '';
     }
   }, [value]);
@@ -91,7 +107,7 @@ export default function RichTextTextarea({
   };
 
   const handleBlur = () => {
-    synchroniseValues();
+    synchroniseValues({ applyToDom: true });
   };
 
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
