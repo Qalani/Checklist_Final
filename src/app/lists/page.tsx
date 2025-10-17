@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { List as ListIcon, Sparkles, Plus, Pencil, Trash2, ArrowLeft, CheckSquare } from 'lucide-react';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
+import RichTextTextarea from '@/components/RichTextTextarea';
+import MarkdownDisplay from '@/components/MarkdownDisplay';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useLists } from '@/features/lists/useLists';
 import { supabase } from '@/lib/supabase';
@@ -266,12 +268,11 @@ export default function ListsPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-zen-700">Description</label>
-                      <textarea
+                      <RichTextTextarea
                         value={formState.description}
-                        onChange={event => setFormState(prev => ({ ...prev, description: event.target.value }))}
+                        onChange={value => setFormState(prev => ({ ...prev, description: value }))}
                         placeholder="Add a gentle reminder of what this list helps you with."
-                        rows={3}
-                        className="w-full rounded-xl border border-zen-200 bg-white/80 px-4 py-2.5 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                        rows={4}
                       />
                     </div>
                   </div>
@@ -341,7 +342,7 @@ export default function ListsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-2">
                         <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
-                        {list.description && <p className="text-sm text-zen-600">{list.description}</p>}
+                        {list.description && <MarkdownDisplay text={list.description} />}
                         <p className="text-xs text-zen-400">
                           {list.created_at
                             ? new Date(list.created_at).toLocaleString(undefined, {

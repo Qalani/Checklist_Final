@@ -22,6 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical, BellRing } from 'lucide-react';
 import type { Task, Category } from '@/types';
+import MarkdownDisplay from './MarkdownDisplay';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -164,7 +165,11 @@ function SortableTaskItem({
               </div>
             </div>
 
-            {task.description && <p className="text-sm text-zen-600 mt-1">{task.description}</p>}
+            {task.description && (
+              <div className="mt-1">
+                <MarkdownDisplay text={task.description} />
+              </div>
+            )}
 
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {category && (

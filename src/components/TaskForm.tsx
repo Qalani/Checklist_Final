@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, Save, PlusCircle } from 'lucide-react';
 import type { Task, Category } from '@/types';
+import RichTextTextarea from './RichTextTextarea';
 
 interface TaskFormProps {
   task: Task | null;
@@ -264,12 +265,11 @@ export default function TaskForm({
             <label className="block text-sm font-medium text-zen-700 mb-2">
               Description (optional)
             </label>
-            <textarea
+            <RichTextTextarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="Add details..."
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors resize-none"
+              rows={4}
             />
           </div>
 
