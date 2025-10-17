@@ -1,3 +1,5 @@
+drop table if exists public.list_members cascade;
+
 create table public.list_members (
   id uuid not null default gen_random_uuid(),
   list_id uuid not null references public.lists(id) on delete cascade,
