@@ -50,67 +50,64 @@ drop policy if exists "Owners can manage memberships" on public.list_members;
 drop policy if exists "Members can update their own role to viewer" on public.list_members;
 drop policy if exists "Members can remove themselves" on public.list_members;
 
+drop function if exists public.is_list_owner(uuid);
+drop function if exists public.is_list_member(uuid, text[]);
+
+create function public.is_list_member(target_list_id uuid, allowed_roles text[] default array['owner','editor','viewer'])
+returns boolean
+language sql
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1
+    from public.list_members
+    where list_id = target_list_id
+      and user_id = auth.uid()
+      and role = any(allowed_roles)
+  );
+$$;
+
+grant execute on function public.is_list_member(uuid, text[]) to authenticated;
+
+create function public.is_list_owner(target_list_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public, auth
+as $$
+  select public.is_list_member(target_list_id, array['owner']);
+$$;
+
+grant execute on function public.is_list_owner(uuid) to authenticated;
+
 create policy "List members can view their membership"
   on public.list_members
   for select
   using (
     auth.uid() = user_id
-    or exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = list_members.list_id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
+    or public.is_list_owner(list_members.list_id)
   );
 
 create policy "Owners can manage memberships"
   on public.list_members
   for insert
   with check (
-    exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = list_members.list_id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
+    public.is_list_owner(list_members.list_id)
   );
 
 create policy "Owners can update memberships"
   on public.list_members
   for update
-  using (
-    exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = list_members.list_id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = list_members.list_id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
-  );
+  using (public.is_list_owner(list_members.list_id))
+  with check (public.is_list_owner(list_members.list_id));
 
 create policy "Owners or members can remove themselves"
   on public.list_members
   for delete
   using (
     auth.uid() = user_id
-    or exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = list_members.list_id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
+    or public.is_list_owner(list_members.list_id)
   );
 
 drop policy if exists "Lists are viewable by owner" on public.lists;
@@ -128,12 +125,7 @@ create policy "Lists viewable by members"
   for select
   using (
     auth.uid() = user_id
-    or exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = lists.id
-        and lm.user_id = auth.uid()
-    )
+    or public.is_list_member(lists.id)
   );
 
 create policy "Lists insertable by owner"
@@ -146,23 +138,11 @@ create policy "Lists updatable by editors"
   for update
   using (
     auth.uid() = user_id
-    or exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = lists.id
-        and lm.user_id = auth.uid()
-        and lm.role in ('owner', 'editor')
-    )
+    or public.is_list_member(lists.id, array['owner','editor'])
   )
   with check (
     auth.uid() = user_id
-    or exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = lists.id
-        and lm.user_id = auth.uid()
-        and lm.role in ('owner', 'editor')
-    )
+    or public.is_list_member(lists.id, array['owner','editor'])
   );
 
 create policy "Lists deletable by owners"
@@ -170,13 +150,7 @@ create policy "Lists deletable by owners"
   for delete
   using (
     auth.uid() = user_id
-    or exists (
-      select 1
-      from public.list_members lm
-      where lm.list_id = lists.id
-        and lm.user_id = auth.uid()
-        and lm.role = 'owner'
-    )
+    or public.is_list_owner(lists.id)
   );
 
 drop function if exists public.invite_list_member(uuid, text, text);
