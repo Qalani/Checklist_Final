@@ -16,6 +16,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical, BellRing } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import { useState } from 'react';
+import MarkdownDisplay from './MarkdownDisplay';
 
 interface TaskBentoGridProps {
   tasks: Task[];
@@ -151,9 +152,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
               {task.title}
             </h3>
             {task.description && (
-              <p className="text-sm text-zen-600 line-clamp-2">
-                {task.description}
-              </p>
+              <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
             )}
           </div>
 
