@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ActionPayload =
   | { action: 'send_request'; targetUserId?: unknown; message?: unknown }
+  | { action: 'send_request_by_code'; friendCode?: unknown; message?: unknown }
   | { action: 'respond_request'; requestId?: unknown; decision?: unknown }
   | { action: 'cancel_request'; requestId?: unknown }
   | { action: 'remove_friend'; friendUserId?: unknown }
@@ -30,6 +31,11 @@ type ListMembershipRecord = {
 type ProfileRecord = {
   id: string;
   email: string | null;
+};
+
+type FriendCodeRecord = {
+  user_id: string;
+  code: string;
 };
 
 class ActionError extends Error {
@@ -89,10 +95,29 @@ async function getFriendEmail(client: SupabaseClient, friendUserId: string) {
   return data.email;
 }
 
-async function handleSendRequest(client: SupabaseClient, userId: string, payload: ActionPayload) {
-  if (payload.action !== 'send_request') return;
-  const targetUserId = typeof payload.targetUserId === 'string' ? payload.targetUserId : '';
+function normalizeFriendCode(input: string): string {
+  return input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
 
+function resolveMessage(input: unknown): string | null {
+  if (typeof input !== 'string') {
+    return null;
+  }
+
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.slice(0, 250);
+}
+
+async function sendFriendRequestToUser(
+  client: SupabaseClient,
+  userId: string,
+  targetUserId: string,
+  message: string | null,
+) {
   if (!targetUserId) {
     throw new ActionError('A target user is required.');
   }
@@ -118,7 +143,9 @@ async function handleSendRequest(client: SupabaseClient, userId: string, payload
   const existingRequest = await client
     .from('friend_requests')
     .select('id, requester_id, requested_id, status')
-    .or(`and(requester_id.eq.${userId},requested_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},requested_id.eq.${userId}))`)
+    .or(
+      `and(requester_id.eq.${userId},requested_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},requested_id.eq.${userId})`,
+    )
     .limit(1)
     .maybeSingle<FriendRequestRecord>();
 
@@ -134,11 +161,6 @@ async function handleSendRequest(client: SupabaseClient, userId: string, payload
     throw new ActionError('You already have a pending request with this user.');
   }
 
-  const message =
-    typeof payload.message === 'string' && payload.message.trim().length > 0
-      ? payload.message.trim().slice(0, 250)
-      : null;
-
   const { error } = await client
     .from('friend_requests')
     .insert({
@@ -151,6 +173,50 @@ async function handleSendRequest(client: SupabaseClient, userId: string, payload
   if (error) {
     throw error;
   }
+}
+
+async function handleSendRequest(client: SupabaseClient, userId: string, payload: ActionPayload) {
+  if (payload.action !== 'send_request') return;
+  const targetUserId = typeof payload.targetUserId === 'string' ? payload.targetUserId : '';
+  const message = resolveMessage(payload.message);
+  await sendFriendRequestToUser(client, userId, targetUserId, message);
+}
+
+async function findUserIdByCode(client: SupabaseClient, friendCode: string) {
+  const normalized = normalizeFriendCode(friendCode);
+
+  if (!normalized) {
+    throw new ActionError('A valid friend code is required.');
+  }
+
+  const { data, error } = await client
+    .from('friend_codes')
+    .select('user_id, code')
+    .eq('code', normalized)
+    .maybeSingle<FriendCodeRecord>();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new ActionError('That friend code was not found.', 404);
+  }
+
+  return data.user_id;
+}
+
+async function handleSendRequestByCode(client: SupabaseClient, userId: string, payload: ActionPayload) {
+  if (payload.action !== 'send_request_by_code') return;
+  const friendCode = typeof payload.friendCode === 'string' ? payload.friendCode : '';
+
+  if (!friendCode.trim()) {
+    throw new ActionError('Enter a friend code to continue.');
+  }
+
+  const targetUserId = await findUserIdByCode(client, friendCode);
+  const message = resolveMessage(payload.message);
+  await sendFriendRequestToUser(client, userId, targetUserId, message);
 }
 
 async function handleRespondRequest(client: SupabaseClient, userId: string, payload: ActionPayload) {
@@ -413,6 +479,9 @@ export async function POST(request: Request) {
     switch (body.action) {
       case 'send_request':
         await handleSendRequest(client, user.id, body);
+        break;
+      case 'send_request_by_code':
+        await handleSendRequestByCode(client, user.id, body);
         break;
       case 'respond_request':
         await handleRespondRequest(client, user.id, body);

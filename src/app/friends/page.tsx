@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Check,
+  Copy,
   RefreshCcw,
-  Search,
+  Share2,
   ShieldBan,
   UserMinus,
   UserPlus,
@@ -19,7 +20,6 @@ import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useFriends } from '@/features/friends/useFriends';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
-import type { FriendSearchResult } from '@/types';
 
 interface FeedbackState {
   type: 'success' | 'error';
@@ -40,14 +40,13 @@ function LoadingScreen() {
 export default function FriendsPage() {
   const router = useRouter();
   const { user, authChecked, signOut } = useAuthSession();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<FriendSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [collabFriendId, setCollabFriendId] = useState('');
   const [collabType, setCollabType] = useState<'task' | 'list'>('task');
   const [collabResourceId, setCollabResourceId] = useState('');
   const [collabRole, setCollabRole] = useState<'editor' | 'viewer'>('editor');
+  const [friendCodeInput, setFriendCodeInput] = useState('');
+  const [sendingFriendCode, setSendingFriendCode] = useState(false);
 
   const {
     status,
@@ -57,9 +56,9 @@ export default function FriendsPage() {
     outgoingRequests,
     blocked,
     error,
+    friendCode,
     refresh,
-    search,
-    sendRequest,
+    sendRequestByCode,
     respondToRequest,
     cancelRequest,
     removeFriend,
@@ -137,24 +136,75 @@ export default function FriendsPage() {
     setFeedback({ type: 'success', text: successMessage });
   };
 
-  const handleSearch = async () => {
-    const trimmed = searchQuery.trim();
+  const handleCopyFriendCode = async (): Promise<boolean> => {
+    if (!friendCode) {
+      setFeedback({ type: 'error', text: 'Your friend code is still being generated. Try again in a moment.' });
+      return false;
+    }
 
-    if (!trimmed) {
-      setSearchResults([]);
+    if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+      setFeedback({ type: 'error', text: 'Copying is not supported in this browser. You can copy the code manually.' });
+      return false;
+    }
+
+    try {
+      await navigator.clipboard.writeText(friendCode);
+      setFeedback({ type: 'success', text: 'Friend code copied to clipboard.' });
+      return true;
+    } catch (error) {
+      console.error('Failed to copy friend code', error);
+      setFeedback({ type: 'error', text: 'Unable to copy the friend code. Please copy it manually.' });
+      return false;
+    }
+  };
+
+  const handleShareFriendCode = async () => {
+    if (!friendCode) {
+      setFeedback({ type: 'error', text: 'Your friend code is still being generated. Try again shortly.' });
       return;
     }
 
-    setSearching(true);
-    const result = await search(trimmed);
-    setSearching(false);
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      const shareNavigator = navigator as Navigator & { share: (data: ShareData) => Promise<void> };
+      try {
+        await shareNavigator.share({
+          title: 'Zen Tasks friend code',
+          text: `Here is my Zen Tasks friend code: ${friendCode}`,
+        });
+        setFeedback({ type: 'success', text: 'Share dialog opened—choose an app to send your friend code.' });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to share friend code', error);
+      }
+    }
 
-    if (Array.isArray(result)) {
-      setSearchResults(result);
+    const copied = await handleCopyFriendCode();
+    if (!copied && typeof navigator === 'undefined') {
+      setFeedback({ type: 'error', text: 'Sharing is not available in this environment.' });
+    }
+  };
+
+  const handleSendRequestByCode = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!friendCodeInput.trim()) {
+      setFeedback({ type: 'error', text: 'Enter a friend code to continue.' });
       return;
     }
 
-    setFeedback({ type: 'error', text: result.error });
+    setSendingFriendCode(true);
+    const result = await sendRequestByCode(friendCodeInput);
+    setSendingFriendCode(false);
+
+    const hasError = Boolean(result && typeof result === 'object' && 'error' in result);
+    handleActionResult(result, 'Friend request sent.');
+
+    if (!hasError) {
+      setFriendCodeInput('');
+    }
   };
 
   const handleInvite = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -168,6 +218,10 @@ export default function FriendsPage() {
     const result = await inviteFriend(collabFriendId, collabType, collabResourceId, collabRole);
     handleActionResult(result, collabType === 'task' ? 'Task shared with your friend.' : 'List shared with your friend.');
   };
+
+  const isFriendCodeReady = Boolean(friendCode);
+  const isFriendCodeLoading = !isFriendCodeReady && (status === 'loading' || status === 'idle' || syncing);
+  const displayFriendCode = isFriendCodeReady ? friendCode : isFriendCodeLoading ? 'Generating…' : 'Unavailable';
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
@@ -234,111 +288,85 @@ export default function FriendsPage() {
           )}
 
           <section className="rounded-3xl border border-zen-200 bg-white/80 p-6 shadow-soft">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-zen-900">
-                  <Search className="h-5 w-5 text-sage-600" />
-                  Find friends
+                  <Share2 className="h-5 w-5 text-sage-600" />
+                  Share your friend code
                 </h2>
-                <p className="text-sm text-zen-600">Search by email or name. You can add anyone already using Zen Tasks.</p>
+                <p className="text-sm text-zen-600">
+                  Give this code to someone you trust so they can send you a friend request instantly.
+                </p>
               </div>
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search people by email or name"
-                  className="w-full rounded-xl border border-zen-200 bg-white px-4 py-2 text-sm text-zen-900 shadow-inner focus:border-sage-500 focus:outline-none focus:ring-2 focus:ring-sage-300 sm:max-w-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleSearch();
-                  }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-zen-900 px-4 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-zen-800"
-                >
-                  {searching ? (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                  Search
-                </button>
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-zen-200 bg-white px-4 py-3 shadow-inner">
+                  <span
+                    className={`text-sm font-semibold text-zen-900 ${isFriendCodeReady ? 'tracking-[0.35em]' : ''}`}
+                  >
+                    {displayFriendCode}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCopyFriendCode();
+                    }}
+                    className={`flex items-center gap-2 rounded-xl border border-zen-200 bg-white px-3 py-2 text-xs font-semibold text-zen-700 shadow-soft transition-colors ${
+                      isFriendCodeReady ? 'hover:bg-zen-50' : 'opacity-60'
+                    }`}
+                  >
+                    <Copy className="h-4 w-4" /> Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleShareFriendCode();
+                    }}
+                    className={`flex items-center gap-2 rounded-xl bg-zen-900 px-3 py-2 text-xs font-semibold text-white shadow-soft transition-colors ${
+                      isFriendCodeReady ? 'hover:bg-zen-800' : 'opacity-60'
+                    }`}
+                  >
+                    <Share2 className="h-4 w-4" /> Share
+                  </button>
+                </div>
               </div>
             </div>
 
-            {searchResults.length > 0 && (
-              <div className="mt-6 grid gap-4">
-                {searchResults.map((result) => {
-                  const actionLabel = result.is_friend
-                    ? 'Already friends'
-                    : result.incoming_request
-                      ? 'Incoming request'
-                      : result.has_pending_request
-                        ? 'Request pending'
-                        : result.is_blocked
-                          ? 'Blocked'
-                          : null;
-
-                  return (
-                    <div
-                      key={result.user_id}
-                      className="flex flex-col justify-between gap-4 rounded-2xl border border-zen-200 bg-white px-4 py-3 shadow-soft sm:flex-row sm:items-center"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-zen-900">{result.name ?? result.email}</p>
-                        <p className="text-xs text-zen-500">{result.email}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {result.is_friend && (
-                          <span className="rounded-full bg-sage-100 px-3 py-1 text-xs font-medium text-sage-700">Friend</span>
-                        )}
-                        {result.is_blocked && (
-                          <span className="flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-700">
-                            <ShieldBan className="h-3 w-3" /> Blocked
-                          </span>
-                        )}
-                        {result.incoming_request && !result.is_friend && !result.is_blocked && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const pending = incomingRequests.find(
-                                (request) => request.requester_id === result.user_id && request.status === 'pending',
-                              );
-                              if (!pending) {
-                                setFeedback({ type: 'error', text: 'No pending request found from this person.' });
-                                return;
-                              }
-                              const response = await respondToRequest(pending.id, 'accepted');
-                              handleActionResult(response, 'You are now friends!');
-                            }}
-                            className="flex items-center gap-1 rounded-full bg-sage-600 px-3 py-1 text-xs font-semibold text-white shadow-soft transition-colors hover:bg-sage-700"
-                          >
-                            <Check className="h-3 w-3" /> Accept
-                          </button>
-                        )}
-                        {!result.is_friend && !result.has_pending_request && !result.is_blocked && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const response = await sendRequest(result.user_id);
-                              handleActionResult(response, 'Friend request sent.');
-                              void handleSearch();
-                            }}
-                            className="flex items-center gap-1 rounded-full bg-zen-900 px-3 py-1 text-xs font-semibold text-white shadow-soft transition-colors hover:bg-zen-800"
-                          >
-                            <UserPlus className="h-3 w-3" /> Add friend
-                          </button>
-                        )}
-                        {actionLabel && !result.is_friend && !result.incoming_request && (
-                          <span className="rounded-full bg-zen-100 px-3 py-1 text-xs font-medium text-zen-600">{actionLabel}</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            <form className="mt-6 space-y-3" onSubmit={handleSendRequestByCode}>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-zen-700" htmlFor="friend-code-input">
+                  Add a friend by code
+                </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input
+                    id="friend-code-input"
+                    type="text"
+                    value={friendCodeInput}
+                    onChange={(event) => setFriendCodeInput(event.target.value.toUpperCase())}
+                    placeholder="Enter a friend's code"
+                    autoComplete="off"
+                    maxLength={16}
+                    className="w-full rounded-xl border border-zen-200 bg-white px-4 py-2 text-sm uppercase tracking-[0.3em] text-zen-900 shadow-inner focus:border-sage-500 focus:outline-none focus:ring-2 focus:ring-sage-300 sm:max-w-xs"
+                  />
+                  <button
+                    type="submit"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-zen-900 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-zen-800 disabled:cursor-not-allowed disabled:bg-zen-500"
+                    disabled={sendingFriendCode}
+                  >
+                    {sendingFriendCode ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    ) : (
+                      <UserPlus className="h-4 w-4" />
+                    )}
+                    Send request
+                  </button>
+                </div>
+                <p className="text-xs text-zen-500">
+                  Friend codes are eight characters long. Letters are not case sensitive.
+                </p>
               </div>
-            )}
+            </form>
           </section>
 
           <div className="grid gap-6 lg:grid-cols-2">
