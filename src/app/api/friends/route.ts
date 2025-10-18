@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, AuthError, supabaseAdmin } from '@/lib/api/supabase-admin';
 import type { BlockedUser, Friend, FriendRequest } from '@/types';
@@ -33,6 +34,14 @@ type ProfileRecord = {
   email: string | null;
   raw_user_meta_data: Record<string, unknown> | null;
 };
+
+type FriendCodeRecord = {
+  code: string;
+};
+
+const FRIEND_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const FRIEND_CODE_LENGTH = 8;
+const FRIEND_CODE_MAX_ATTEMPTS = 12;
 
 function resolveDisplayName(profile: ProfileRecord | undefined): string | null {
   if (!profile) return null;
@@ -172,7 +181,12 @@ export async function GET(request: Request) {
       } satisfies BlockedUser;
     });
 
-    const friendCode = await ensureFriendCodeForUser(userId);
+    let friendCode = '';
+    try {
+      friendCode = await ensureFriendCodeForUser(userId);
+    } catch (friendCodeError) {
+      console.error('Failed to ensure friend code for user', userId, friendCodeError);
+    }
 
     return NextResponse.json({
       friends: friendsPayload,
@@ -191,22 +205,72 @@ export async function GET(request: Request) {
   }
 }
 
+function generateFriendCode(): string {
+  let code = '';
+  for (let index = 0; index < FRIEND_CODE_LENGTH; index += 1) {
+    const charIndex = randomInt(0, FRIEND_CODE_ALPHABET.length);
+    code += FRIEND_CODE_ALPHABET[charIndex];
+  }
+  return code;
+}
+
+async function fetchExistingFriendCode(userId: string): Promise<string | null> {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase is not configured on the server.');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('friend_codes')
+    .select('code')
+    .eq('user_id', userId)
+    .maybeSingle<FriendCodeRecord>();
+
+  if (error && error.code !== 'PGRST116') {
+    throw error;
+  }
+
+  return data?.code ?? null;
+}
+
 async function ensureFriendCodeForUser(userId: string): Promise<string> {
   if (!supabaseAdmin) {
     throw new Error('Supabase is not configured on the server.');
   }
 
-  const { data, error } = await supabaseAdmin.rpc('ensure_friend_code', {
-    target_user_id: userId,
-  });
+  const existing = await fetchExistingFriendCode(userId);
+  if (existing) {
+    return existing;
+  }
 
-  if (error) {
+  for (let attempt = 0; attempt < FRIEND_CODE_MAX_ATTEMPTS; attempt += 1) {
+    const candidate = generateFriendCode();
+    const { error } = await supabaseAdmin.from('friend_codes').insert({
+      user_id: userId,
+      code: candidate,
+    });
+
+    if (!error) {
+      return candidate;
+    }
+
+    // Someone else might have generated a code at the same time—if the user has one now, return it.
+    if (error.code === '23505') {
+      const refreshed = await fetchExistingFriendCode(userId);
+      if (refreshed) {
+        return refreshed;
+      }
+
+      // Otherwise, try again with a different candidate.
+      continue;
+    }
+
     throw error;
   }
 
-  if (!data || typeof data !== 'string') {
-    throw new Error('Unable to determine your friend code.');
+  const finalCheck = await fetchExistingFriendCode(userId);
+  if (finalCheck) {
+    return finalCheck;
   }
 
-  return data;
+  throw new Error('Unable to generate a unique friend code at this time.');
 }
