@@ -67,6 +67,7 @@ async function getAccessToken(): Promise<string> {
 
 async function fetchFriends(token: string): Promise<FriendsResponse> {
   const response = await fetch('/api/friends', {
+    cache: 'no-store',
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -204,15 +205,23 @@ export class FriendsManager {
       try {
         const token = await getAccessToken();
         const data = await fetchFriends(token);
-        this.setSnapshot({
-          status: 'ready',
-          syncing: false,
-          friends: data.friends,
-          incomingRequests: data.incomingRequests,
-          outgoingRequests: data.outgoingRequests,
-          blocked: data.blocked,
-          friendCode: data.friendCode ?? '',
-          error: null,
+        this.setSnapshot((prev) => {
+          const friendCodeFromResponse =
+            typeof data.friendCode === 'string' && data.friendCode.trim().length > 0
+              ? data.friendCode
+              : null;
+
+          return {
+            ...prev,
+            status: 'ready',
+            syncing: false,
+            friends: data.friends,
+            incomingRequests: data.incomingRequests,
+            outgoingRequests: data.outgoingRequests,
+            blocked: data.blocked,
+            friendCode: friendCodeFromResponse ?? prev.friendCode ?? '',
+            error: null,
+          } satisfies FriendsSnapshot;
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to load friends.';
