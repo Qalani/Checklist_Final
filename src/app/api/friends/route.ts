@@ -281,11 +281,36 @@ async function tryInsertFriendCode(userId: string, candidate: string): Promise<s
   return null;
 }
 
-async function ensureFriendCodeForUser(userId: string): Promise<string> {
+function isEnsureFriendCodeFunctionMissing(error: PostgrestError): boolean {
+  if (error.code === '42883') {
+    return true;
+  }
+
+  const haystack = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+  return haystack.includes('ensure_friend_code') && haystack.includes('does not exist');
+}
+
+async function ensureFriendCodeViaRpc(userId: string): Promise<string | null> {
   if (!supabaseAdmin) {
     throw new Error('Supabase is not configured on the server.');
   }
 
+  const { data, error } = await supabaseAdmin.rpc<string>('ensure_friend_code', {
+    target_user_id: userId,
+  });
+
+  if (error) {
+    if (isEnsureFriendCodeFunctionMissing(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+
+  return typeof data === 'string' && data.trim() ? data : null;
+}
+
+async function ensureFriendCodeWithFallback(userId: string): Promise<string> {
   const existing = await fetchExistingFriendCode(userId);
   if (existing) {
     return existing;
@@ -311,4 +336,17 @@ async function ensureFriendCodeForUser(userId: string): Promise<string> {
   }
 
   throw new Error('Unable to generate a unique friend code at this time.');
+}
+
+async function ensureFriendCodeForUser(userId: string): Promise<string> {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase is not configured on the server.');
+  }
+
+  const ensured = await ensureFriendCodeViaRpc(userId);
+  if (ensured) {
+    return ensured;
+  }
+
+  return ensureFriendCodeWithFallback(userId);
 }
