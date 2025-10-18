@@ -13,7 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical, BellRing } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical, BellRing, Share2, Shield } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import { useState } from 'react';
 import MarkdownDisplay from './MarkdownDisplay';
@@ -25,7 +25,14 @@ interface TaskBentoGridProps {
   onDelete: (id: string) => void;
   onToggle: (id: string, completed: boolean) => void;
   onReorder: (tasks: Task[]) => void;
+  onManageAccess?: (task: Task) => void;
 }
+
+const ROLE_LABELS: Record<'owner' | 'editor' | 'viewer', string> = {
+  owner: 'Owner',
+  editor: 'Editor',
+  viewer: 'Viewer',
+};
 
 function formatReminder(minutes: number) {
   if (minutes < 60) {
@@ -45,12 +52,13 @@ function formatReminder(minutes: number) {
   return `${minutes} minutes before`;
 }
 
-function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
+function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManageAccess }: {
   task: Task;
   category?: Category;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
+  onManageAccess?: () => void;
 }) {
   const {
     attributes,
@@ -110,6 +118,12 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
     high: 'text-red-600 bg-red-100',
   };
 
+  const accessRole = task.access_role ?? 'owner';
+  const isOwner = accessRole === 'owner';
+  const canEdit = ['owner', 'editor'].includes(accessRole);
+  const canDelete = accessRole === 'owner';
+  const canManageAccess = Boolean(onManageAccess);
+
   return (
     <div ref={setNodeRef} style={style} className="group relative">
       <motion.div
@@ -156,7 +170,20 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
             )}
           </div>
 
-          {/* Menu */}
+        {/* Menu */}
+        <div className="relative flex items-center gap-2">
+          {task.access_role && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
+                isOwner
+                  ? 'border-sage-200 bg-sage-50 text-sage-600'
+                  : 'border-zen-200 bg-zen-50 text-zen-600'
+              }`}
+            >
+              <Shield className="w-3 h-3" />
+              {ROLE_LABELS[accessRole]}
+            </span>
+          )}
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -166,30 +193,55 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle }: {
             </button>
 
             {showMenu && (
-              <div className="absolute right-0 top-8 w-32 bg-surface rounded-xl shadow-lift border border-zen-200 py-1 z-10">
+              <div className="absolute right-0 top-8 w-40 bg-surface rounded-xl shadow-lift border border-zen-200 py-1 z-10">
                 <button
                   onClick={() => {
+                    if (!canEdit) {
+                      return;
+                    }
                     onEdit();
                     setShowMenu(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-zen-50 transition-colors"
+                  className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                    canEdit ? 'hover:bg-zen-50' : 'cursor-not-allowed opacity-60 text-zen-400'
+                  }`}
+                  disabled={!canEdit}
                 >
                   Edit
                 </button>
+                {canManageAccess && (
+                  <button
+                    onClick={() => {
+                      onManageAccess?.();
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-zen-50 transition-colors flex items-center gap-2"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    {isOwner ? 'Share task' : 'View access'}
+                  </button>
+                )}
                 <button
                   onClick={() => {
+                    if (!canDelete) {
+                      return;
+                    }
                     if (confirm('Delete this task?')) {
                       onDelete();
                     }
                     setShowMenu(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                    canDelete ? 'text-red-600 hover:bg-red-50' : 'text-zen-400 cursor-not-allowed opacity-60'
+                  }`}
+                  disabled={!canDelete}
                 >
                   Delete
                 </button>
               </div>
             )}
           </div>
+        </div>
         </div>
 
         {/* Footer */}
@@ -244,6 +296,7 @@ export default function TaskBentoGrid({
   onDelete,
   onToggle,
   onReorder,
+  onManageAccess,
 }: TaskBentoGridProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -304,6 +357,7 @@ export default function TaskBentoGrid({
               onEdit={() => onEdit(task)}
               onDelete={() => onDelete(task.id)}
               onToggle={() => onToggle(task.id, !task.completed)}
+              onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
             />
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Task, Category } from '@/types';
+import type { Task, Category, TaskCollaborator } from '@/types';
 import { ChecklistManager, type ChecklistSnapshot } from './ChecklistManager';
 
 interface UseChecklistResult extends ChecklistSnapshot {
@@ -10,6 +10,21 @@ interface UseChecklistResult extends ChecklistSnapshot {
   createCategory: (input: { name: string; color: string }) => Promise<Category>;
   updateCategory: (id: string, input: { name: string; color: string }) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  loadTaskCollaborators: (
+    taskId: string,
+  ) => Promise<{ collaborators: TaskCollaborator[] } | { error: string }>;
+  inviteTaskCollaborator: (
+    taskId: string,
+    email: string,
+    role: 'viewer' | 'editor',
+  ) => Promise<{ collaborator: TaskCollaborator } | { error: string }>;
+  updateTaskCollaboratorRole: (
+    collaboratorId: string,
+    role: 'viewer' | 'editor',
+  ) => Promise<{ collaborator: TaskCollaborator } | { error: string }>;
+  removeTaskCollaborator: (
+    collaboratorId: string,
+  ) => Promise<{ error: string } | void>;
   refresh: (force?: boolean) => Promise<void>;
 }
 
@@ -37,6 +52,10 @@ export function useChecklist(userId: string | null): UseChecklistResult {
     createCategory: (input) => manager.createCategory(input),
     updateCategory: (id, input) => manager.updateCategory(id, input),
     deleteCategory: (id) => manager.deleteCategory(id),
+    loadTaskCollaborators: (taskId) => manager.loadTaskCollaborators(taskId),
+    inviteTaskCollaborator: (taskId, email, role) => manager.inviteTaskCollaborator(taskId, email, role),
+    updateTaskCollaboratorRole: (collaboratorId, role) => manager.updateTaskCollaboratorRole(collaboratorId, role),
+    removeTaskCollaborator: (collaboratorId) => manager.removeTaskCollaborator(collaboratorId),
     refresh: (force) => manager.refresh(force),
   };
 }

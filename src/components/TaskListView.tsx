@@ -20,7 +20,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical, BellRing } from 'lucide-react';
+import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical, BellRing, Share2, Shield } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
 
@@ -31,7 +31,14 @@ interface TaskListViewProps {
   onDelete: (id: string) => void;
   onToggle: (id: string, completed: boolean) => void;
   onReorder: (tasks: Task[]) => void;
+  onManageAccess?: (task: Task) => void;
 }
+
+const ROLE_LABELS: Record<'owner' | 'editor' | 'viewer', string> = {
+  owner: 'Owner',
+  editor: 'Editor',
+  viewer: 'Viewer',
+};
 
 const priorityColors: Record<Task['priority'], string> = {
   low: 'text-zen-500',
@@ -65,6 +72,7 @@ function SortableTaskItem({
   onEdit,
   onDelete,
   onToggle,
+  onManageAccess,
 }: {
   task: Task;
   category?: Category;
@@ -73,6 +81,7 @@ function SortableTaskItem({
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
+  onManageAccess?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -119,6 +128,12 @@ function SortableTaskItem({
       ? formatReminder(task.reminder_minutes_before)
       : null;
 
+  const accessRole = task.access_role ?? 'owner';
+  const isOwner = accessRole === 'owner';
+  const canEdit = ['owner', 'editor'].includes(accessRole);
+  const canDelete = accessRole === 'owner';
+  const canManageAccess = Boolean(onManageAccess);
+
   return (
     <div ref={setNodeRef} style={style} className="group">
       <motion.div
@@ -154,7 +169,19 @@ function SortableTaskItem({
                 {task.title}
               </h3>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
+                {task.access_role && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium ${
+                      isOwner
+                        ? 'border-sage-200 bg-sage-50 text-sage-600'
+                        : 'border-zen-200 bg-zen-50 text-zen-600'
+                    }`}
+                  >
+                    <Shield className="w-3 h-3" />
+                    {ROLE_LABELS[accessRole]}
+                  </span>
+                )}
                 <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />
                 <button
                   onClick={onExpand}
@@ -210,21 +237,48 @@ function SortableTaskItem({
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="flex gap-2 mt-3 pt-3 border-t border-zen-100"
+                className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-zen-100"
               >
+                {canManageAccess && (
+                  <button
+                    onClick={() => onManageAccess?.()}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-zen-100 text-zen-700 hover:bg-zen-200 transition-colors flex items-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    {isOwner ? 'Share task' : 'View access'}
+                  </button>
+                )}
                 <button
-                  onClick={onEdit}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium bg-sage-100 text-sage-700 hover:bg-sage-200 transition-colors"
+                  onClick={() => {
+                    if (!canEdit) {
+                      return;
+                    }
+                    onEdit();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    canEdit
+                      ? 'bg-sage-100 text-sage-700 hover:bg-sage-200'
+                      : 'bg-zen-50 text-zen-400 cursor-not-allowed opacity-70'
+                  }`}
+                  disabled={!canEdit}
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => {
+                    if (!canDelete) {
+                      return;
+                    }
                     if (confirm('Delete this task?')) {
                       onDelete();
                     }
                   }}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    canDelete
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                      : 'bg-zen-50 text-zen-400 cursor-not-allowed opacity-70'
+                  }`}
+                  disabled={!canDelete}
                 >
                   Delete
                 </button>
@@ -244,6 +298,7 @@ export default function TaskListView({
   onDelete,
   onToggle,
   onReorder,
+  onManageAccess,
 }: TaskListViewProps) {
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const sensors = useSensors(
@@ -317,6 +372,7 @@ export default function TaskListView({
                 setExpandedTask(prev => (prev === task.id ? null : prev));
                 onToggle(task.id, !task.completed);
               }}
+              onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
             />
           ))}
         </div>
