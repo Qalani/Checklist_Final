@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Category, Task } from '@/types';
+import type { Category, Task, TaskCollaborator } from '@/types';
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
@@ -196,8 +196,8 @@ export class ChecklistManager {
 
     try {
       if (existingTask) {
-        if (existingTask.access_role && existingTask.access_role !== 'owner') {
-          throw new Error('You can only edit tasks that you own.');
+        if (existingTask.access_role && !['owner', 'editor'].includes(existingTask.access_role)) {
+          throw new Error('You do not have permission to edit this task.');
         }
 
         const sanitizedInput: Record<string, unknown> = {
@@ -216,7 +216,6 @@ export class ChecklistManager {
           .from('tasks')
           .update(sanitizedInput)
           .eq('id', existingTask.id)
-          .eq('user_id', this.userId)
           .select()
           .single();
 
@@ -579,6 +578,83 @@ export class ChecklistManager {
       categories: sortCategories(prev.categories.filter((category) => category.id !== id)),
       error: null,
     }));
+  }
+
+  async loadTaskCollaborators(taskId: string) {
+    try {
+      const { data, error } = await supabase.rpc('get_task_collaborators', {
+        task_uuid: taskId,
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Unable to load collaborators.');
+      }
+
+      const collaborators = Array.isArray(data) ? (data as TaskCollaborator[]) : [];
+      return { collaborators };
+    } catch (error) {
+      return { error: extractErrorMessage(error, 'Unable to load collaborators.') };
+    }
+  }
+
+  async inviteTaskCollaborator(taskId: string, email: string, role: 'viewer' | 'editor') {
+    if (!email.trim()) {
+      return { error: 'Enter an email address to invite.' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('invite_task_collaborator', {
+        task_uuid: taskId,
+        invitee_email: email.trim(),
+        desired_role: role,
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Unable to invite collaborator.');
+      }
+
+      if (!data) {
+        throw new Error('Invite did not return the new collaborator.');
+      }
+
+      return { collaborator: data as TaskCollaborator };
+    } catch (error) {
+      return { error: extractErrorMessage(error, 'Unable to invite collaborator.') };
+    }
+  }
+
+  async updateTaskCollaboratorRole(collaboratorId: string, role: 'viewer' | 'editor') {
+    try {
+      const { data, error } = await supabase
+        .from('task_collaborators')
+        .update({ role })
+        .eq('id', collaboratorId)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw new Error(error.message || 'Unable to update collaborator.');
+      }
+
+      return { collaborator: data as TaskCollaborator };
+    } catch (error) {
+      return { error: extractErrorMessage(error, 'Unable to update collaborator.') };
+    }
+  }
+
+  async removeTaskCollaborator(collaboratorId: string) {
+    try {
+      const { error } = await supabase
+        .from('task_collaborators')
+        .delete()
+        .eq('id', collaboratorId);
+
+      if (error) {
+        throw new Error(error.message || 'Unable to remove collaborator.');
+      }
+    } catch (error) {
+      return { error: extractErrorMessage(error, 'Unable to remove collaborator.') };
+    }
   }
 
   private subscribeToRealtime(userId: string) {

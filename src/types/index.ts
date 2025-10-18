@@ -15,6 +15,16 @@ export interface Task extends Record<string, unknown> {
   access_role?: 'owner' | 'editor' | 'viewer';
 }
 
+export interface TaskCollaborator {
+  id: string;
+  task_id: string;
+  user_id: string;
+  user_email?: string | null;
+  role: 'owner' | 'editor' | 'viewer';
+  is_owner?: boolean;
+  created_at?: string;
+}
+
 export interface Category extends Record<string, unknown> {
   id: string;
   name: string;

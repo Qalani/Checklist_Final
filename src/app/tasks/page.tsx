@@ -11,6 +11,13 @@ import {
   Clock,
   Sparkles,
   Bell,
+  Share2,
+  UserPlus,
+  UserMinus,
+  Shield,
+  Loader2,
+  Mail,
+  X,
 } from 'lucide-react';
 import TaskBentoGrid from '@/components/TaskBentoGrid';
 import TaskListView from '@/components/TaskListView';
@@ -18,7 +25,7 @@ import TaskForm from '@/components/TaskForm';
 import CategoryManager from '@/components/CategoryManager';
 import ProgressDashboard from '@/components/ProgressDashboard';
 import QuickStats from '@/components/QuickStats';
-import type { Task, Category } from '@/types';
+import type { Task, Category, TaskCollaborator } from '@/types';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ZenPageHeader from '@/components/ZenPageHeader';
@@ -26,6 +33,43 @@ import AccountSummary from '@/components/AccountSummary';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useRouter } from 'next/navigation';
+
+type CollaboratorRole = 'viewer' | 'editor';
+
+const COLLABORATOR_ROLES: CollaboratorRole[] = ['viewer', 'editor'];
+
+const ROLE_LABELS: Record<'owner' | CollaboratorRole, string> = {
+  owner: 'Owner',
+  editor: 'Editor',
+  viewer: 'Viewer',
+};
+
+const ROLE_ORDER: Record<'owner' | CollaboratorRole, number> = {
+  owner: 0,
+  editor: 1,
+  viewer: 2,
+};
+
+function orderCollaborators(collaborators: TaskCollaborator[]): TaskCollaborator[] {
+  return [...collaborators].sort((a, b) => {
+    if (a.is_owner && !b.is_owner) {
+      return -1;
+    }
+    if (b.is_owner && !a.is_owner) {
+      return 1;
+    }
+
+    const roleA = (a.role ?? 'viewer') as 'owner' | CollaboratorRole;
+    const roleB = (b.role ?? 'viewer') as 'owner' | CollaboratorRole;
+    const roleComparison = (ROLE_ORDER[roleA] ?? 2) - (ROLE_ORDER[roleB] ?? 2);
+
+    if (roleComparison !== 0) {
+      return roleComparison;
+    }
+
+    return (a.user_email ?? '').localeCompare(b.user_email ?? '');
+  });
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -41,6 +85,15 @@ export default function HomePage() {
   >('pending');
   const reminderTimeoutsRef = useRef<Map<string, number>>(new Map());
   const triggeredRemindersRef = useRef<Map<string, string>>(new Map());
+  const [sharingTask, setSharingTask] = useState<Task | null>(null);
+  const [collaborators, setCollaborators] = useState<TaskCollaborator[]>([]);
+  const [collaboratorsLoading, setCollaboratorsLoading] = useState(false);
+  const [collaboratorError, setCollaboratorError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<CollaboratorRole>('viewer');
+  const [collaboratorSubmitting, setCollaboratorSubmitting] = useState(false);
+  const [collaboratorActionId, setCollaboratorActionId] = useState<string | null>(null);
+  const resolveRole = useCallback((task: Task): 'owner' | CollaboratorRole => task.access_role ?? 'owner', []);
 
   const {
     tasks,
@@ -55,6 +108,10 @@ export default function HomePage() {
     createCategory,
     updateCategory,
     deleteCategory,
+    loadTaskCollaborators,
+    inviteTaskCollaborator,
+    updateTaskCollaboratorRole,
+    removeTaskCollaborator,
   } = useChecklist(user?.id ?? null);
 
   useEffect(() => {
@@ -158,6 +215,126 @@ export default function HomePage() {
       await deleteCategory(id);
     },
     [deleteCategory],
+  );
+
+  const handleOpenShareTask = useCallback(
+    async (task: Task) => {
+      setSharingTask(task);
+      setCollaborators([]);
+      setInviteEmail('');
+      setInviteRole('viewer');
+      setCollaboratorError(null);
+      setCollaboratorsLoading(true);
+
+      const result = await loadTaskCollaborators(task.id);
+
+      if ('error' in result) {
+        setCollaboratorError(result.error);
+        setCollaborators([]);
+      } else {
+        setCollaborators(orderCollaborators(result.collaborators));
+      }
+
+      setCollaboratorsLoading(false);
+    },
+    [loadTaskCollaborators],
+  );
+
+  const handleCloseShareTask = useCallback(() => {
+    setSharingTask(null);
+    setCollaborators([]);
+    setCollaboratorError(null);
+    setInviteEmail('');
+    setInviteRole('viewer');
+    setCollaboratorSubmitting(false);
+    setCollaboratorActionId(null);
+  }, []);
+
+  const handleInviteCollaborator = useCallback(async () => {
+    if (!sharingTask) {
+      return;
+    }
+
+    if (resolveRole(sharingTask) !== 'owner') {
+      setCollaboratorError('Only owners can invite collaborators.');
+      return;
+    }
+
+    setCollaboratorSubmitting(true);
+    setCollaboratorError(null);
+
+    const result = await inviteTaskCollaborator(sharingTask.id, inviteEmail, inviteRole);
+
+    if ('error' in result) {
+      setCollaboratorError(result.error);
+    } else {
+      setCollaborators(prev => {
+        const ownerRows = prev.filter(collaborator => collaborator.is_owner);
+        const others = prev.filter(collaborator => !collaborator.is_owner && collaborator.id !== result.collaborator.id);
+        return orderCollaborators([...ownerRows, ...others, result.collaborator]);
+      });
+      setInviteEmail('');
+    }
+
+    setCollaboratorSubmitting(false);
+  }, [sharingTask, resolveRole, inviteTaskCollaborator, inviteEmail, inviteRole]);
+
+  const handleCollaboratorRoleChange = useCallback(
+    async (collaborator: TaskCollaborator, role: CollaboratorRole) => {
+      if (collaborator.role === role) {
+        return;
+      }
+
+      if (!sharingTask || resolveRole(sharingTask) !== 'owner') {
+        setCollaboratorError('Only owners can update collaborator roles.');
+        return;
+      }
+
+      setCollaboratorActionId(collaborator.id);
+      setCollaboratorError(null);
+
+      const result = await updateTaskCollaboratorRole(collaborator.id, role);
+
+      if ('error' in result) {
+        setCollaboratorError(result.error);
+      } else {
+        setCollaborators(prev => {
+          const ownerRows = prev.filter(entry => entry.is_owner);
+          const others = prev.filter(entry => !entry.is_owner && entry.id !== collaborator.id);
+          return orderCollaborators([...ownerRows, ...others, result.collaborator]);
+        });
+      }
+
+      setCollaboratorActionId(null);
+    },
+    [resolveRole, sharingTask, updateTaskCollaboratorRole],
+  );
+
+  const handleRemoveCollaborator = useCallback(
+    async (collaborator: TaskCollaborator) => {
+      if (collaborator.is_owner) {
+        return;
+      }
+
+      setCollaboratorActionId(collaborator.id);
+      setCollaboratorError(null);
+
+      const result = await removeTaskCollaborator(collaborator.id);
+
+      if (result && 'error' in result && result.error) {
+        setCollaboratorError(result.error);
+        setCollaboratorActionId(null);
+        return;
+      }
+
+      setCollaborators(prev => prev.filter(entry => entry.id !== collaborator.id));
+      setCollaboratorActionId(null);
+
+      if (sharingTask && user && collaborator.user_id === user.id) {
+        handleCloseShareTask();
+      }
+    },
+    [removeTaskCollaborator, sharingTask, user, handleCloseShareTask],
   );
 
   const requestNotificationPermission = useCallback(async () => {
@@ -533,6 +710,9 @@ export default function HomePage() {
                       onReorder={(reorderedTasks) => {
                         void reorderTasks(reorderedTasks);
                       }}
+                      onManageAccess={(task) => {
+                        void handleOpenShareTask(task);
+                      }}
                     />
                   </motion.div>
                 ) : (
@@ -558,6 +738,9 @@ export default function HomePage() {
                       }}
                       onReorder={(reorderedTasks) => {
                         void reorderTasks(reorderedTasks);
+                      }}
+                      onManageAccess={(task) => {
+                        void handleOpenShareTask(task);
                       }}
                     />
                   </motion.div>
@@ -590,6 +773,189 @@ export default function HomePage() {
               }}
               onSave={(taskData) => handleTaskSave(taskData, editingTask)}
             />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {sharingTask && (
+            <motion.div
+              className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div
+                className="absolute inset-0 bg-black/40"
+                onClick={handleCloseShareTask}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                className="relative w-full max-w-2xl rounded-3xl bg-surface p-6 shadow-xl border border-zen-200"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sage-100 text-sage-700 text-xs font-medium">
+                      <Share2 className="w-3 h-3" />
+                      Collaborative task
+                    </div>
+                    <h2 className="text-xl font-semibold text-zen-900">Manage “{sharingTask.title}”</h2>
+                    <p className="text-sm text-zen-600">
+                      {resolveRole(sharingTask) === 'owner'
+                        ? 'Invite trusted friends to contribute or update their access.'
+                        : 'Review your access or leave the task if it no longer serves you.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCloseShareTask}
+                    className="p-2 rounded-lg text-zen-500 hover:text-zen-700 hover:bg-zen-100 transition-colors"
+                    aria-label="Close collaborator dialog"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="mt-6 grid gap-4">
+                  {resolveRole(sharingTask) === 'owner' ? (
+                    <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-zen-700">Friend’s email</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
+                          <input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={event => setInviteEmail(event.target.value)}
+                            placeholder="friend@example.com"
+                            className="w-full rounded-xl border border-zen-200 bg-white/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                            disabled={collaboratorSubmitting}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-zen-700">Role</label>
+                        <select
+                          value={inviteRole}
+                          onChange={event => setInviteRole(event.target.value as CollaboratorRole)}
+                          className="w-full rounded-xl border border-zen-200 bg-white/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                          disabled={collaboratorSubmitting}
+                        >
+                          {COLLABORATOR_ROLES.map(role => (
+                            <option key={role} value={role}>
+                              {ROLE_LABELS[role]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleInviteCollaborator()}
+                        disabled={collaboratorSubmitting}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        {collaboratorSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                        Invite
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-zen-200 bg-zen-50 px-3 py-2 text-sm text-zen-600 flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      Only the owner can invite new collaborators. You can leave the task below.
+                    </div>
+                  )}
+
+                  {collaboratorError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                      {collaboratorError}
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-zen-200 bg-white/90 shadow-soft">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-zen-100">
+                      <p className="text-sm font-medium text-zen-700">Collaborators</p>
+                      <span className="text-xs text-zen-500">{collaborators.length} people</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-zen-100">
+                      {collaboratorsLoading ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-sm text-zen-500">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading collaborators…
+                        </div>
+                      ) : collaborators.length === 0 ? (
+                        <div className="py-6 text-center text-sm text-zen-500">
+                          No collaborators yet. {resolveRole(sharingTask) === 'owner' ? 'Invite a friend above to begin collaborating.' : 'Ask the owner to invite friends if you need help.'}
+                        </div>
+                      ) : (
+                        collaborators.map(collaborator => {
+                          const isOwnerRow = Boolean(collaborator.is_owner || collaborator.role === 'owner');
+                          const isCurrentUser = collaborator.user_id === user?.id;
+                          const disabled = collaboratorActionId === collaborator.id;
+                          const collaboratorRole = (collaborator.role ?? 'viewer') as CollaboratorRole;
+                          const roleLabelKey: 'owner' | CollaboratorRole = isOwnerRow ? 'owner' : collaboratorRole;
+
+                          return (
+                            <div
+                              key={`${collaborator.id}-${collaborator.is_owner ? 'owner' : 'collaborator'}`}
+                              className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium text-zen-800">{collaborator.user_email ?? (isOwnerRow ? 'Task owner' : 'Unknown user')}</p>
+                                <p className="text-xs text-zen-500">
+                                  {isOwnerRow
+                                    ? 'Full control'
+                                    : isCurrentUser
+                                      ? 'You have shared access'
+                                      : 'Collaborator'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                {isOwnerRow ? (
+                                  <span className="inline-flex items-center gap-1 rounded-lg border border-sage-200 bg-sage-50 px-3 py-1 text-xs font-medium text-sage-600">
+                                    <Shield className="w-3 h-3" />
+                                    Owner
+                                  </span>
+                                ) : resolveRole(sharingTask) === 'owner' ? (
+                                  <select
+                                    value={collaboratorRole}
+                                    onChange={event => void handleCollaboratorRoleChange(collaborator, event.target.value as CollaboratorRole)}
+                                    disabled={disabled}
+                                    className="rounded-xl border border-zen-200 bg-white px-3 py-2 text-xs text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none disabled:opacity-60"
+                                  >
+                                    {COLLABORATOR_ROLES.map(option => (
+                                      <option key={option} value={option}>
+                                        {ROLE_LABELS[option]}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-lg border border-zen-200 bg-zen-50 px-3 py-1 text-xs font-medium text-zen-600">
+                                    {ROLE_LABELS[roleLabelKey]}
+                                  </span>
+                                )}
+
+                                {!isOwnerRow && (resolveRole(sharingTask) === 'owner' || isCurrentUser) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRemoveCollaborator(collaborator)}
+                                    disabled={disabled}
+                                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 text-xs font-medium text-red-500 hover:text-red-600 hover:border-red-300 transition-colors disabled:opacity-60"
+                                  >
+                                    {disabled ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserMinus className="w-3 h-3" />}
+                                    {isCurrentUser ? 'Leave' : 'Remove'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

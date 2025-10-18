@@ -207,12 +207,6 @@ export default function ListsPage() {
   };
 
   const handleOpenShare = async (list: List) => {
-    const role = resolveRole(list);
-    if (role !== 'owner') {
-      setFormError('Only owners can share a list.');
-      return;
-    }
-
     setSharingList(list);
     setMembers([]);
     setInviteEmail('');
@@ -246,6 +240,11 @@ export default function ListsPage() {
       return;
     }
 
+    if (resolveRole(sharingList) !== 'owner') {
+      setMemberError('Only owners can invite collaborators.');
+      return;
+    }
+
     setMemberSubmitting(true);
     setMemberError(null);
 
@@ -268,6 +267,11 @@ export default function ListsPage() {
       return;
     }
 
+    if (!sharingList || resolveRole(sharingList) !== 'owner') {
+      setMemberError('Only owners can update member roles.');
+      return;
+    }
+
     setMemberActionId(member.id);
     setMemberError(null);
 
@@ -285,6 +289,16 @@ export default function ListsPage() {
   };
 
   const handleRemoveMember = async (member: ListMember) => {
+    if (!sharingList) {
+      return;
+    }
+
+    const isOwner = resolveRole(sharingList) === 'owner';
+    if (!isOwner && member.user_id !== user?.id) {
+      setMemberError('You can only remove yourself from this list.');
+      return;
+    }
+
     setMemberActionId(member.id);
     setMemberError(null);
 
@@ -306,6 +320,9 @@ export default function ListsPage() {
   if (!authChecked || !user) {
     return <LoadingScreen />;
   }
+
+  const sharingRole = sharingList ? resolveRole(sharingList) : null;
+  const canManageMembers = sharingRole === 'owner';
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
@@ -512,12 +529,12 @@ export default function ListsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {canDeleteList && (
+                          {list.access_role && (
                             <button
                               type="button"
                               onClick={() => void handleOpenShare(list)}
                               className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
-                              title="Share list"
+                              title={role === 'owner' ? 'Share list' : 'View collaborators'}
                             >
                               <Share2 className="w-4 h-4" />
                             </button>
@@ -576,11 +593,15 @@ export default function ListsPage() {
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sage-100 text-sage-700 text-xs font-medium">
                     <Shield className="w-3 h-3" />
-                    Owner tools
+                    {canManageMembers ? 'Owner tools' : 'Shared access'}
                   </div>
-                  <h2 className="text-xl font-semibold text-zen-900">Share “{sharingList.name}”</h2>
+                  <h2 className="text-xl font-semibold text-zen-900">
+                    {canManageMembers ? `Share “${sharingList.name}”` : `Collaborators for “${sharingList.name}”`}
+                  </h2>
                   <p className="text-sm text-zen-600">
-                    Invite teammates and choose their access. Owners keep full control.
+                    {canManageMembers
+                      ? 'Invite trusted collaborators and choose their access.'
+                      : 'Review who has access or leave the list if it no longer fits.'}
                   </p>
                 </div>
                 <button
@@ -594,48 +615,57 @@ export default function ListsPage() {
               </div>
 
               <div className="mt-6 grid gap-4">
-                <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-zen-700">Email address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
-                      <input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={event => setInviteEmail(event.target.value)}
-                        placeholder="teammate@example.com"
-                        className="w-full rounded-xl border border-zen-200 bg-white/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
-                      />
+                {canManageMembers ? (
+                  <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-zen-700">Email address</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
+                        <input
+                          type="email"
+                          value={inviteEmail}
+                          onChange={event => setInviteEmail(event.target.value)}
+                          placeholder="teammate@example.com"
+                          className="w-full rounded-xl border border-zen-200 bg-white/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                          disabled={memberSubmitting}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-zen-700">Role</label>
-                    <select
-                      value={inviteRole}
-                      onChange={event => setInviteRole(event.target.value as MemberRole)}
-                      className="w-full rounded-xl border border-zen-200 bg-white/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-zen-700">Role</label>
+                      <select
+                        value={inviteRole}
+                        onChange={event => setInviteRole(event.target.value as MemberRole)}
+                        className="w-full rounded-xl border border-zen-200 bg-white/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                        disabled={memberSubmitting}
+                      >
+                        {EDITABLE_ROLES.map(role => (
+                          <option key={role} value={role}>
+                            {ROLE_LABELS[role]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleInvite()}
+                      disabled={memberSubmitting}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                      {EDITABLE_ROLES.map(role => (
-                        <option key={role} value={role}>
-                          {ROLE_LABELS[role]}
-                        </option>
-                      ))}
-                    </select>
+                      {memberSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <UserPlus className="w-4 h-4" />
+                      )}
+                      Invite
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleInvite()}
-                    disabled={memberSubmitting}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    {memberSubmitting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="w-4 h-4" />
-                    )}
-                    Invite
-                  </button>
-                </div>
+                ) : (
+                  <div className="rounded-xl border border-zen-200 bg-zen-50 px-3 py-2 text-sm text-zen-600 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Only owners can invite collaborators. You can leave the list below.
+                  </div>
+                )}
 
                 {memberError && (
                   <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
@@ -656,7 +686,7 @@ export default function ListsPage() {
                       </div>
                     ) : members.length === 0 ? (
                       <div className="py-6 text-center text-sm text-zen-500">
-                        No collaborators yet. Invite someone above.
+                        No collaborators yet. {canManageMembers ? 'Invite someone above.' : 'Ask the owner to invite collaborators if you need help.'}
                       </div>
                     ) : (
                       members.map(member => {
@@ -678,7 +708,7 @@ export default function ListsPage() {
                                   <Shield className="w-3 h-3" />
                                   Owner
                                 </span>
-                              ) : (
+                              ) : canManageMembers ? (
                                 <select
                                   value={member.role}
                                   onChange={event => void handleMemberRoleChange(member, event.target.value as MemberRole)}
@@ -691,8 +721,12 @@ export default function ListsPage() {
                                     </option>
                                   ))}
                                 </select>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-lg border border-zen-200 bg-zen-50 px-3 py-1 text-xs font-medium text-zen-600">
+                                  {ROLE_LABELS[member.role]}
+                                </span>
                               )}
-                              {!isOwner && (
+                              {!isOwner && (canManageMembers || isCurrentUser) && (
                                 <button
                                   type="button"
                                   onClick={() => void handleRemoveMember(member)}
