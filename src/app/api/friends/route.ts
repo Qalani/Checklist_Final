@@ -1,8 +1,11 @@
-import { randomInt } from 'crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, AuthError, supabaseAdmin } from '@/lib/api/supabase-admin';
-import type { PostgrestError } from '@supabase/supabase-js';
-import type { BlockedUser, Friend, FriendRequest } from '@/types';
+import type { BlockedUser, Friend, FriendInvite } from '@/types';
+import {
+  ensureFriendCodeForUser,
+  fetchProfileSummaries,
+  type ProfileSummary,
+} from './shared';
 
 type RawFriend = {
   id: string;
@@ -11,15 +14,12 @@ type RawFriend = {
   created_at: string | null;
 };
 
-type RawFriendRequest = {
+type RawFriendInvite = {
   id: string;
-  requester_id: string;
-  requested_id: string;
-  message: string | null;
-  status: FriendRequest['status'];
+  sender_id: string;
+  receiver_id: string;
+  request_code: string;
   created_at: string | null;
-  updated_at: string | null;
-  responded_at: string | null;
 };
 
 type RawBlocked = {
@@ -29,38 +29,6 @@ type RawBlocked = {
   reason: string | null;
   created_at: string | null;
 };
-
-type ProfileRecord = {
-  id: string;
-  email: string | null;
-  raw_user_meta_data: Record<string, unknown> | null;
-};
-
-type FriendCodeRecord = {
-  code: string;
-};
-
-const FRIEND_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const FRIEND_CODE_LENGTH = 8;
-const FRIEND_CODE_MAX_ATTEMPTS = 12;
-
-function resolveDisplayName(profile: ProfileRecord | undefined): string | null {
-  if (!profile) return null;
-  const metadata = profile.raw_user_meta_data ?? {};
-  if (metadata && typeof metadata === 'object') {
-    const fullName = (metadata as { full_name?: unknown }).full_name;
-    if (typeof fullName === 'string' && fullName.trim()) {
-      return fullName;
-    }
-
-    const name = (metadata as { name?: unknown }).name;
-    if (typeof name === 'string' && name.trim()) {
-      return name;
-    }
-  }
-
-  return null;
-}
 
 export async function GET(request: Request) {
   try {
@@ -72,17 +40,17 @@ export async function GET(request: Request) {
 
     const userId = user.id;
 
-    const [friendsResult, requestsResult, blocksResult] = await Promise.all([
+    const [friendsResult, invitesResult, blocksResult] = await Promise.all([
       supabaseAdmin
         .from('friends')
         .select('id, user_id, friend_id, created_at')
         .eq('user_id', userId)
         .returns<RawFriend[]>(),
       supabaseAdmin
-        .from('friend_requests')
-        .select('id, requester_id, requested_id, message, status, created_at, updated_at, responded_at')
-        .or(`requester_id.eq.${userId},requested_id.eq.${userId}`)
-        .returns<RawFriendRequest[]>(),
+        .from('friend_invites')
+        .select('id, sender_id, receiver_id, request_code, created_at')
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .returns<RawFriendInvite[]>(),
       supabaseAdmin
         .from('user_blocks')
         .select('id, user_id, blocked_user_id, reason, created_at')
@@ -94,8 +62,8 @@ export async function GET(request: Request) {
       throw friendsResult.error;
     }
 
-    if (requestsResult.error) {
-      throw requestsResult.error;
+    if (invitesResult.error) {
+      throw invitesResult.error;
     }
 
     if (blocksResult.error) {
@@ -103,34 +71,24 @@ export async function GET(request: Request) {
     }
 
     const friends = friendsResult.data ?? [];
-    const requests = requestsResult.data ?? [];
+    const invites = invitesResult.data ?? [];
     const blocks = blocksResult.data ?? [];
 
     const relatedUserIds = new Set<string>();
     friends.forEach((record) => relatedUserIds.add(record.friend_id));
-    requests.forEach((record) => {
-      relatedUserIds.add(record.requester_id);
-      relatedUserIds.add(record.requested_id);
+    invites.forEach((record) => {
+      relatedUserIds.add(record.sender_id);
+      relatedUserIds.add(record.receiver_id);
     });
     blocks.forEach((record) => relatedUserIds.add(record.blocked_user_id));
 
     relatedUserIds.delete(userId);
 
-    let profileMap = new Map<string, ProfileRecord>();
+    let profileMap = new Map<string, ProfileSummary>();
 
     if (relatedUserIds.size > 0) {
-      const profileQuery = await supabaseAdmin
-        .schema('auth')
-        .from('users')
-        .select('id, email, raw_user_meta_data')
-        .in('id', Array.from(relatedUserIds))
-        .returns<ProfileRecord[]>();
-
-      if (profileQuery.error) {
-        throw profileQuery.error;
-      }
-
-      profileMap = new Map(profileQuery.data?.map((profile) => [profile.id, profile]));
+      const profiles = await fetchProfileSummaries(Array.from(relatedUserIds));
+      profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
     }
 
     const friendsPayload: Friend[] = friends.map((record) => {
@@ -140,34 +98,27 @@ export async function GET(request: Request) {
         user_id: record.user_id,
         friend_id: record.friend_id,
         friend_email: profile?.email ?? 'Unknown user',
-        friend_name: resolveDisplayName(profile),
+        friend_name: profile?.name ?? null,
         created_at: record.created_at ?? undefined,
       } satisfies Friend;
     });
 
-    const friendRequests: FriendRequest[] = requests.map((record) => {
-      const requesterProfile = profileMap.get(record.requester_id);
-      const requestedProfile = profileMap.get(record.requested_id);
+    const friendInvites: FriendInvite[] = invites.map((record) => {
+      const senderProfile = profileMap.get(record.sender_id);
+      const receiverProfile = profileMap.get(record.receiver_id);
       return {
         id: record.id,
-        requester_id: record.requester_id,
-        requested_id: record.requested_id,
-        requester_email: record.requester_id === userId ? user.email : requesterProfile?.email ?? null,
-        requested_email: record.requested_id === userId ? user.email : requestedProfile?.email ?? null,
-        status: record.status,
-        message: record.message,
+        sender_id: record.sender_id,
+        receiver_id: record.receiver_id,
+        sender_email: record.sender_id === userId ? user.email : senderProfile?.email ?? null,
+        receiver_email: record.receiver_id === userId ? user.email : receiverProfile?.email ?? null,
+        request_code: record.request_code,
         created_at: record.created_at ?? undefined,
-        updated_at: record.updated_at ?? undefined,
-        responded_at: record.responded_at ?? undefined,
-      } satisfies FriendRequest;
+      } satisfies FriendInvite;
     });
 
-    const incomingRequests = friendRequests.filter(
-      (request) => request.requested_id === userId && request.status === 'pending',
-    );
-    const outgoingRequests = friendRequests.filter(
-      (request) => request.requester_id === userId && request.status === 'pending',
-    );
+    const incomingInvites = friendInvites.filter((invite) => invite.receiver_id === userId);
+    const outgoingInvites = friendInvites.filter((invite) => invite.sender_id === userId);
 
     const blockedUsers: BlockedUser[] = blocks.map((record) => {
       const profile = profileMap.get(record.blocked_user_id);
@@ -176,7 +127,7 @@ export async function GET(request: Request) {
         user_id: record.user_id,
         blocked_user_id: record.blocked_user_id,
         blocked_email: profile?.email ?? null,
-        blocked_name: resolveDisplayName(profile),
+        blocked_name: profile?.name ?? null,
         reason: record.reason,
         created_at: record.created_at ?? undefined,
       } satisfies BlockedUser;
@@ -188,7 +139,17 @@ export async function GET(request: Request) {
     } catch (friendCodeError) {
       console.error('Failed to ensure friend code for user', userId, friendCodeError);
       try {
-        friendCode = (await fetchExistingFriendCode(userId)) ?? '';
+        const { data, error } = await supabaseAdmin
+          .from('friend_codes')
+          .select('code')
+          .eq('user_id', userId)
+          .maybeSingle<{ code: string }>();
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+
+        friendCode = data?.code ?? '';
       } catch (fallbackError) {
         console.error('Unable to recover existing friend code for user', userId, fallbackError);
       }
@@ -196,8 +157,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       friends: friendsPayload,
-      incomingRequests,
-      outgoingRequests,
+      incomingInvites,
+      outgoingInvites,
       blocked: blockedUsers,
       friendCode,
     });
@@ -209,157 +170,4 @@ export async function GET(request: Request) {
     console.error('Failed to load friend data', error);
     return NextResponse.json({ error: 'Unable to load friend data.' }, { status: 500 });
   }
-}
-
-function generateFriendCode(): string {
-  let code = '';
-  for (let index = 0; index < FRIEND_CODE_LENGTH; index += 1) {
-    const charIndex = randomInt(0, FRIEND_CODE_ALPHABET.length);
-    code += FRIEND_CODE_ALPHABET[charIndex];
-  }
-  return code;
-}
-
-async function fetchExistingFriendCode(userId: string): Promise<string | null> {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase is not configured on the server.');
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('friend_codes')
-    .select('code')
-    .eq('user_id', userId)
-    .maybeSingle<FriendCodeRecord>();
-
-  if (error && error.code !== 'PGRST116') {
-    throw error;
-  }
-
-  return data?.code ?? null;
-}
-
-function isUniqueViolation(error: unknown): error is PostgrestError {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const candidate = error as PostgrestError & { message?: string };
-  if (candidate.code === '23505') {
-    return true;
-  }
-
-  const message = candidate.message ?? candidate.details ?? '';
-  return typeof message === 'string' && message.includes('duplicate key value violates');
-}
-
-async function tryInsertFriendCode(userId: string, candidate: string): Promise<string | null> {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase is not configured on the server.');
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('friend_codes')
-    .insert({
-      user_id: userId,
-      code: candidate,
-    })
-    .select('code')
-    .single<FriendCodeRecord>();
-
-  if (!error && data?.code) {
-    return data.code;
-  }
-
-  if (error && isUniqueViolation(error)) {
-    return null;
-  }
-
-  if (error) {
-    throw error;
-  }
-
-  return null;
-}
-
-function shouldFallbackForEnsureFriendCodeError(error: PostgrestError): boolean {
-  if (error.code === '42883') {
-    return true;
-  }
-
-  if (error.code === '42501') {
-    return true;
-  }
-
-  const haystack = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
-
-  if (haystack.includes('ensure_friend_code') && haystack.includes('does not exist')) {
-    return true;
-  }
-
-  if (haystack.includes('row level security') || haystack.includes('permission denied')) {
-    return true;
-  }
-
-  return false;
-}
-
-async function ensureFriendCodeViaRpc(userId: string): Promise<string | null> {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase is not configured on the server.');
-  }
-
-  const { data, error } = await supabaseAdmin.rpc('ensure_friend_code', {
-    target_user_id: userId,
-  });
-
-  if (error) {
-    if (shouldFallbackForEnsureFriendCodeError(error)) {
-      return null;
-    }
-
-    throw error;
-  }
-
-  return typeof data === 'string' && data.trim() ? data : null;
-}
-
-async function ensureFriendCodeWithFallback(userId: string): Promise<string> {
-  const existing = await fetchExistingFriendCode(userId);
-  if (existing) {
-    return existing;
-  }
-
-  for (let attempt = 0; attempt < FRIEND_CODE_MAX_ATTEMPTS; attempt += 1) {
-    const candidate = generateFriendCode();
-    const inserted = await tryInsertFriendCode(userId, candidate);
-
-    if (inserted) {
-      return inserted;
-    }
-
-    const refreshed = await fetchExistingFriendCode(userId);
-    if (refreshed) {
-      return refreshed;
-    }
-  }
-
-  const finalCheck = await fetchExistingFriendCode(userId);
-  if (finalCheck) {
-    return finalCheck;
-  }
-
-  throw new Error('Unable to generate a unique friend code at this time.');
-}
-
-async function ensureFriendCodeForUser(userId: string): Promise<string> {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase is not configured on the server.');
-  }
-
-  const ensured = await ensureFriendCodeViaRpc(userId);
-  if (ensured) {
-    return ensured;
-  }
-
-  return ensureFriendCodeWithFallback(userId);
 }

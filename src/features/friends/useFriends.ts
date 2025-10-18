@@ -11,8 +11,8 @@ type Role = 'editor' | 'viewer';
 export interface UseFriendsResult extends FriendsSnapshot {
   refresh: (force?: boolean) => Promise<void>;
   search: (query: string) => Promise<FriendSearchResult[] | ActionError>;
-  sendRequest: (targetUserId: string, message?: string | null) => Promise<void | ActionError>;
-  sendRequestByCode: (friendCode: string, message?: string | null) => Promise<void | ActionError>;
+  sendRequest: (targetUserId: string) => Promise<void | ActionError>;
+  sendRequestByCode: (friendCode: string) => Promise<void | ActionError>;
   respondToRequest: (requestId: string, decision: Decision) => Promise<void | ActionError>;
   cancelRequest: (requestId: string) => Promise<void | ActionError>;
   removeFriend: (friendUserId: string) => Promise<void | ActionError>;
@@ -45,8 +45,8 @@ export function useFriends(userId: string | null): UseFriendsResult {
     ...snapshot,
     refresh: (force?: boolean) => manager.refresh(Boolean(force)),
     search: (query: string) => manager.search(query),
-    sendRequest: (targetUserId, message) => manager.sendRequest(targetUserId, message),
-    sendRequestByCode: (friendCode, message) => manager.sendRequestByCode(friendCode, message),
+    sendRequest: (targetUserId) => manager.sendRequest(targetUserId),
+    sendRequestByCode: (friendCode) => manager.sendRequestByCode(friendCode),
     respondToRequest: (requestId, decision) => manager.respondToRequest(requestId, decision),
     cancelRequest: (requestId) => manager.cancelRequest(requestId),
     removeFriend: (friendUserId) => manager.removeFriend(friendUserId),

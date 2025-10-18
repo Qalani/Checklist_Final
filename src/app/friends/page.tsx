@@ -52,8 +52,8 @@ export default function FriendsPage() {
     status,
     syncing,
     friends,
-    incomingRequests,
-    outgoingRequests,
+    incomingInvites,
+    outgoingInvites,
     blocked,
     error,
     friendCode,
@@ -536,29 +536,26 @@ export default function FriendsPage() {
                 <MailIcon />
                 Incoming requests
               </div>
-              {incomingRequests.length === 0 ? (
+              {incomingInvites.length === 0 ? (
                 <p className="text-sm text-zen-600">No pending invitations right now.</p>
               ) : (
                 <div className="space-y-3">
-                  {incomingRequests.map((request) => (
+                  {incomingInvites.map((invite) => (
                     <div
-                      key={request.id}
+                      key={invite.id}
                       className="flex flex-col justify-between gap-3 rounded-2xl border border-zen-200 bg-white px-4 py-3 shadow-soft sm:flex-row sm:items-center"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-zen-900">{request.requester_email}</p>
+                        <p className="text-sm font-semibold text-zen-900">{invite.sender_email}</p>
                         <p className="text-xs text-zen-500">
-                          Sent {new Date(request.created_at ?? Date.now()).toLocaleString()}
+                          Sent {new Date(invite.created_at ?? Date.now()).toLocaleString()}
                         </p>
-                        {request.message && (
-                          <p className="mt-1 text-xs text-zen-600">“{request.message}”</p>
-                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={async () => {
-                            const result = await respondToRequest(request.id, 'accepted');
+                            const result = await respondToRequest(invite.id, 'accepted');
                             handleActionResult(result, 'Friend request accepted.');
                           }}
                           className="flex items-center gap-1 rounded-full bg-sage-600 px-3 py-1 text-xs font-semibold text-white shadow-soft transition-colors hover:bg-sage-700"
@@ -568,7 +565,7 @@ export default function FriendsPage() {
                         <button
                           type="button"
                           onClick={async () => {
-                            const result = await respondToRequest(request.id, 'declined');
+                            const result = await respondToRequest(invite.id, 'declined');
                             handleActionResult(result, 'Friend request declined.');
                           }}
                           className="flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-200"
@@ -587,25 +584,25 @@ export default function FriendsPage() {
                 <MailIcon />
                 Sent requests
               </div>
-              {outgoingRequests.length === 0 ? (
+              {outgoingInvites.length === 0 ? (
                 <p className="text-sm text-zen-600">You haven’t sent any friend requests yet.</p>
               ) : (
                 <div className="space-y-3">
-                  {outgoingRequests.map((request) => (
+                  {outgoingInvites.map((invite) => (
                     <div
-                      key={request.id}
+                      key={invite.id}
                       className="flex flex-col justify-between gap-3 rounded-2xl border border-zen-200 bg-white px-4 py-3 shadow-soft sm:flex-row sm:items-center"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-zen-900">{request.requested_email}</p>
+                        <p className="text-sm font-semibold text-zen-900">{invite.receiver_email}</p>
                         <p className="text-xs text-zen-500">
-                          Sent {new Date(request.created_at ?? Date.now()).toLocaleString()}
+                          Sent {new Date(invite.created_at ?? Date.now()).toLocaleString()}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={async () => {
-                          const result = await cancelRequest(request.id);
+                          const result = await cancelRequest(invite.id);
                           handleActionResult(result, 'Friend request cancelled.');
                         }}
                         className="flex items-center gap-1 rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 transition-colors hover:bg-zen-200"
