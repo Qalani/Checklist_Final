@@ -51,3 +51,16 @@ export interface Friend {
   friend_name?: string | null;
   created_at?: string;
 }
+
+export interface FriendRequest {
+  id: string;
+  requester_id: string;
+  requester_email: string;
+  requester_name?: string | null;
+  target_id: string;
+  target_email: string;
+  target_name?: string | null;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at?: string;
+  responded_at?: string | null;
+}

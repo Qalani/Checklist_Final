@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, RefreshCcw, UserMinus, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCcw, UserMinus, UserPlus, UserX } from 'lucide-react';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
@@ -27,11 +27,25 @@ function LoadingScreen() {
 export default function FriendsPage() {
   const router = useRouter();
   const { user, authChecked, signOut } = useAuthSession();
-  const { friends, status, syncing, error, addFriend, removeFriend, refresh } = useFriends(user?.id ?? null);
+  const {
+    friends,
+    incomingRequests,
+    outgoingRequests,
+    status,
+    syncing,
+    error,
+    addFriend,
+    removeFriend,
+    acceptRequest,
+    declineRequest,
+    refresh,
+  } = useFriends(user?.id ?? null);
   const [emailInput, setEmailInput] = useState('');
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authChecked) {
@@ -77,7 +91,7 @@ export default function FriendsPage() {
     }
 
     setEmailInput('');
-    setFeedback({ type: 'success', text: `${result.friend.friend_email} is now on your friends list.` });
+    setFeedback({ type: 'success', text: `Friend request sent to ${result.request.target_email}.` });
   };
 
   const handleRemoveFriend = async (friendUserId: string) => {
@@ -96,6 +110,32 @@ export default function FriendsPage() {
   const handleRefresh = async () => {
     await refresh(true);
     setFeedback({ type: 'success', text: 'Friends updated.' });
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    setAcceptingId(requestId);
+    const result = await acceptRequest(requestId);
+    setAcceptingId(null);
+
+    if (result && 'error' in result) {
+      setFeedback({ type: 'error', text: result.error });
+      return;
+    }
+
+    setFeedback({ type: 'success', text: 'Friend request accepted.' });
+  };
+
+  const handleDeclineRequest = async (requestId: string) => {
+    setDecliningId(requestId);
+    const result = await declineRequest(requestId);
+    setDecliningId(null);
+
+    if (result && 'error' in result) {
+      setFeedback({ type: 'error', text: result.error });
+      return;
+    }
+
+    setFeedback({ type: 'success', text: 'Friend request declined.' });
   };
 
   return (
@@ -249,6 +289,109 @@ export default function FriendsPage() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-zen-200 bg-white p-6 shadow-soft">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-zen-900">Incoming requests</h3>
+                    <p className="text-sm text-zen-600">
+                      {incomingRequests.length === 1
+                        ? '1 person is waiting for your response.'
+                        : `${incomingRequests.length} people are waiting for your response.`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  {incomingRequests.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-zen-200 bg-zen-50 px-4 py-6 text-center text-sm text-zen-600">
+                      No pending requests right now.
+                    </div>
+                  ) : (
+                    incomingRequests.map(request => (
+                      <div
+                        key={request.id}
+                        className="flex flex-col gap-3 rounded-xl border border-zen-100 bg-white px-4 py-4 shadow-inner sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-zen-900">
+                            {request.requester_name?.trim() ? request.requester_name : request.requester_email}
+                          </p>
+                          <p className="text-xs text-zen-500">{request.requester_email}</p>
+                          {request.created_at ? (
+                            <p className="text-xs text-zen-400">Requested {new Date(request.created_at).toLocaleString()}</p>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleAcceptRequest(request.id);
+                            }}
+                            disabled={acceptingId === request.id || decliningId === request.id}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-sage-600 px-3 py-2 text-sm font-medium text-white shadow-soft transition hover:bg-sage-500 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {acceptingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleDeclineRequest(request.id);
+                            }}
+                            disabled={acceptingId === request.id || decliningId === request.id}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zen-200 px-3 py-2 text-sm font-medium text-zen-700 shadow-soft transition hover:bg-zen-50 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {decliningId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4" />}
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-zen-200 bg-white p-6 shadow-soft">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-zen-900">Sent requests</h3>
+                    <p className="text-sm text-zen-600">
+                      {outgoingRequests.length === 1
+                        ? '1 pending invite.'
+                        : `${outgoingRequests.length} pending invites.`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  {outgoingRequests.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-zen-200 bg-zen-50 px-4 py-6 text-center text-sm text-zen-600">
+                      You have not sent any requests yet.
+                    </div>
+                  ) : (
+                    outgoingRequests.map(request => (
+                      <div
+                        key={request.id}
+                        className="flex flex-col gap-3 rounded-xl border border-zen-100 bg-white px-4 py-4 shadow-inner"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-zen-900">
+                            {request.target_name?.trim() ? request.target_name : request.target_email}
+                          </p>
+                          <p className="text-xs text-zen-500">{request.target_email}</p>
+                          {request.created_at ? (
+                            <p className="text-xs text-zen-400">Sent {new Date(request.created_at).toLocaleString()}</p>
+                          ) : null}
+                        </div>
+                        <p className="text-xs text-zen-500">Waiting for approval</p>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </section>
