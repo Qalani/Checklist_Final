@@ -42,7 +42,7 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
 
 const HTML_FALLBACK_REPLACEMENTS: Array<[RegExp, string]> = [
   [/<!DOCTYPE[^>]*>/gi, ''],
-  [/<script[\s\S]*?>[\s\S]*?<\/script>/gi, ''],
+  [/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, ''],
   [/<style[\s\S]*?>[\s\S]*?<\/style>/gi, ''],
   [/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, ''],
   [/<object[\s\S]*?>[\s\S]*?<\/object>/gi, ''],
