@@ -295,7 +295,7 @@ async function ensureFriendCodeViaRpc(userId: string): Promise<string | null> {
     throw new Error('Supabase is not configured on the server.');
   }
 
-  const { data, error } = await supabaseAdmin.rpc<string>('ensure_friend_code', {
+  const { data, error } = await supabaseAdmin.rpc('ensure_friend_code', {
     target_user_id: userId,
   });
 
