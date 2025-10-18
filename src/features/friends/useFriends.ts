@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { BlockedUser, Friend, FriendRequest, FriendSearchResult } from '@/types';
 
 type FriendsStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -137,6 +138,9 @@ export function useFriends(userId: string | null): UseFriendsResult {
   const [state, setState] = useState<FriendsState>(INITIAL_STATE);
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
   const currentUserRef = useRef<string | null>(null);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const realtimeRefreshRef = useRef(false);
+  const realtimeRefreshQueuedRef = useRef(false);
 
   const reset = useCallback(() => {
     setState(INITIAL_STATE);
@@ -197,6 +201,12 @@ export function useFriends(userId: string | null): UseFriendsResult {
 
   useEffect(() => {
     if (!userId) {
+      if (realtimeChannelRef.current) {
+        void supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+      realtimeRefreshRef.current = false;
+      realtimeRefreshQueuedRef.current = false;
       reset();
       return;
     }
@@ -208,6 +218,81 @@ export function useFriends(userId: string | null): UseFriendsResult {
     currentUserRef.current = userId;
     void runRefresh(true);
   }, [reset, runRefresh, state.status, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    if (realtimeChannelRef.current) {
+      void supabase.removeChannel(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
+    }
+    realtimeRefreshRef.current = false;
+    realtimeRefreshQueuedRef.current = false;
+
+    const triggerRefresh = () => {
+      if (realtimeRefreshRef.current) {
+        realtimeRefreshQueuedRef.current = true;
+        return;
+      }
+
+      realtimeRefreshRef.current = true;
+      void runRefresh(true).finally(() => {
+        realtimeRefreshRef.current = false;
+        if (realtimeRefreshQueuedRef.current) {
+          realtimeRefreshQueuedRef.current = false;
+          triggerRefresh();
+        }
+      });
+    };
+
+    const channel = supabase
+      .channel(`friends:${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friends', filter: `user_id=eq.${userId}` }, () => {
+        triggerRefresh();
+      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friend_requests', filter: `requester_id=eq.${userId}` },
+        () => {
+          triggerRefresh();
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friend_requests', filter: `requested_id=eq.${userId}` },
+        () => {
+          triggerRefresh();
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_blocks', filter: `user_id=eq.${userId}` },
+        () => {
+          triggerRefresh();
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friend_codes', filter: `user_id=eq.${userId}` },
+        () => {
+          triggerRefresh();
+        },
+      );
+
+    void channel.subscribe();
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      if (realtimeChannelRef.current) {
+        void supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+      realtimeRefreshRef.current = false;
+      realtimeRefreshQueuedRef.current = false;
+    };
+  }, [runRefresh, userId]);
 
   const executeAction = useCallback(
     async (action: ActionPayload): Promise<void | ActionError> => {
