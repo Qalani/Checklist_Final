@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { LayoutGrid, List as ListIcon, Sparkles, CalendarClock, ArrowRight, Users } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Sparkles, CalendarClock, ArrowRight, Users, FileText } from 'lucide-react';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import AuthPanel from '@/components/AuthPanel';
@@ -12,6 +12,7 @@ import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useLists } from '@/features/lists/useLists';
 import { useFriends } from '@/features/friends/useFriends';
+import { useNotes } from '@/features/notes/useNotes';
 
 function LoadingScreen() {
   return (
@@ -38,10 +39,16 @@ export default function HomePage() {
     syncing: listsSyncing,
   } = useLists(user?.id ?? null);
   const { friends, status: friendsStatus, syncing: friendsSyncing } = useFriends(user?.id ?? null);
+  const {
+    notes,
+    status: notesStatus,
+    syncing: notesSyncing,
+  } = useNotes(user?.id ?? null);
 
   const isTasksLoading = checklistStatus === 'loading' || checklistSyncing;
   const isListsLoading = listsStatus === 'loading' || listsSyncing;
   const isFriendsLoading = friendsStatus === 'loading' || friendsSyncing;
+  const isNotesLoading = notesStatus === 'loading' || notesSyncing;
 
   const activeTasksCount = useMemo(() => tasks.filter(task => !task.completed).length, [tasks]);
   const completedTasksCount = useMemo(() => tasks.filter(task => task.completed).length, [tasks]);
@@ -132,6 +139,20 @@ export default function HomePage() {
         : lists.length > 0
           ? 'Tap to explore your collections'
           : 'Start your first list',
+    },
+    {
+      key: 'notes',
+      title: 'Zen Notes',
+      description: 'Write rich documents, journal entries, and meeting notes with ease.',
+      href: '/notes',
+      icon: FileText,
+      primaryStat: isNotesLoading ? '—' : notes.length,
+      primaryLabel: 'Documents saved',
+      secondaryLabel: isNotesLoading
+        ? 'Syncing notes…'
+        : notes.length > 0
+          ? 'Return to your most recent document'
+          : 'Start your first document',
     },
     {
       key: 'friends',
