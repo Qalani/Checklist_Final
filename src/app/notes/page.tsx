@@ -88,6 +88,8 @@ export default function NotesPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const lastSavedTitleRef = useRef('');
   const lastSavedContentRef = useRef('');
+  const previousNoteIdRef = useRef<string | null>(null);
+  const lastSyncedVersionRef = useRef<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -111,24 +113,53 @@ export default function NotesPage() {
     return notes.find(note => note.id === selectedNoteId) ?? null;
   }, [notes, selectedNoteId]);
 
+  const isDirty = useMemo(() => {
+    return (
+      draftTitle.trim() !== lastSavedTitleRef.current.trim() ||
+      draftContent !== lastSavedContentRef.current
+    );
+  }, [draftContent, draftTitle]);
+
   useEffect(() => {
     if (!activeNote) {
       setDraftTitle('');
       setDraftContent('');
       lastSavedTitleRef.current = '';
       lastSavedContentRef.current = '';
+      previousNoteIdRef.current = null;
+      lastSyncedVersionRef.current = null;
       setSaveStatus('idle');
       setSaveError(null);
       return;
     }
 
-    setDraftTitle(activeNote.title ?? 'Untitled document');
-    setDraftContent(activeNote.content ?? '');
-    lastSavedTitleRef.current = activeNote.title ?? 'Untitled document';
-    lastSavedContentRef.current = activeNote.content ?? '';
+    const noteId = activeNote.id;
+    const noteTitle = activeNote.title ?? 'Untitled document';
+    const noteContent = activeNote.content ?? '';
+    const noteVersion = activeNote.updated_at ?? activeNote.created_at ?? null;
+
+    const hasChangedNote = previousNoteIdRef.current !== noteId;
+    const hasNewRemoteVersion = Boolean(
+      noteVersion && noteVersion !== lastSyncedVersionRef.current,
+    );
+
+    if (!hasChangedNote && !hasNewRemoteVersion) {
+      return;
+    }
+
+    if (!hasChangedNote && hasNewRemoteVersion && isDirty) {
+      return;
+    }
+
+    previousNoteIdRef.current = noteId;
+    lastSyncedVersionRef.current = noteVersion;
+    lastSavedTitleRef.current = noteTitle;
+    lastSavedContentRef.current = noteContent;
+    setDraftTitle(noteTitle);
+    setDraftContent(noteContent);
     setSaveStatus('idle');
     setSaveError(null);
-  }, [activeNote]);
+  }, [activeNote, isDirty]);
 
   const flushSave = useCallback(async () => {
     if (!activeNote) {
@@ -164,12 +195,22 @@ export default function NotesPage() {
     }
 
     const savedNote = result && 'note' in result ? result.note : null;
-    if (savedNote) {
-      lastSavedTitleRef.current = savedNote.title ?? trimmedTitle;
-      lastSavedContentRef.current = savedNote.content ?? draftContent;
-    } else {
-      lastSavedTitleRef.current = trimmedTitle;
-      lastSavedContentRef.current = draftContent;
+    const nextTitle = savedNote?.title ?? trimmedTitle;
+    const nextContent = savedNote?.content ?? draftContent;
+
+    lastSavedTitleRef.current = nextTitle;
+    lastSavedContentRef.current = nextContent;
+    previousNoteIdRef.current = activeNote.id;
+    lastSyncedVersionRef.current = savedNote?.updated_at ?? savedNote?.created_at ?? (
+      activeNote.updated_at ?? activeNote.created_at ?? null
+    );
+
+    if (draftTitle !== nextTitle) {
+      setDraftTitle(nextTitle);
+    }
+
+    if (draftContent !== nextContent) {
+      setDraftContent(nextContent);
     }
 
     setSaveStatus('saved');
@@ -274,13 +315,6 @@ export default function NotesPage() {
     const timestamp = activeNote?.updated_at ?? activeNote?.created_at;
     return formatRelativeTime(timestamp);
   }, [activeNote?.created_at, activeNote?.updated_at]);
-
-  const isDirty = useMemo(() => {
-    return (
-      draftTitle.trim() !== lastSavedTitleRef.current.trim() ||
-      draftContent !== lastSavedContentRef.current
-    );
-  }, [draftContent, draftTitle]);
 
   if (!authChecked) {
     return <LoadingScreen />;
