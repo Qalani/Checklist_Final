@@ -238,7 +238,7 @@ export default function ZenWordProcessor({
 
   return (
     <div className={`space-y-3 ${className ?? ''}`} {...rest}>
-      <div className="rounded-2xl border-2 border-zen-200 bg-white/90 shadow-soft focus-within:border-sage-500">
+      <div className="rounded-2xl border-2 border-zen-200 bg-surface/90 shadow-soft focus-within:border-sage-500">
         <div className="flex flex-wrap items-center gap-2 border-b border-zen-100 bg-zen-50/80 px-3 py-2 rounded-t-[calc(theme(borderRadius.2xl)-2px)]">
           <ToolbarButton onClick={() => runCommand('undo')} label="Undo" disabled={readOnly}>
             <Undo className="h-4 w-4" />
@@ -253,7 +253,7 @@ export default function ZenWordProcessor({
               value={blockType}
               onChange={handleBlockChange}
               disabled={readOnly}
-              className="appearance-none rounded-xl border border-zen-200 bg-white pl-8 pr-8 py-1.5 text-xs font-medium text-zen-600 shadow-soft focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-100"
+              className="appearance-none rounded-xl border border-zen-200 bg-surface pl-8 pr-8 py-1.5 text-xs font-medium text-zen-600 shadow-soft focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-100"
             >
               {BLOCK_OPTIONS.map(option => (
                 <option key={option.value} value={option.value}>

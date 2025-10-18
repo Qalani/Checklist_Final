@@ -427,7 +427,7 @@ export default function ListsPage() {
                         value={formState.name}
                         onChange={event => setFormState(prev => ({ ...prev, name: event.target.value }))}
                         placeholder="Sunday reset, Travel checklist, Reading list..."
-                        className="w-full rounded-xl border border-zen-200 bg-white/80 px-4 py-2.5 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                        className="w-full rounded-xl border border-zen-200 bg-surface/80 px-4 py-2.5 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
                       />
                     </div>
                     <div className="space-y-2">
@@ -626,7 +626,7 @@ export default function ListsPage() {
                           value={inviteEmail}
                           onChange={event => setInviteEmail(event.target.value)}
                           placeholder="teammate@example.com"
-                          className="w-full rounded-xl border border-zen-200 bg-white/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                          className="w-full rounded-xl border border-zen-200 bg-surface/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
                           disabled={memberSubmitting}
                         />
                       </div>
@@ -636,7 +636,7 @@ export default function ListsPage() {
                       <select
                         value={inviteRole}
                         onChange={event => setInviteRole(event.target.value as MemberRole)}
-                        className="w-full rounded-xl border border-zen-200 bg-white/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                        className="w-full rounded-xl border border-zen-200 bg-surface/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
                         disabled={memberSubmitting}
                       >
                         {EDITABLE_ROLES.map(role => (
@@ -673,7 +673,7 @@ export default function ListsPage() {
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-zen-200 bg-white/90 shadow-soft">
+                <div className="rounded-2xl border border-zen-200 bg-surface/90 shadow-soft">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-zen-100">
                     <p className="text-sm font-medium text-zen-700">Collaborators</p>
                     <span className="text-xs text-zen-500">{members.length} people</span>
@@ -713,7 +713,7 @@ export default function ListsPage() {
                                   value={member.role}
                                   onChange={event => void handleMemberRoleChange(member, event.target.value as MemberRole)}
                                   disabled={disabled}
-                                  className="rounded-xl border border-zen-200 bg-white px-3 py-2 text-xs text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none disabled:opacity-60"
+                                  className="rounded-xl border border-zen-200 bg-surface px-3 py-2 text-xs text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none disabled:opacity-60"
                                 >
                                   {EDITABLE_ROLES.map(role => (
                                     <option key={role} value={role}>
