@@ -9,7 +9,7 @@ interface ThemeContextValue {
   setTheme: (id: ThemeId) => void;
 }
 
-const STORAGE_KEY = 'zen-tasks-theme';
+const STORAGE_KEY = 'zen-workspace-theme';
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 

@@ -1,6 +1,6 @@
-# Zen Tasks - Modern Task Management App
+# Zen Workspace - Modern Productivity App
 
-A beautiful, minimalist task management application built with Next.js 15, React 19, TypeScript, and Supabase. Features a clean "Zen Workspace" design with Bento grid layout, drag-and-drop task reordering, categories, priority levels, and real-time sync.
+A beautiful, minimalist productivity workspace built with Next.js 15, React 19, TypeScript, and Supabase. Features a clean "Zen Workspace" design with Bento grid layout, drag-and-drop task reordering, categories, priority levels, and real-time sync.
 
 ## ✨ Features
 
@@ -28,7 +28,7 @@ A beautiful, minimalist task management application built with Next.js 15, React
 1. Clone the repository:
 ```bash
 git clone <your-repo-url>
-cd zen-tasks-app
+cd zen-workspace-app
 ```
 
 2. Install dependencies:

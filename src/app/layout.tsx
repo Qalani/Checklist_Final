@@ -7,8 +7,8 @@ import { DEFAULT_THEME_ID } from "@/lib/themes";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Zen Tasks - Mindful Task Management",
-  description: "A beautiful, minimalist task management application",
+  title: "Zen Workspace - Mindful Productivity Hub",
+  description: "A beautiful, minimalist productivity workspace",
 };
 
 export default function RootLayout({

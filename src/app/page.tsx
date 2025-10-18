@@ -81,7 +81,7 @@ export default function HomePage() {
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
+                  <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
                   <p className="text-sm text-zen-600">Your mindful workspace</p>
                 </div>
               </div>
@@ -111,7 +111,7 @@ export default function HomePage() {
   const featureTiles = [
     {
       key: 'tasks',
-      title: 'Tasks',
+      title: 'Zen Tasks',
       description: 'Capture, prioritize, and complete your tasks with a mindful flow.',
       href: '/tasks',
       icon: LayoutGrid,
@@ -121,7 +121,7 @@ export default function HomePage() {
     },
     {
       key: 'lists',
-      title: 'Lists',
+      title: 'Zen Lists',
       description: 'Curate collections to group ideas, routines, and shared plans.',
       href: '/lists',
       icon: ListIcon,
@@ -135,7 +135,7 @@ export default function HomePage() {
     },
     {
       key: 'friends',
-      title: 'Friends',
+      title: 'Zen Friends',
       description: 'Add people you trust and collaborate in real time.',
       href: '/friends',
       icon: Users,
@@ -161,7 +161,7 @@ export default function HomePage() {
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
+                  <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
                   <p className="text-sm text-zen-600">Your mindful workspace</p>
                 </div>
               </div>
@@ -266,7 +266,7 @@ export default function HomePage() {
                           </div>
                         </div>
                         <div className="px-6 py-4 bg-zen-50/60 text-sm text-zen-500 border-t border-zen-200">
-                          Tap to open the {tile.title.toLowerCase()} workspace
+                          Tap to explore {tile.title}
                         </div>
                       </div>
                     </Link>
