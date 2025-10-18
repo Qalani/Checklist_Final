@@ -281,13 +281,26 @@ async function tryInsertFriendCode(userId: string, candidate: string): Promise<s
   return null;
 }
 
-function isEnsureFriendCodeFunctionMissing(error: PostgrestError): boolean {
+function shouldFallbackForEnsureFriendCodeError(error: PostgrestError): boolean {
   if (error.code === '42883') {
     return true;
   }
 
+  if (error.code === '42501') {
+    return true;
+  }
+
   const haystack = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
-  return haystack.includes('ensure_friend_code') && haystack.includes('does not exist');
+
+  if (haystack.includes('ensure_friend_code') && haystack.includes('does not exist')) {
+    return true;
+  }
+
+  if (haystack.includes('row level security') || haystack.includes('permission denied')) {
+    return true;
+  }
+
+  return false;
 }
 
 async function ensureFriendCodeViaRpc(userId: string): Promise<string | null> {
@@ -300,7 +313,7 @@ async function ensureFriendCodeViaRpc(userId: string): Promise<string | null> {
   });
 
   if (error) {
-    if (isEnsureFriendCodeFunctionMissing(error)) {
+    if (shouldFallbackForEnsureFriendCodeError(error)) {
       return null;
     }
 
