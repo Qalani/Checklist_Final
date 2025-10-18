@@ -74,3 +74,14 @@ export interface FriendRequest {
   created_at?: string;
   responded_at?: string | null;
 }
+
+export interface Note extends Record<string, unknown> {
+  id: string;
+  user_id?: string;
+  title: string;
+  content: string;
+  summary?: string | null;
+  word_count?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
