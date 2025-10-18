@@ -6,8 +6,6 @@ import {
   CheckCircle2,
   Circle,
   Plus,
-  LayoutGrid,
-  List,
   Clock,
   Sparkles,
   Bell,
@@ -20,7 +18,6 @@ import {
   X,
 } from 'lucide-react';
 import TaskBentoGrid from '@/components/TaskBentoGrid';
-import TaskListView from '@/components/TaskListView';
 import TaskForm from '@/components/TaskForm';
 import CategoryManager from '@/components/CategoryManager';
 import ProgressDashboard from '@/components/ProgressDashboard';
@@ -74,7 +71,6 @@ function orderCollaborators(collaborators: TaskCollaborator[]): TaskCollaborator
 export default function HomePage() {
   const router = useRouter();
   const { user, authChecked, signOut } = useAuthSession();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -123,34 +119,6 @@ export default function HomePage() {
       router.replace('/');
     }
   }, [authChecked, router, user]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia('(max-width: 640px)');
-
-    const enforceGridView = (matches: boolean) => {
-      if (matches) {
-        setViewMode('grid');
-      }
-    };
-
-    enforceGridView(mediaQuery.matches);
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      enforceGridView(event.matches);
-    };
-
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', handleChange);
-      return () => mediaQuery.removeEventListener('change', handleChange);
-    }
-
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   const checklistError = syncError;
 
@@ -555,30 +523,6 @@ export default function HomePage() {
           actions={
             <>
               <ThemeSwitcher />
-              <div className="flex items-center gap-1 rounded-xl bg-zen-100 p-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-all ${
-                    viewMode === 'grid'
-                      ? 'bg-surface shadow-soft text-sage-600'
-                      : 'text-zen-500 hover:text-zen-700'
-                  }`}
-                  aria-label="Show tasks in grid view"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`hidden sm:inline-flex p-2 rounded-lg transition-all ${
-                    viewMode === 'list'
-                      ? 'bg-surface shadow-soft text-sage-600'
-                      : 'text-zen-500 hover:text-zen-700'
-                  }`}
-                  aria-label="Show tasks in list view"
-                >
-                  <List className="h-4 w-4" />
-                </button>
-              </div>
               <button
                 onClick={() => {
                   setEditingTask(null);
@@ -686,65 +630,34 @@ export default function HomePage() {
                 </div>
               </div>
               <AnimatePresence mode="wait">
-                {viewMode === 'grid' ? (
-                  <motion.div
-                    key="grid"
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -16 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                  >
-                    <TaskBentoGrid
-                      tasks={displayedTasks}
-                      categories={categories}
-                      onEdit={(task) => {
-                        setEditingTask(task);
-                        setShowTaskForm(true);
-                      }}
-                      onDelete={(id) => {
-                        void deleteTask(id);
-                      }}
-                      onToggle={(id, completed) => {
-                        void handleToggleTask(id, completed);
-                      }}
-                      onReorder={(reorderedTasks) => {
-                        void reorderTasks(reorderedTasks);
-                      }}
-                      onManageAccess={(task) => {
-                        void handleOpenShareTask(task);
-                      }}
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="list"
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -16 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                  >
-                    <TaskListView
-                      tasks={displayedTasks}
-                      categories={categories}
-                      onEdit={(task) => {
-                        setEditingTask(task);
-                        setShowTaskForm(true);
-                      }}
-                      onDelete={(id) => {
-                        void deleteTask(id);
-                      }}
-                      onToggle={(id, completed) => {
-                        void handleToggleTask(id, completed);
-                      }}
-                      onReorder={(reorderedTasks) => {
-                        void reorderTasks(reorderedTasks);
-                      }}
-                      onManageAccess={(task) => {
-                        void handleOpenShareTask(task);
-                      }}
-                    />
-                  </motion.div>
-                )}
+                <motion.div
+                  key={taskTab}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  <TaskBentoGrid
+                    tasks={displayedTasks}
+                    categories={categories}
+                    onEdit={(task) => {
+                      setEditingTask(task);
+                      setShowTaskForm(true);
+                    }}
+                    onDelete={(id) => {
+                      void deleteTask(id);
+                    }}
+                    onToggle={(id, completed) => {
+                      void handleToggleTask(id, completed);
+                    }}
+                    onReorder={(reorderedTasks) => {
+                      void reorderTasks(reorderedTasks);
+                    }}
+                    onManageAccess={(task) => {
+                      void handleOpenShareTask(task);
+                    }}
+                  />
+                </motion.div>
               </AnimatePresence>
             </div>
 

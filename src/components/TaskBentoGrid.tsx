@@ -13,9 +13,19 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, Circle, Clock, Flag, MoreHorizontal, GripVertical, BellRing, Share2, Shield } from 'lucide-react';
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  Flag,
+  GripVertical,
+  BellRing,
+  Share2,
+  Shield,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import type { Task, Category } from '@/types';
-import { useState } from 'react';
 import MarkdownDisplay from './MarkdownDisplay';
 
 interface TaskBentoGridProps {
@@ -69,8 +79,6 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
     isDragging,
   } = useSortable({ id: task.id });
 
-  const [showMenu, setShowMenu] = useState(false);
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -123,6 +131,9 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
   const canEdit = ['owner', 'editor'].includes(accessRole);
   const canDelete = accessRole === 'owner';
   const canManageAccess = Boolean(onManageAccess);
+  const shareButtonTitle = isOwner ? 'Share task' : 'View collaborators';
+  const editButtonTitle = canEdit ? 'Edit task' : 'You do not have permission to edit this task';
+  const deleteButtonTitle = canDelete ? 'Delete task' : 'Only owners can delete this task';
 
   return (
     <div ref={setNodeRef} style={style} className="group relative">
@@ -150,98 +161,94 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <button
-            onClick={onToggle}
-            className="flex-shrink-0 mt-0.5 text-sage-600 hover:text-sage-700 transition-colors"
-          >
-            {task.completed ? (
-              <CheckCircle2 className="w-6 h-6" />
-            ) : (
-              <Circle className="w-6 h-6" />
-            )}
-          </button>
-
-          <div className="flex-1 min-w-0 ml-1">
-            <h3 className={`font-semibold text-zen-900 mb-1 ${task.completed ? 'line-through' : ''}`}>
-              {task.title}
-            </h3>
-            {task.description && (
-              <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
-            )}
-          </div>
-
-        {/* Menu */}
-        <div className="relative flex items-center gap-2">
-          {task.access_role && (
-            <span
-              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
-                isOwner
-                  ? 'border-sage-200 bg-sage-50 text-sage-600'
-                  : 'border-zen-200 bg-zen-50 text-zen-600'
-              }`}
-            >
-              <Shield className="w-3 h-3" />
-              {ROLE_LABELS[accessRole]}
-            </span>
-          )}
-          <div className="relative">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
             <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-1 rounded-lg hover:bg-zen-100 transition-colors"
+              onClick={onToggle}
+              className="flex-shrink-0 mt-0.5 text-sage-600 hover:text-sage-700 transition-colors"
+              aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
             >
-              <MoreHorizontal className="w-4 h-4 text-zen-500" />
+              {task.completed ? (
+                <CheckCircle2 className="w-6 h-6" />
+              ) : (
+                <Circle className="w-6 h-6" />
+              )}
             </button>
 
-            {showMenu && (
-              <div className="absolute right-0 top-8 w-40 bg-surface rounded-xl shadow-lift border border-zen-200 py-1 z-10">
-                <button
-                  onClick={() => {
-                    if (!canEdit) {
-                      return;
-                    }
-                    onEdit();
-                    setShowMenu(false);
-                  }}
-                  className={`w-full px-4 py-2 text-left text-sm transition-colors ${
-                    canEdit ? 'hover:bg-zen-50' : 'cursor-not-allowed opacity-60 text-zen-400'
-                  }`}
-                  disabled={!canEdit}
-                >
-                  Edit
-                </button>
-                {canManageAccess && (
-                  <button
-                    onClick={() => {
-                      onManageAccess?.();
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-zen-50 transition-colors flex items-center gap-2"
-                  >
-                    <Share2 className="w-3 h-3" />
-                    {isOwner ? 'Share task' : 'View access'}
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    if (!canDelete) {
-                      return;
-                    }
-                    if (confirm('Delete this task?')) {
-                      onDelete();
-                    }
-                    setShowMenu(false);
-                  }}
-                  className={`w-full px-4 py-2 text-left text-sm transition-colors ${
-                    canDelete ? 'text-red-600 hover:bg-red-50' : 'text-zen-400 cursor-not-allowed opacity-60'
-                  }`}
-                  disabled={!canDelete}
-                >
-                  Delete
-                </button>
-              </div>
-            )}
+            <div className="flex-1 min-w-0">
+              <h3 className={`font-semibold text-zen-900 mb-1 ${task.completed ? 'line-through' : ''}`}>
+                {task.title}
+              </h3>
+              {task.description && (
+                <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
+              )}
+            </div>
           </div>
-        </div>
+
+          <div className="flex items-center gap-2">
+            {task.access_role && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
+                  isOwner
+                    ? 'border-sage-200 bg-sage-50 text-sage-600'
+                    : 'border-zen-200 bg-zen-50 text-zen-600'
+                }`}
+              >
+                <Shield className="w-3 h-3" />
+                {ROLE_LABELS[accessRole]}
+              </span>
+            )}
+            {canManageAccess && (
+              <button
+                type="button"
+                onClick={() => onManageAccess?.()}
+                className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
+                title={shareButtonTitle}
+                aria-label={shareButtonTitle}
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!canEdit) {
+                  return;
+                }
+                onEdit();
+              }}
+              className={`p-2 rounded-xl border transition-colors ${
+                canEdit
+                  ? 'border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300'
+                  : 'border-zen-100 text-zen-300 cursor-not-allowed opacity-60'
+              }`}
+              disabled={!canEdit}
+              title={editButtonTitle}
+              aria-label={editButtonTitle}
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!canDelete) {
+                  return;
+                }
+                if (confirm('Delete this task?')) {
+                  onDelete();
+                }
+              }}
+              className={`p-2 rounded-xl border transition-colors ${
+                canDelete
+                  ? 'border-red-200 text-red-500 hover:text-red-600 hover:border-red-300'
+                  : 'border-zen-100 text-zen-300 cursor-not-allowed opacity-60'
+              }`}
+              disabled={!canDelete}
+              title={deleteButtonTitle}
+              aria-label={deleteButtonTitle}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Footer */}
