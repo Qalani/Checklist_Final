@@ -358,7 +358,7 @@ export default function NotesPage() {
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pt-8 sm:px-6 lg:px-8">
             <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
               <aside className="space-y-4">
-                <div className="rounded-2xl border border-zen-200 bg-white/80 shadow-soft">
+                <div className="rounded-2xl border border-zen-200 bg-surface/80 shadow-soft">
                   <div className="flex items-center justify-between border-b border-zen-100 px-4 py-3">
                     <div>
                       <h2 className="text-sm font-semibold text-zen-900">Library</h2>
@@ -379,12 +379,12 @@ export default function NotesPage() {
                         value={searchTerm}
                         onChange={event => setSearchTerm(event.target.value)}
                         placeholder="Search notes"
-                        className="w-full rounded-xl border border-zen-200 bg-white/70 py-2 pl-9 pr-3 text-sm text-zen-700 shadow-soft placeholder:text-zen-400 focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-100"
+                        className="w-full rounded-xl border border-zen-200 bg-surface/70 py-2 pl-9 pr-3 text-sm text-zen-700 shadow-soft placeholder:text-zen-400 focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-100"
                       />
                     </div>
                     <div className="flex flex-col gap-2">
                       {filteredNotes.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-zen-200 bg-white/60 px-4 py-6 text-center text-sm text-zen-500">
+                        <div className="rounded-xl border border-dashed border-zen-200 bg-surface/60 px-4 py-6 text-center text-sm text-zen-500">
                           {notes.length === 0 ? 'You have not created any documents yet.' : 'No notes match your search.'}
                         </div>
                       ) : (
@@ -401,7 +401,7 @@ export default function NotesPage() {
                               className={`group flex w-full flex-col gap-1 rounded-xl border px-4 py-3 text-left shadow-soft transition-all ${
                                 isActive
                                   ? 'border-sage-300 bg-sage-50/70 ring-2 ring-sage-200'
-                                  : 'border-transparent bg-white/70 hover:border-sage-200 hover:bg-sage-50/60'
+                                  : 'border-transparent bg-surface/70 hover:border-sage-200 hover:bg-sage-50/60'
                               }`}
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -427,7 +427,7 @@ export default function NotesPage() {
 
               <section className="space-y-4">
                 {showEditor ? (
-                  <div className="rounded-2xl border border-zen-200 bg-white/80 p-6 shadow-soft">
+                  <div className="rounded-2xl border border-zen-200 bg-surface/80 p-6 shadow-soft">
                     <div className="flex flex-col gap-3 border-b border-zen-100 pb-4">
                       <input
                         type="text"
@@ -477,7 +477,7 @@ export default function NotesPage() {
                             void flushSave();
                           }}
                           disabled={!isDirty}
-                          className="inline-flex items-center gap-2 rounded-xl border border-sage-200 bg-white px-3 py-2 text-sm font-medium text-sage-700 transition-colors hover:border-sage-300 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center gap-2 rounded-xl border border-sage-200 bg-surface px-3 py-2 text-sm font-medium text-sage-700 transition-colors hover:border-sage-300 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <Save className="h-4 w-4" />
                           Save now
@@ -487,7 +487,7 @@ export default function NotesPage() {
                           onClick={() => {
                             void handleDeleteNote(activeNote);
                           }}
-                          className="inline-flex items-center gap-2 rounded-xl border border-zen-200 bg-white px-3 py-2 text-sm font-medium text-zen-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                          className="inline-flex items-center gap-2 rounded-xl border border-zen-200 bg-surface px-3 py-2 text-sm font-medium text-zen-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" />
                           Delete
@@ -506,7 +506,7 @@ export default function NotesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-white/70 p-10 text-center">
+                  <div className="flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-surface/70 p-10 text-center">
                     <FileText className="h-10 w-10 text-sage-500" />
                     <h2 className="mt-4 text-xl font-semibold text-zen-900">Create your first document</h2>
                     <p className="mt-2 max-w-md text-sm text-zen-500">

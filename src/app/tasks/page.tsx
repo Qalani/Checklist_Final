@@ -742,7 +742,7 @@ export default function HomePage() {
                             value={inviteEmail}
                             onChange={event => setInviteEmail(event.target.value)}
                             placeholder="friend@example.com"
-                            className="w-full rounded-xl border border-zen-200 bg-white/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                            className="w-full rounded-xl border border-zen-200 bg-surface/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
                             disabled={collaboratorSubmitting}
                           />
                         </div>
@@ -752,7 +752,7 @@ export default function HomePage() {
                         <select
                           value={inviteRole}
                           onChange={event => setInviteRole(event.target.value as CollaboratorRole)}
-                          className="w-full rounded-xl border border-zen-200 bg-white/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                          className="w-full rounded-xl border border-zen-200 bg-surface/90 px-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
                           disabled={collaboratorSubmitting}
                         >
                           {COLLABORATOR_ROLES.map(role => (
@@ -785,7 +785,7 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  <div className="rounded-2xl border border-zen-200 bg-white/90 shadow-soft">
+                  <div className="rounded-2xl border border-zen-200 bg-surface/90 shadow-soft">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-zen-100">
                       <p className="text-sm font-medium text-zen-700">Collaborators</p>
                       <span className="text-xs text-zen-500">{collaborators.length} people</span>
@@ -834,7 +834,7 @@ export default function HomePage() {
                                     value={collaboratorRole}
                                     onChange={event => void handleCollaboratorRoleChange(collaborator, event.target.value as CollaboratorRole)}
                                     disabled={disabled}
-                                    className="rounded-xl border border-zen-200 bg-white px-3 py-2 text-xs text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none disabled:opacity-60"
+                                    className="rounded-xl border border-zen-200 bg-surface px-3 py-2 text-xs text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none disabled:opacity-60"
                                   >
                                     {COLLABORATOR_ROLES.map(option => (
                                       <option key={option} value={option}>

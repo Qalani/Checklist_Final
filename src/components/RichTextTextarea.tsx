@@ -121,7 +121,7 @@ export default function RichTextTextarea({
 
   return (
     <div className="space-y-2">
-      <div className="rounded-xl border-2 border-zen-200 bg-white/80 focus-within:border-sage-500 transition-colors">
+      <div className="rounded-xl border-2 border-zen-200 bg-surface/80 focus-within:border-sage-500 transition-colors">
         <div className="flex items-center justify-between px-3 py-2 border-b border-zen-100 bg-zen-50/60 rounded-t-[calc(theme(borderRadius.xl)-2px)]">
           <span className="text-xs font-medium text-zen-500">Formatting</span>
           <div className="flex items-center gap-1">
