@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { BlockedUser, Friend, FriendRequest, FriendSearchResult } from '@/types';
+import type { BlockedUser, Friend, FriendInvite, FriendSearchResult } from '@/types';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export type FriendsStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -8,8 +8,8 @@ export interface FriendsSnapshot {
   status: FriendsStatus;
   syncing: boolean;
   friends: Friend[];
-  incomingRequests: FriendRequest[];
-  outgoingRequests: FriendRequest[];
+  incomingInvites: FriendInvite[];
+  outgoingInvites: FriendInvite[];
   blocked: BlockedUser[];
   friendCode: string;
   error: string | null;
@@ -26,15 +26,12 @@ type FriendRow = {
   created_at: string | null;
 };
 
-type FriendRequestRow = {
+type FriendInviteRow = {
   id: string;
-  requester_id: string;
-  requested_id: string;
-  message: string | null;
-  status: FriendRequest['status'];
+  sender_id: string;
+  receiver_id: string;
+  request_code: string;
   created_at: string | null;
-  updated_at: string | null;
-  responded_at: string | null;
 };
 
 type BlockedRow = {
@@ -51,8 +48,8 @@ type FriendCodeRow = {
 };
 
 type ActionPayload =
-  | { action: 'send_request'; targetUserId: string; message?: string | null }
-  | { action: 'send_request_by_code'; friendCode: string; message?: string | null }
+  | { action: 'send_request'; targetUserId: string }
+  | { action: 'send_request_by_code'; friendCode: string }
   | { action: 'respond_request'; requestId: string; decision: 'accepted' | 'declined' }
   | { action: 'cancel_request'; requestId: string }
   | { action: 'remove_friend'; friendUserId: string }
@@ -74,8 +71,8 @@ type ProfileSummary = {
 
 interface FriendSummaryResponse {
   friends: Friend[];
-  incomingRequests: FriendRequest[];
-  outgoingRequests: FriendRequest[];
+  incomingInvites: FriendInvite[];
+  outgoingInvites: FriendInvite[];
   blocked: BlockedUser[];
   friendCode: string;
 }
@@ -84,8 +81,8 @@ const INITIAL_SNAPSHOT: FriendsSnapshot = {
   status: 'idle',
   syncing: false,
   friends: [],
-  incomingRequests: [],
-  outgoingRequests: [],
+  incomingInvites: [],
+  outgoingInvites: [],
   blocked: [],
   friendCode: '',
   error: null,
@@ -122,11 +119,11 @@ async function fetchFriendSummary(token: string): Promise<FriendSummaryResponse>
   const friends = Array.isArray((payload as { friends?: unknown }).friends)
     ? ((payload as { friends: Friend[] }).friends ?? [])
     : [];
-  const incomingRequests = Array.isArray((payload as { incomingRequests?: unknown }).incomingRequests)
-    ? ((payload as { incomingRequests: FriendRequest[] }).incomingRequests ?? [])
+  const incomingInvites = Array.isArray((payload as { incomingInvites?: unknown }).incomingInvites)
+    ? ((payload as { incomingInvites: FriendInvite[] }).incomingInvites ?? [])
     : [];
-  const outgoingRequests = Array.isArray((payload as { outgoingRequests?: unknown }).outgoingRequests)
-    ? ((payload as { outgoingRequests: FriendRequest[] }).outgoingRequests ?? [])
+  const outgoingInvites = Array.isArray((payload as { outgoingInvites?: unknown }).outgoingInvites)
+    ? ((payload as { outgoingInvites: FriendInvite[] }).outgoingInvites ?? [])
     : [];
   const blocked = Array.isArray((payload as { blocked?: unknown }).blocked)
     ? ((payload as { blocked: BlockedUser[] }).blocked ?? [])
@@ -137,8 +134,8 @@ async function fetchFriendSummary(token: string): Promise<FriendSummaryResponse>
 
   return {
     friends,
-    incomingRequests,
-    outgoingRequests,
+    incomingInvites,
+    outgoingInvites,
     blocked,
     friendCode,
   } satisfies FriendSummaryResponse;
@@ -265,7 +262,7 @@ export class FriendsManager {
   private refreshPromise: Promise<void> | null = null;
   private realtimeChannel: RealtimeChannel | null = null;
   private friendRecords = new Map<string, FriendRow>();
-  private requestRecords = new Map<string, FriendRequestRow>();
+  private inviteRecords = new Map<string, FriendInviteRow>();
   private blockedRecords = new Map<string, BlockedRow>();
   private profileCache = new Map<string, ProfileSummary>();
   private pendingProfileLookups = new Set<string>();
@@ -288,7 +285,7 @@ export class FriendsManager {
     this.cleanupRealtime();
     this.subscribers.clear();
     this.friendRecords.clear();
-    this.requestRecords.clear();
+    this.inviteRecords.clear();
     this.blockedRecords.clear();
     this.profileCache.clear();
     this.pendingProfileLookups.clear();
@@ -305,7 +302,7 @@ export class FriendsManager {
     if (!userId) {
       this.userId = null;
       this.friendRecords.clear();
-      this.requestRecords.clear();
+      this.inviteRecords.clear();
       this.blockedRecords.clear();
       this.profileCache.clear();
       this.pendingProfileLookups.clear();
@@ -318,7 +315,7 @@ export class FriendsManager {
 
     this.userId = userId;
     this.friendRecords.clear();
-    this.requestRecords.clear();
+    this.inviteRecords.clear();
     this.blockedRecords.clear();
     this.profileCache.clear();
     this.pendingProfileLookups.clear();
@@ -382,16 +379,13 @@ export class FriendsManager {
           created_at: friend.created_at ?? null,
         } satisfies FriendRow));
 
-        const requestRows = [...summary.incomingRequests, ...summary.outgoingRequests].map((request) => ({
-          id: request.id,
-          requester_id: request.requester_id,
-          requested_id: request.requested_id,
-          message: request.message ?? null,
-          status: request.status,
-          created_at: request.created_at ?? null,
-          updated_at: request.updated_at ?? null,
-          responded_at: request.responded_at ?? null,
-        } satisfies FriendRequestRow));
+        const requestRows = [...summary.incomingInvites, ...summary.outgoingInvites].map((invite) => ({
+          id: invite.id,
+          sender_id: invite.sender_id,
+          receiver_id: invite.receiver_id,
+          request_code: invite.request_code,
+          created_at: invite.created_at ?? null,
+        } satisfies FriendInviteRow));
 
         const blockedRows = summary.blocked.map((blocked) => ({
           id: blocked.id,
@@ -446,12 +440,12 @@ export class FriendsManager {
           upsertProfile(friend.friend_id, friend.friend_email ?? null, friend.friend_name ?? null);
         });
 
-        summary.incomingRequests.forEach((request) => {
-          upsertProfile(request.requester_id, request.requester_email ?? null, null);
+        summary.incomingInvites.forEach((invite) => {
+          upsertProfile(invite.sender_id, invite.sender_email ?? null, null);
         });
 
-        summary.outgoingRequests.forEach((request) => {
-          upsertProfile(request.requested_id, request.requested_email ?? null, null);
+        summary.outgoingInvites.forEach((invite) => {
+          upsertProfile(invite.receiver_id, invite.receiver_email ?? null, null);
         });
 
         summary.blocked.forEach((blocked) => {
@@ -483,7 +477,7 @@ export class FriendsManager {
         }
 
         this.friendRecords = new Map(friendRows.map((record) => [record.id, record]));
-        this.requestRecords = new Map(requestRows.map((record) => [record.id, record]));
+        this.inviteRecords = new Map(requestRows.map((record) => [record.id, record]));
         this.blockedRecords = new Map(blockedRows.map((record) => [record.id, record]));
         this.profileCache = profileEntries;
         this.pendingProfileLookups.clear();
@@ -536,16 +530,16 @@ export class FriendsManager {
     }
   }
 
-  sendRequest(targetUserId: string, message?: string | null) {
-    return this.executeAction({ action: 'send_request', targetUserId, message: message ?? null });
+  sendRequest(targetUserId: string) {
+    return this.executeAction({ action: 'send_request', targetUserId });
   }
 
-  sendRequestByCode(friendCode: string, message?: string | null) {
+  sendRequestByCode(friendCode: string) {
     const normalized = friendCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (!normalized) {
       return Promise.resolve({ error: 'Enter a friend code to continue.' });
     }
-    return this.executeAction({ action: 'send_request_by_code', friendCode: normalized, message: message ?? null });
+    return this.executeAction({ action: 'send_request_by_code', friendCode: normalized });
   }
 
   respondToRequest(requestId: string, decision: 'accepted' | 'declined') {
@@ -614,16 +608,16 @@ export class FriendsManager {
       })
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'friend_requests', filter: `requester_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'friend_invites', filter: `sender_id=eq.${userId}` },
         (payload) => {
-          this.handleFriendRequestChange(payload as RealtimePostgresChangesPayload<FriendRequestRow>);
+          this.handleInviteChange(payload as RealtimePostgresChangesPayload<FriendInviteRow>);
         },
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'friend_requests', filter: `requested_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'friend_invites', filter: `receiver_id=eq.${userId}` },
         (payload) => {
-          this.handleFriendRequestChange(payload as RealtimePostgresChangesPayload<FriendRequestRow>);
+          this.handleInviteChange(payload as RealtimePostgresChangesPayload<FriendInviteRow>);
         },
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_blocks', filter: `user_id=eq.${userId}` }, (payload) => {
@@ -675,22 +669,22 @@ export class FriendsManager {
     this.publishSnapshot();
   }
 
-  private handleFriendRequestChange(payload: RealtimePostgresChangesPayload<FriendRequestRow>) {
+  private handleInviteChange(payload: RealtimePostgresChangesPayload<FriendInviteRow>) {
     const { eventType } = payload;
-    const record = (payload.new as FriendRequestRow | null) ?? (payload.old as FriendRequestRow | null);
+    const record = (payload.new as FriendInviteRow | null) ?? (payload.old as FriendInviteRow | null);
 
-    if (!record || (record.requester_id !== this.userId && record.requested_id !== this.userId)) {
+    if (!record || (record.sender_id !== this.userId && record.receiver_id !== this.userId)) {
       return;
     }
 
     if (eventType === 'DELETE') {
-      this.requestRecords.delete(record.id);
+      this.inviteRecords.delete(record.id);
       this.publishSnapshot();
       return;
     }
 
-    this.requestRecords.set(record.id, (payload.new as FriendRequestRow) ?? record);
-    void this.ensureProfiles([record.requester_id, record.requested_id]);
+    this.inviteRecords.set(record.id, (payload.new as FriendInviteRow) ?? record);
+    void this.ensureProfiles([record.sender_id, record.receiver_id]);
     this.publishSnapshot();
   }
 
@@ -758,15 +752,15 @@ export class FriendsManager {
   }
 
   private publishSnapshot(
-    patch: Partial<Omit<FriendsSnapshot, 'friends' | 'incomingRequests' | 'outgoingRequests' | 'blocked'>> = {},
+    patch: Partial<Omit<FriendsSnapshot, 'friends' | 'incomingInvites' | 'outgoingInvites' | 'blocked'>> = {},
   ) {
     const base: FriendsSnapshot = { ...this.snapshot, ...patch };
     const next: FriendsSnapshot = {
       ...base,
       friendCode: this.friendCodeValue || base.friendCode || '',
       friends: this.buildFriends(),
-      incomingRequests: this.buildRequests('incoming'),
-      outgoingRequests: this.buildRequests('outgoing'),
+      incomingInvites: this.buildInvites('incoming'),
+      outgoingInvites: this.buildInvites('outgoing'),
       blocked: this.buildBlocked(),
     };
 
@@ -779,16 +773,15 @@ export class FriendsManager {
     return sortByCreatedAt(friends);
   }
 
-  private buildRequests(direction: 'incoming' | 'outgoing'): FriendRequest[] {
+  private buildInvites(direction: 'incoming' | 'outgoing'): FriendInvite[] {
     if (!this.userId) {
       return [];
     }
 
-    const requests = Array.from(this.requestRecords.values())
-      .map((record) => this.decorateFriendRequest(record))
-      .filter((request) => request.status === 'pending')
-      .filter((request) =>
-        direction === 'incoming' ? request.requested_id === this.userId : request.requester_id === this.userId,
+    const requests = Array.from(this.inviteRecords.values())
+      .map((record) => this.decorateInvite(record))
+      .filter((invite) =>
+        direction === 'incoming' ? invite.receiver_id === this.userId : invite.sender_id === this.userId,
       );
 
     return sortByCreatedAt(requests);
@@ -811,28 +804,25 @@ export class FriendsManager {
     } satisfies Friend;
   }
 
-  private decorateFriendRequest(record: FriendRequestRow): FriendRequest {
-    const requesterProfile = record.requester_id === this.userId ? null : this.profileCache.get(record.requester_id);
-    const requestedProfile = record.requested_id === this.userId ? null : this.profileCache.get(record.requested_id);
+  private decorateInvite(record: FriendInviteRow): FriendInvite {
+    const senderProfile = record.sender_id === this.userId ? null : this.profileCache.get(record.sender_id);
+    const receiverProfile = record.receiver_id === this.userId ? null : this.profileCache.get(record.receiver_id);
 
     return {
       id: record.id,
-      requester_id: record.requester_id,
-      requested_id: record.requested_id,
-      requester_email:
-        record.requester_id === this.userId
+      sender_id: record.sender_id,
+      receiver_id: record.receiver_id,
+      sender_email:
+        record.sender_id === this.userId
           ? this.currentUserEmail ?? 'Unknown user'
-          : requesterProfile?.email ?? 'Unknown user',
-      requested_email:
-        record.requested_id === this.userId
+          : senderProfile?.email ?? 'Unknown user',
+      receiver_email:
+        record.receiver_id === this.userId
           ? this.currentUserEmail ?? 'Unknown user'
-          : requestedProfile?.email ?? 'Unknown user',
-      status: record.status,
-      message: record.message,
+          : receiverProfile?.email ?? 'Unknown user',
+      request_code: record.request_code,
       created_at: record.created_at ?? undefined,
-      updated_at: record.updated_at ?? undefined,
-      responded_at: record.responded_at ?? undefined,
-    } satisfies FriendRequest;
+    } satisfies FriendInvite;
   }
 
   private decorateBlocked(record: BlockedRow): BlockedUser {

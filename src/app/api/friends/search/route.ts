@@ -41,44 +41,38 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: [] as FriendSearchResult[] });
     }
 
-    const [
-      profilesResult,
-      friendsResult,
-      outgoingRequestsResult,
-      incomingRequestsResult,
-      blockedResult,
-      blockedByResult,
-    ] = await Promise.all([
-      supabaseAdmin.rpc('friends_search_auth_users', {
-        search_term: query,
-        limit_count: 20,
-      }),
-      supabaseAdmin
-        .from('friends')
-        .select('friend_id')
-        .eq('user_id', user.id),
-      supabaseAdmin
-        .from('friend_requests')
-        .select('requester_id, requested_id, status')
-        .eq('requester_id', user.id),
-      supabaseAdmin
-        .from('friend_requests')
-        .select('requester_id, requested_id, status')
-        .eq('requested_id', user.id),
-      supabaseAdmin
-        .from('user_blocks')
-        .select('blocked_user_id')
-        .eq('user_id', user.id),
-      supabaseAdmin
-        .from('user_blocks')
-        .select('user_id')
-        .eq('blocked_user_id', user.id),
-    ]);
+    const [profilesResult, friendsResult, outgoingInvitesResult, incomingInvitesResult, blockedResult, blockedByResult] =
+      await Promise.all([
+        supabaseAdmin.rpc('friends_search_auth_users', {
+          search_term: query,
+          limit_count: 20,
+        }),
+        supabaseAdmin
+          .from('friends')
+          .select('friend_id')
+          .eq('user_id', user.id),
+        supabaseAdmin
+        .from('friend_invites')
+        .select('sender_id, receiver_id')
+        .eq('sender_id', user.id),
+        supabaseAdmin
+        .from('friend_invites')
+        .select('sender_id, receiver_id')
+        .eq('receiver_id', user.id),
+        supabaseAdmin
+          .from('user_blocks')
+          .select('blocked_user_id')
+          .eq('user_id', user.id),
+        supabaseAdmin
+          .from('user_blocks')
+          .select('user_id')
+          .eq('blocked_user_id', user.id),
+      ]);
 
     if (profilesResult.error) throw profilesResult.error;
     if (friendsResult.error) throw friendsResult.error;
-    if (outgoingRequestsResult.error) throw outgoingRequestsResult.error;
-    if (incomingRequestsResult.error) throw incomingRequestsResult.error;
+    if (outgoingInvitesResult.error) throw outgoingInvitesResult.error;
+    if (incomingInvitesResult.error) throw incomingInvitesResult.error;
     if (blockedResult.error) throw blockedResult.error;
     if (blockedByResult.error) throw blockedByResult.error;
 
@@ -88,25 +82,8 @@ export async function GET(request: Request) {
 
     const friendSet = new Set<string>((friendsResult.data ?? []).map((record) => record.friend_id as string));
 
-    const outgoingRequests = new Set<string>();
-    const incomingRequests = new Set<string>();
-
-    const requestRows = [
-      ...(outgoingRequestsResult.data ?? []),
-      ...(incomingRequestsResult.data ?? []),
-    ];
-
-    requestRows.forEach((record) => {
-      if (record.status !== 'pending') {
-        return;
-      }
-
-      if (record.requester_id === user.id) {
-        outgoingRequests.add(record.requested_id as string);
-      } else if (record.requested_id === user.id) {
-        incomingRequests.add(record.requester_id as string);
-      }
-    });
+    const outgoingInvites = new Set<string>((outgoingInvitesResult.data ?? []).map((record) => record.receiver_id as string));
+    const incomingInvites = new Set<string>((incomingInvitesResult.data ?? []).map((record) => record.sender_id as string));
 
     const blockedSet = new Set<string>((blockedResult.data ?? []).map((record) => record.blocked_user_id as string));
     const blockedBySet = new Set<string>((blockedByResult.data ?? []).map((record) => record.user_id as string));
@@ -116,8 +93,8 @@ export async function GET(request: Request) {
       email: profile.email ?? 'Unknown user',
       name: resolveDisplayName(profile),
       is_friend: friendSet.has(profile.id),
-      has_pending_request: outgoingRequests.has(profile.id) || incomingRequests.has(profile.id),
-      incoming_request: incomingRequests.has(profile.id),
+      has_pending_request: outgoingInvites.has(profile.id) || incomingInvites.has(profile.id),
+      incoming_request: incomingInvites.has(profile.id),
       is_blocked: blockedSet.has(profile.id) || blockedBySet.has(profile.id),
     }));
 

@@ -39,7 +39,7 @@ export default function HomePage() {
   } = useLists(user?.id ?? null);
   const {
     friends,
-    incomingRequests,
+    incomingInvites,
     status: friendsStatus,
     syncing: friendsSyncing,
   } = useFriends(user?.id ?? null);
@@ -148,8 +148,8 @@ export default function HomePage() {
       primaryLabel: 'Friends connected',
       secondaryLabel: isFriendsLoading
         ? 'Syncing friends…'
-        : incomingRequests.length > 0
-          ? `${incomingRequests.length} pending invitations`
+        : incomingInvites.length > 0
+          ? `${incomingInvites.length} pending invitations`
           : 'Invite someone new today',
     },
   ];

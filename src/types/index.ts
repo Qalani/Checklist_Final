@@ -52,17 +52,14 @@ export interface Friend {
   created_at?: string;
 }
 
-export interface FriendRequest {
+export interface FriendInvite {
   id: string;
-  requester_id: string;
-  requested_id: string;
-  requester_email?: string | null;
-  requested_email?: string | null;
-  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
-  message?: string | null;
+  sender_id: string;
+  receiver_id: string;
+  sender_email?: string | null;
+  receiver_email?: string | null;
+  request_code: string;
   created_at?: string;
-  updated_at?: string;
-  responded_at?: string | null;
 }
 
 export interface BlockedUser {

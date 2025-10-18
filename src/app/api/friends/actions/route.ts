@@ -1,10 +1,11 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, AuthError, supabaseAdmin } from '@/lib/api/supabase-admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ActionPayload =
-  | { action: 'send_request'; targetUserId?: unknown; message?: unknown }
-  | { action: 'send_request_by_code'; friendCode?: unknown; message?: unknown }
+  | { action: 'send_request'; targetUserId?: unknown }
+  | { action: 'send_request_by_code'; friendCode?: unknown }
   | { action: 'respond_request'; requestId?: unknown; decision?: unknown }
   | { action: 'cancel_request'; requestId?: unknown }
   | { action: 'remove_friend'; friendUserId?: unknown }
@@ -12,11 +13,11 @@ type ActionPayload =
   | { action: 'unblock_user'; targetUserId?: unknown }
   | { action: 'invite'; friendUserId?: unknown; resourceType?: unknown; resourceId?: unknown; role?: unknown };
 
-type FriendRequestRecord = {
+type FriendInviteRecord = {
   id: string;
-  requester_id: string;
-  requested_id: string;
-  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  sender_id: string;
+  receiver_id: string;
+  request_code: string;
 };
 
 type TaskRecord = {
@@ -99,25 +100,43 @@ function normalizeFriendCode(input: string): string {
   return input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 }
 
-function resolveMessage(input: unknown): string | null {
-  if (typeof input !== 'string') {
-    return null;
-  }
-
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.slice(0, 250);
+function createInviteCode(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
 }
 
-async function sendFriendRequestToUser(
-  client: SupabaseClient,
-  userId: string,
-  targetUserId: string,
-  message: string | null,
-) {
+function isUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as { code?: string; message?: string; details?: string };
+  if (candidate.code === '23505') {
+    return true;
+  }
+
+  const haystack = `${candidate.message ?? ''} ${candidate.details ?? ''}`.toLowerCase();
+  return haystack.includes('duplicate key value');
+}
+
+async function insertInvite(client: SupabaseClient, senderId: string, receiverId: string): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { error } = await client
+      .from('friend_invites')
+      .insert({ sender_id: senderId, receiver_id: receiverId, request_code: createInviteCode() });
+
+    if (!error) {
+      return;
+    }
+
+    if (!isUniqueViolation(error)) {
+      throw error;
+    }
+  }
+
+  throw new ActionError('Unable to create a friend invite at this time. Please try again.');
+}
+
+async function sendFriendInviteToUser(client: SupabaseClient, userId: string, targetUserId: string) {
   if (!targetUserId) {
     throw new ActionError('A target user is required.');
   }
@@ -141,45 +160,33 @@ async function sendFriendRequestToUser(
   }
 
   const existingRequest = await client
-    .from('friend_requests')
-    .select('id, requester_id, requested_id, status')
+    .from('friend_invites')
+    .select('id, sender_id, receiver_id, request_code')
     .or(
-      `and(requester_id.eq.${userId},requested_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},requested_id.eq.${userId})`,
+      `and(sender_id.eq.${userId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${userId})`,
     )
     .limit(1)
-    .maybeSingle<FriendRequestRecord>();
+    .maybeSingle<FriendInviteRecord>();
 
   if (existingRequest?.error && existingRequest.error.code !== 'PGRST116') {
     throw existingRequest.error;
   }
 
-  if (existingRequest?.data && existingRequest.data.status === 'pending') {
-    if (existingRequest.data.requested_id === userId) {
+  if (existingRequest?.data) {
+    if (existingRequest.data.sender_id === targetUserId) {
       throw new ActionError('This user has already sent you a request. Check your invitations.');
     }
 
     throw new ActionError('You already have a pending request with this user.');
   }
 
-  const { error } = await client
-    .from('friend_requests')
-    .insert({
-      requester_id: userId,
-      requested_id: targetUserId,
-      message,
-      status: 'pending',
-    });
-
-  if (error) {
-    throw error;
-  }
+  await insertInvite(client, userId, targetUserId);
 }
 
 async function handleSendRequest(client: SupabaseClient, userId: string, payload: ActionPayload) {
   if (payload.action !== 'send_request') return;
   const targetUserId = typeof payload.targetUserId === 'string' ? payload.targetUserId : '';
-  const message = resolveMessage(payload.message);
-  await sendFriendRequestToUser(client, userId, targetUserId, message);
+  await sendFriendInviteToUser(client, userId, targetUserId);
 }
 
 async function findUserIdByCode(client: SupabaseClient, friendCode: string) {
@@ -215,8 +222,7 @@ async function handleSendRequestByCode(client: SupabaseClient, userId: string, p
   }
 
   const targetUserId = await findUserIdByCode(client, friendCode);
-  const message = resolveMessage(payload.message);
-  await sendFriendRequestToUser(client, userId, targetUserId, message);
+  await sendFriendInviteToUser(client, userId, targetUserId);
 }
 
 async function handleRespondRequest(client: SupabaseClient, userId: string, payload: ActionPayload) {
@@ -229,10 +235,10 @@ async function handleRespondRequest(client: SupabaseClient, userId: string, payl
   }
 
   const requestLookup = await client
-    .from('friend_requests')
-    .select('id, requester_id, requested_id, status')
+    .from('friend_invites')
+    .select('id, sender_id, receiver_id')
     .eq('id', requestId)
-    .maybeSingle<FriendRequestRecord>();
+    .maybeSingle<FriendInviteRecord>();
 
   if (requestLookup?.error) throw requestLookup.error;
   const requestRecord = requestLookup?.data;
@@ -241,34 +247,19 @@ async function handleRespondRequest(client: SupabaseClient, userId: string, payl
     throw new ActionError('Friend request not found.', 404);
   }
 
-  if (requestRecord.requested_id !== userId) {
+  if (requestRecord.receiver_id !== userId) {
     throw new ActionError('Only the recipient can respond to this request.', 403);
   }
 
-  if (requestRecord.status !== 'pending') {
-    throw new ActionError('This request has already been processed.');
-  }
-
   if (decision === 'accepted') {
-    await ensureNotBlocked(client, userId, requestRecord.requester_id);
-  }
+    await ensureNotBlocked(client, userId, requestRecord.sender_id);
 
-  const { error } = await client
-    .from('friend_requests')
-    .update({ status: decision })
-    .eq('id', requestId);
-
-  if (error) {
-    throw error;
-  }
-
-  if (decision === 'accepted') {
     const insertResult = await client
       .from('friends')
       .upsert(
         [
-          { user_id: userId, friend_id: requestRecord.requester_id },
-          { user_id: requestRecord.requester_id, friend_id: userId },
+          { user_id: userId, friend_id: requestRecord.sender_id },
+          { user_id: requestRecord.sender_id, friend_id: userId },
         ],
         { onConflict: 'user_id,friend_id' },
       );
@@ -276,6 +267,15 @@ async function handleRespondRequest(client: SupabaseClient, userId: string, payl
     if (insertResult?.error) {
       throw insertResult.error;
     }
+  }
+
+  const { error } = await client
+    .from('friend_invites')
+    .delete()
+    .eq('id', requestId);
+
+  if (error) {
+    throw error;
   }
 }
 
@@ -288,24 +288,20 @@ async function handleCancelRequest(client: SupabaseClient, userId: string, paylo
   }
 
   const requestLookup = await client
-    .from('friend_requests')
-    .select('id, requester_id, status')
+    .from('friend_invites')
+    .select('id, sender_id')
     .eq('id', requestId)
-    .maybeSingle<FriendRequestRecord>();
+    .maybeSingle<FriendInviteRecord>();
 
   if (requestLookup?.error) throw requestLookup.error;
 
-  if (!requestLookup?.data || requestLookup.data.requester_id !== userId) {
+  if (!requestLookup?.data || requestLookup.data.sender_id !== userId) {
     throw new ActionError('You can only cancel requests you sent.', 403);
   }
 
-  if (requestLookup.data.status !== 'pending') {
-    throw new ActionError('This request has already been processed.');
-  }
-
   const { error } = await client
-    .from('friend_requests')
-    .update({ status: 'cancelled' })
+    .from('friend_invites')
+    .delete()
     .eq('id', requestId);
 
   if (error) {
@@ -365,10 +361,11 @@ async function handleBlockUser(client: SupabaseClient, userId: string, payload: 
     .or(`and(user_id.eq.${userId},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${userId}))`);
 
   await client
-    .from('friend_requests')
-    .update({ status: 'cancelled' })
-    .or(`and(requester_id.eq.${userId},requested_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},requested_id.eq.${userId}))`)
-    .eq('status', 'pending');
+    .from('friend_invites')
+    .delete()
+    .or(
+      `and(sender_id.eq.${userId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${userId}))`,
+    );
 }
 
 async function handleUnblockUser(client: SupabaseClient, userId: string, payload: ActionPayload) {
