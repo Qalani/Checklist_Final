@@ -4,11 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   List as ListIcon,
-  Sparkles,
   Plus,
   Pencil,
   Trash2,
-  ArrowLeft,
   CheckSquare,
   Share2,
   UserPlus,
@@ -25,9 +23,10 @@ import RichTextTextarea from '@/components/RichTextTextarea';
 import MarkdownDisplay from '@/components/MarkdownDisplay';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useLists } from '@/features/lists/useLists';
-import { supabase } from '@/lib/supabase';
 import type { List, ListMember } from '@/types';
 import { useRouter } from 'next/navigation';
+import ZenPageHeader from '@/components/ZenPageHeader';
+import AccountSummary from '@/components/AccountSummary';
 
 type FormState = {
   name: string;
@@ -78,7 +77,7 @@ function LoadingScreen() {
 
 export default function ListsPage() {
   const router = useRouter();
-  const { user, authChecked } = useAuthSession();
+  const { user, authChecked, signOut } = useAuthSession();
   const {
     lists,
     status,
@@ -312,44 +311,18 @@ export default function ListsPage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <ParallaxBackground />
       <div className="relative z-10 min-h-screen flex flex-col">
-        <header className="sticky top-0 z-50 backdrop-blur-xl bg-surface/70 border-b border-zen-200 shadow-soft">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => router.push('/')}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface/80 border border-zen-200 text-sm font-medium text-zen-600 hover:text-zen-800 hover:border-sage-200 transition-colors shadow-soft"
-                  aria-label="Back to dashboard"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                  <span className="sm:hidden">Back</span>
-                </button>
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-semibold text-zen-900">Zen Lists</h1>
-                  <p className="text-sm text-zen-600">Curate mindful collections</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 justify-start lg:justify-end">
-                <ThemeSwitcher />
-                <button
-                  type="button"
-                  onClick={() => {
-                    void supabase.auth.signOut();
-                  }}
-                  className="px-4 py-2 rounded-lg bg-zen-900 text-white text-sm font-medium shadow-soft hover:bg-zen-800 transition-colors"
-                >
-                  Sign out
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
+        <ZenPageHeader
+          title="Zen Lists"
+          subtitle="Curate mindful collections"
+          icon={ListIcon}
+          backHref="/"
+          actions={
+            <>
+              <ThemeSwitcher />
+              <AccountSummary email={user.email} syncing={syncing} onSignOut={signOut} />
+            </>
+          }
+        />
 
         <main className="flex-1">
           <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
