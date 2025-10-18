@@ -16,7 +16,7 @@ import {
   Undo,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
-import { sanitizeNoteHtml } from '@/features/notes/noteUtils';
+import { extractPlainText, sanitizeNoteHtml } from '@/features/notes/noteUtils';
 
 type BlockType = 'paragraph' | 'h1' | 'h2' | 'h3' | 'blockquote';
 type AlignOption = 'left' | 'center' | 'right' | 'justify';
@@ -384,12 +384,10 @@ function isHtmlEmpty(html: string) {
     return true;
   }
 
-  return html
-    .replace(/<br\s*\/?>(\s|&nbsp;)*/gi, '')
-    .replace(/<p>\s*<\/p>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .trim().length === 0;
+  const sanitised = sanitizeNoteHtml(html);
+  const plainText = extractPlainText(sanitised);
+
+  return plainText.length === 0;
 }
 
 function wrapPlainText(text: string): string {
