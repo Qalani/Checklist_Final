@@ -72,6 +72,14 @@ type ProfileSummary = {
   name: string | null;
 };
 
+interface FriendSummaryResponse {
+  friends: Friend[];
+  incomingRequests: FriendRequest[];
+  outgoingRequests: FriendRequest[];
+  blocked: BlockedUser[];
+  friendCode: string;
+}
+
 const INITIAL_SNAPSHOT: FriendsSnapshot = {
   status: 'idle',
   syncing: false,
@@ -92,6 +100,48 @@ async function getAccessToken(): Promise<string> {
   }
 
   return token;
+}
+
+async function fetchFriendSummary(token: string): Promise<FriendSummaryResponse> {
+  const response = await fetch('/api/friends', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = typeof (payload as { error?: unknown }).error === 'string'
+      ? (payload as { error?: string }).error
+      : 'Unable to load friend data.';
+    throw new Error(message);
+  }
+
+  const friends = Array.isArray((payload as { friends?: unknown }).friends)
+    ? ((payload as { friends: Friend[] }).friends ?? [])
+    : [];
+  const incomingRequests = Array.isArray((payload as { incomingRequests?: unknown }).incomingRequests)
+    ? ((payload as { incomingRequests: FriendRequest[] }).incomingRequests ?? [])
+    : [];
+  const outgoingRequests = Array.isArray((payload as { outgoingRequests?: unknown }).outgoingRequests)
+    ? ((payload as { outgoingRequests: FriendRequest[] }).outgoingRequests ?? [])
+    : [];
+  const blocked = Array.isArray((payload as { blocked?: unknown }).blocked)
+    ? ((payload as { blocked: BlockedUser[] }).blocked ?? [])
+    : [];
+  const friendCode = typeof (payload as { friendCode?: unknown }).friendCode === 'string'
+    ? (payload as { friendCode: string }).friendCode
+    : '';
+
+  return {
+    friends,
+    incomingRequests,
+    outgoingRequests,
+    blocked,
+    friendCode,
+  } satisfies FriendSummaryResponse;
 }
 
 async function ensureFriendIdentity(token: string): Promise<string> {
@@ -313,72 +363,131 @@ export class FriendsManager {
         const token = await getAccessToken();
         await this.loadCurrentUserEmail();
 
-        let ensuredCode = '';
-        try {
-          ensuredCode = await ensureFriendIdentity(token);
-        } catch (identityError) {
-          console.error('Failed to ensure friend code for user', currentUserId, identityError);
+        const summary = await fetchFriendSummary(token);
+
+        let ensuredCode = summary.friendCode;
+
+        if (!ensuredCode) {
+          try {
+            ensuredCode = await ensureFriendIdentity(token);
+          } catch (identityError) {
+            console.error('Failed to ensure friend code for user', currentUserId, identityError);
+          }
         }
 
-        const [friendsResult, requestsResult, blockedResult, friendCodeResult] = await Promise.all([
-          supabase
-            .from('friends')
-            .select('id, user_id, friend_id, created_at')
-            .eq('user_id', currentUserId),
-          supabase
-            .from('friend_requests')
-            .select('id, requester_id, requested_id, message, status, created_at, updated_at, responded_at')
-            .or(`requester_id.eq.${currentUserId},requested_id.eq.${currentUserId}`),
-          supabase
-            .from('user_blocks')
-            .select('id, user_id, blocked_user_id, reason, created_at')
-            .eq('user_id', currentUserId),
-          supabase
-            .from('friend_codes')
-            .select('user_id, code')
-            .eq('user_id', currentUserId)
-            .maybeSingle<FriendCodeRow>(),
-        ]);
+        const friendRows = summary.friends.map((friend) => ({
+          id: friend.id,
+          user_id: friend.user_id,
+          friend_id: friend.friend_id,
+          created_at: friend.created_at ?? null,
+        } satisfies FriendRow));
 
-        if (friendsResult.error) {
-          throw new Error(friendsResult.error.message || 'Unable to load friends.');
-        }
+        const requestRows = [...summary.incomingRequests, ...summary.outgoingRequests].map((request) => ({
+          id: request.id,
+          requester_id: request.requester_id,
+          requested_id: request.requested_id,
+          message: request.message ?? null,
+          status: request.status,
+          created_at: request.created_at ?? null,
+          updated_at: request.updated_at ?? null,
+          responded_at: request.responded_at ?? null,
+        } satisfies FriendRequestRow));
 
-        if (requestsResult.error) {
-          throw new Error(requestsResult.error.message || 'Unable to load friend requests.');
-        }
+        const blockedRows = summary.blocked.map((blocked) => ({
+          id: blocked.id,
+          user_id: blocked.user_id,
+          blocked_user_id: blocked.blocked_user_id,
+          reason: blocked.reason ?? null,
+          created_at: blocked.created_at ?? null,
+        } satisfies BlockedRow));
 
-        if (blockedResult.error) {
-          throw new Error(blockedResult.error.message || 'Unable to load blocked users.');
-        }
+        const profileEntries = new Map<string, ProfileSummary>();
 
-        if (friendCodeResult.error && friendCodeResult.error.code !== 'PGRST116') {
-          throw new Error(friendCodeResult.error.message || 'Unable to load friend code.');
-        }
+        const normalizeEmail = (email: string | null | undefined) => {
+          if (!email || email === 'Unknown user') {
+            return null;
+          }
+          return email;
+        };
 
-        const friends = (friendsResult.data ?? []) as FriendRow[];
-        const requests = (requestsResult.data ?? []) as FriendRequestRow[];
-        const blocked = (blockedResult.data ?? []) as BlockedRow[];
+        const normalizeName = (name: string | null | undefined) => {
+          if (!name || name === 'Unknown user') {
+            return null;
+          }
+          return name;
+        };
 
-        const friendCode = friendCodeResult.data?.code ?? ensuredCode ?? '';
+        const upsertProfile = (id: string, email?: string | null, name?: string | null) => {
+          if (!id || id === currentUserId) {
+            return;
+          }
 
-        const relatedIds = new Set<string>();
-        friends.forEach((record) => relatedIds.add(record.friend_id));
-        requests.forEach((record) => {
-          relatedIds.add(record.requester_id);
-          relatedIds.add(record.requested_id);
+          const sanitizedEmail = normalizeEmail(email ?? null);
+          const sanitizedName = normalizeName(name ?? null);
+
+          const existing = profileEntries.get(id);
+          if (existing) {
+            profileEntries.set(id, {
+              id,
+              email: sanitizedEmail ?? existing.email,
+              name: sanitizedName ?? existing.name,
+            });
+            return;
+          }
+
+          profileEntries.set(id, {
+            id,
+            email: sanitizedEmail,
+            name: sanitizedName,
+          });
+        };
+
+        summary.friends.forEach((friend) => {
+          upsertProfile(friend.friend_id, friend.friend_email ?? null, friend.friend_name ?? null);
         });
-        blocked.forEach((record) => relatedIds.add(record.blocked_user_id));
-        relatedIds.delete(currentUserId);
 
-        const profiles = await fetchProfiles(token, Array.from(relatedIds));
+        summary.incomingRequests.forEach((request) => {
+          upsertProfile(request.requester_id, request.requester_email ?? null, null);
+        });
 
-        this.friendRecords = new Map(friends.map((record) => [record.id, record]));
-        this.requestRecords = new Map(requests.map((record) => [record.id, record]));
-        this.blockedRecords = new Map(blocked.map((record) => [record.id, record]));
-        this.profileCache = profiles;
+        summary.outgoingRequests.forEach((request) => {
+          upsertProfile(request.requested_id, request.requested_email ?? null, null);
+        });
+
+        summary.blocked.forEach((blocked) => {
+          upsertProfile(blocked.blocked_user_id, blocked.blocked_email ?? null, blocked.blocked_name ?? null);
+        });
+
+        const missingProfileIds = Array.from(profileEntries.values())
+          .filter((profile) => !profile.email && !profile.name)
+          .map((profile) => profile.id);
+
+        if (missingProfileIds.length > 0) {
+          try {
+            const fetchedProfiles = await fetchProfiles(token, missingProfileIds);
+            fetchedProfiles.forEach((profile, id) => {
+              const existing = profileEntries.get(id);
+              if (existing) {
+                profileEntries.set(id, {
+                  id,
+                  email: profile.email ?? existing.email,
+                  name: profile.name ?? existing.name,
+                });
+              } else {
+                profileEntries.set(id, profile);
+              }
+            });
+          } catch (profileError) {
+            console.error('Failed to backfill friend profiles from summary', profileError);
+          }
+        }
+
+        this.friendRecords = new Map(friendRows.map((record) => [record.id, record]));
+        this.requestRecords = new Map(requestRows.map((record) => [record.id, record]));
+        this.blockedRecords = new Map(blockedRows.map((record) => [record.id, record]));
+        this.profileCache = profileEntries;
         this.pendingProfileLookups.clear();
-        this.friendCodeValue = friendCode;
+        this.friendCodeValue = ensuredCode || summary.friendCode || this.friendCodeValue || '';
 
         if (this.userId && this.currentUserEmail) {
           this.profileCache.set(this.userId, {
