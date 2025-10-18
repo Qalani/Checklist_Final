@@ -11,7 +11,6 @@ import {
   Clock,
   Sparkles,
   Bell,
-  ArrowLeft,
 } from 'lucide-react';
 import TaskBentoGrid from '@/components/TaskBentoGrid';
 import TaskListView from '@/components/TaskListView';
@@ -22,6 +21,8 @@ import QuickStats from '@/components/QuickStats';
 import type { Task, Category } from '@/types';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ParallaxBackground from '@/components/ParallaxBackground';
+import ZenPageHeader from '@/components/ZenPageHeader';
+import AccountSummary from '@/components/AccountSummary';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useRouter } from 'next/navigation';
@@ -369,32 +370,15 @@ export default function HomePage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <ParallaxBackground />
       <div className="relative z-10 min-h-screen">
-        <header className="sticky top-0 z-50 backdrop-blur-xl bg-surface/70 border-b border-zen-200 shadow-soft">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => router.push('/')}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface/80 border border-zen-200 text-sm font-medium text-zen-600 hover:text-zen-800 hover:border-sage-200 transition-colors shadow-soft"
-                aria-label="Back to dashboard"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-                <span className="sm:hidden">Back</span>
-              </button>
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold text-zen-900">Zen Tasks</h1>
-                <p className="text-sm text-zen-600">Your mindful workspace</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 justify-start lg:justify-end">
+        <ZenPageHeader
+          title="Zen Tasks"
+          subtitle="Your mindful workspace"
+          icon={Sparkles}
+          backHref="/"
+          actions={
+            <>
               <ThemeSwitcher />
-              <div className="flex items-center gap-1 p-1 bg-zen-100 rounded-xl">
+              <div className="flex items-center gap-1 rounded-xl bg-zen-100 p-1">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded-lg transition-all ${
@@ -402,8 +386,9 @@ export default function HomePage() {
                       ? 'bg-surface shadow-soft text-sage-600'
                       : 'text-zen-500 hover:text-zen-700'
                   }`}
+                  aria-label="Show tasks in grid view"
                 >
-                  <LayoutGrid className="w-4 h-4" />
+                  <LayoutGrid className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
@@ -412,99 +397,75 @@ export default function HomePage() {
                       ? 'bg-surface shadow-soft text-sage-600'
                       : 'text-zen-500 hover:text-zen-700'
                   }`}
+                  aria-label="Show tasks in list view"
                 >
-                  <List className="w-4 h-4" />
+                  <List className="h-4 w-4" />
                 </button>
               </div>
-
               <button
                 onClick={() => {
                   setEditingTask(null);
                   setShowTaskForm(true);
                 }}
-                className="px-4 py-2 bg-sage-600 hover:bg-sage-700 text-white rounded-xl shadow-medium hover:shadow-lift transition-all flex items-center justify-center gap-2 font-medium w-full sm:w-auto"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sage-600 px-4 py-2 font-medium text-white shadow-medium transition-all hover:bg-sage-700 hover:shadow-lift sm:w-auto"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4" />
                 New Task
               </button>
-
-              {notificationPermission === 'default' && (
+              {notificationPermission === 'default' ? (
                 <button
                   onClick={() => {
                     void requestNotificationPermission();
                   }}
-                className="px-3 py-2 rounded-xl bg-surface/80 border border-zen-200 text-sm font-medium text-zen-600 hover:bg-sage-50 hover:border-sage-200 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-3 py-2 text-sm font-medium text-zen-600 transition-all hover:border-sage-200 hover:bg-sage-50 sm:w-auto"
                 >
-                  <Bell className="w-4 h-4" />
+                  <Bell className="h-4 w-4" />
                   Enable notifications
                 </button>
-              )}
-
-              {notificationPermission === 'denied' && (
-                <div className="px-3 py-2 rounded-xl bg-surface/50 border border-zen-200 text-xs text-zen-500 w-full sm:w-auto text-center">
+              ) : null}
+              {notificationPermission === 'denied' ? (
+                <div className="w-full rounded-xl border border-zen-200 bg-surface/60 px-3 py-2 text-center text-xs text-zen-500 sm:w-auto">
                   Notifications disabled in browser settings
                 </div>
-              )}
-
-              {notificationPermission === 'granted' && (
-                <div className="px-3 py-2 rounded-xl bg-surface/70 border border-sage-200 text-sm text-sage-700 flex items-center justify-center gap-2 w-full sm:w-auto">
-                  <Bell className="w-4 h-4" />
+              ) : null}
+              {notificationPermission === 'granted' ? (
+                <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-sage-200 bg-surface/70 px-3 py-2 text-sm text-sage-700 sm:w-auto">
+                  <Bell className="h-4 w-4" />
                   Notifications on
                 </div>
-              )}
-
-              <div className="hidden xl:block h-8 w-px bg-zen-200" />
-
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-2 bg-surface/70 border border-zen-200 rounded-2xl shadow-soft w-full sm:w-auto">
-                <div className="w-full sm:text-right">
-                  <p className="text-sm font-medium text-zen-900">{user.email ?? 'Account'}</p>
-                  <p className="text-xs text-zen-500">Signed in</p>
-                  {syncing && (
-                    <p className="mt-1 flex items-center sm:justify-end gap-1 text-xs text-zen-400">
-                      <span className="h-2 w-2 rounded-full bg-sage-500 animate-pulse" />
-                      Syncing
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={async () => {
-                    await signOut();
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-zen-100 hover:bg-zen-200 text-xs font-semibold text-zen-700 transition-colors w-full sm:w-auto"
-                >
-                  Sign out
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 mt-2 lg:mt-4 flex-wrap">
-            <button
-              onClick={() => setFilterPriority(null)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                !filterPriority
-                  ? 'bg-sage-100 text-sage-700' 
-                  : 'bg-zen-100 text-zen-600 hover:bg-zen-200'
-              }`}
-            >
-              All
-            </button>
-            {['high', 'medium', 'low'].map(priority => (
+              ) : null}
+              <div className="hidden h-8 w-px bg-zen-200 xl:block" />
+              <AccountSummary email={user.email} syncing={syncing} onSignOut={signOut} />
+            </>
+          }
+          footer={
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
-                key={priority}
-                onClick={() => setFilterPriority(priority)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  filterPriority === priority 
-                    ? 'bg-sage-100 text-sage-700' 
+                onClick={() => setFilterPriority(null)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                  !filterPriority
+                    ? 'bg-sage-100 text-sage-700'
                     : 'bg-zen-100 text-zen-600 hover:bg-zen-200'
                 }`}
               >
-                {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                All
               </button>
-            ))}
-          </div>
-        </div>
-      </header>
+              {['high', 'medium', 'low'].map(priority => (
+                <button
+                  key={priority}
+                  onClick={() => setFilterPriority(priority)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                    filterPriority === priority
+                      ? 'bg-sage-100 text-sage-700'
+                      : 'bg-zen-100 text-zen-600 hover:bg-zen-200'
+                  }`}
+                >
+                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                </button>
+              ))}
+            </div>
+          }
+        />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {checklistError && (
