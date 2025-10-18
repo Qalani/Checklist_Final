@@ -1,6 +1,6 @@
-# Packaging Zen Tasks as an Android App
+# Packaging Zen Workspace as an Android App
 
-This guide covers two supported strategies for shipping the Next.js-based Zen Tasks experience on Android devices. Choose the approach that best fits how "native" you need the experience to feel and whether you must distribute it through the Play Store.
+This guide covers two supported strategies for shipping the Next.js-based Zen Workspace experience on Android devices. Choose the approach that best fits how "native" you need the experience to feel and whether you must distribute it through the Play Store.
 
 ## Option A – Wrap the web app with Capacitor (offline bundle)
 
@@ -32,7 +32,7 @@ Capacitor lets you ship the compiled Next.js site inside a native Android WebVie
    ```bash
    npm install --save-dev @capacitor/cli
    npm install --save @capacitor/core
-   npx cap init "Zen Tasks" com.example.zentasks --web-dir=out
+   npx cap init "Zen Workspace" com.example.zenworkspace --web-dir=out
    npx cap add android
    ```
 2. Copy the freshly exported `out/` directory into Capacitor's native project whenever you rebuild:

@@ -153,7 +153,7 @@ export default function FriendsPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Dashboard
               </button>
-              <h1 className="text-xl font-semibold text-zen-900">Friends</h1>
+              <h1 className="text-xl font-semibold text-zen-900">Zen Friends</h1>
             </div>
             <div className="flex items-center gap-3">
               <ThemeSwitcher />
