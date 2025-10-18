@@ -37,12 +37,7 @@ export default function HomePage() {
     status: listsStatus,
     syncing: listsSyncing,
   } = useLists(user?.id ?? null);
-  const {
-    friends,
-    incomingInvites,
-    status: friendsStatus,
-    syncing: friendsSyncing,
-  } = useFriends(user?.id ?? null);
+  const { friends, status: friendsStatus, syncing: friendsSyncing } = useFriends(user?.id ?? null);
 
   const isTasksLoading = checklistStatus === 'loading' || checklistSyncing;
   const isListsLoading = listsStatus === 'loading' || listsSyncing;
@@ -148,8 +143,8 @@ export default function HomePage() {
       primaryLabel: 'Friends connected',
       secondaryLabel: isFriendsLoading
         ? 'Syncing friends…'
-        : incomingInvites.length > 0
-          ? `${incomingInvites.length} pending invitations`
+        : friends.length > 0
+          ? 'See what your friends are up to'
           : 'Invite someone new today',
     },
   ];

@@ -52,32 +52,15 @@ export interface Friend {
   created_at?: string;
 }
 
-export interface FriendInvite {
+export interface FriendRequest {
   id: string;
-  sender_id: string;
-  receiver_id: string;
-  sender_email?: string | null;
-  receiver_email?: string | null;
-  request_code: string;
+  requester_id: string;
+  requester_email: string;
+  requester_name?: string | null;
+  target_id: string;
+  target_email: string;
+  target_name?: string | null;
+  status: 'pending' | 'accepted' | 'declined';
   created_at?: string;
-}
-
-export interface BlockedUser {
-  id: string;
-  user_id: string;
-  blocked_user_id: string;
-  blocked_email?: string | null;
-  blocked_name?: string | null;
-  reason?: string | null;
-  created_at?: string;
-}
-
-export interface FriendSearchResult {
-  user_id: string;
-  email: string;
-  name?: string | null;
-  is_friend: boolean;
-  has_pending_request: boolean;
-  incoming_request: boolean;
-  is_blocked: boolean;
+  responded_at?: string | null;
 }
