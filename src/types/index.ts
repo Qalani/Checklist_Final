@@ -51,33 +51,3 @@ export interface Friend {
   friend_name?: string | null;
   created_at?: string;
 }
-
-export interface FriendInvite {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  sender_email?: string | null;
-  receiver_email?: string | null;
-  request_code: string;
-  created_at?: string;
-}
-
-export interface BlockedUser {
-  id: string;
-  user_id: string;
-  blocked_user_id: string;
-  blocked_email?: string | null;
-  blocked_name?: string | null;
-  reason?: string | null;
-  created_at?: string;
-}
-
-export interface FriendSearchResult {
-  user_id: string;
-  email: string;
-  name?: string | null;
-  is_friend: boolean;
-  has_pending_request: boolean;
-  incoming_request: boolean;
-  is_blocked: boolean;
-}
