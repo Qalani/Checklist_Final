@@ -1,6 +1,7 @@
 import { randomInt } from 'crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, AuthError, supabaseAdmin } from '@/lib/api/supabase-admin';
+import type { PostgrestError } from '@supabase/supabase-js';
 import type { BlockedUser, Friend, FriendRequest } from '@/types';
 
 type RawFriend = {
@@ -186,6 +187,11 @@ export async function GET(request: Request) {
       friendCode = await ensureFriendCodeForUser(userId);
     } catch (friendCodeError) {
       console.error('Failed to ensure friend code for user', userId, friendCodeError);
+      try {
+        friendCode = (await fetchExistingFriendCode(userId)) ?? '';
+      } catch (fallbackError) {
+        console.error('Unable to recover existing friend code for user', userId, fallbackError);
+      }
     }
 
     return NextResponse.json({
@@ -232,6 +238,49 @@ async function fetchExistingFriendCode(userId: string): Promise<string | null> {
   return data?.code ?? null;
 }
 
+function isUniqueViolation(error: unknown): error is PostgrestError {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as PostgrestError & { message?: string };
+  if (candidate.code === '23505') {
+    return true;
+  }
+
+  const message = candidate.message ?? candidate.details ?? '';
+  return typeof message === 'string' && message.includes('duplicate key value violates');
+}
+
+async function tryInsertFriendCode(userId: string, candidate: string): Promise<string | null> {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase is not configured on the server.');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('friend_codes')
+    .insert({
+      user_id: userId,
+      code: candidate,
+    })
+    .select('code')
+    .single<FriendCodeRecord>();
+
+  if (!error && data?.code) {
+    return data.code;
+  }
+
+  if (error && isUniqueViolation(error)) {
+    return null;
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  return null;
+}
+
 async function ensureFriendCodeForUser(userId: string): Promise<string> {
   if (!supabaseAdmin) {
     throw new Error('Supabase is not configured on the server.');
@@ -244,27 +293,16 @@ async function ensureFriendCodeForUser(userId: string): Promise<string> {
 
   for (let attempt = 0; attempt < FRIEND_CODE_MAX_ATTEMPTS; attempt += 1) {
     const candidate = generateFriendCode();
-    const { error } = await supabaseAdmin.from('friend_codes').insert({
-      user_id: userId,
-      code: candidate,
-    });
+    const inserted = await tryInsertFriendCode(userId, candidate);
 
-    if (!error) {
-      return candidate;
+    if (inserted) {
+      return inserted;
     }
 
-    // Someone else might have generated a code at the same time—if the user has one now, return it.
-    if (error.code === '23505') {
-      const refreshed = await fetchExistingFriendCode(userId);
-      if (refreshed) {
-        return refreshed;
-      }
-
-      // Otherwise, try again with a different candidate.
-      continue;
+    const refreshed = await fetchExistingFriendCode(userId);
+    if (refreshed) {
+      return refreshed;
     }
-
-    throw error;
   }
 
   const finalCheck = await fetchExistingFriendCode(userId);
