@@ -12,7 +12,6 @@ import {
   UserPlus,
   Shield,
   Users,
-  Mail,
   Loader2,
   X,
   UserMinus,
@@ -27,6 +26,7 @@ import type { List, ListMember } from '@/types';
 import { useRouter } from 'next/navigation';
 import ZenPageHeader from '@/components/ZenPageHeader';
 import AccountSummary from '@/components/AccountSummary';
+import { useFriends } from '@/features/friends/useFriends';
 
 type FormState = {
   name: string;
@@ -101,10 +101,22 @@ export default function ListsPage() {
   const [members, setMembers] = useState<ListMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteFriendId, setInviteFriendId] = useState('');
   const [inviteRole, setInviteRole] = useState<MemberRole>('viewer');
   const [memberSubmitting, setMemberSubmitting] = useState(false);
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
+
+  const { friends } = useFriends(user?.id ?? null);
+
+  const availableFriends = useMemo(() => {
+    const memberEmails = new Set(
+      members
+        .map(member => member.user_email?.toLowerCase())
+        .filter((email): email is string => Boolean(email && email.trim())),
+    );
+
+    return friends.filter(friend => !memberEmails.has(friend.friend_email.toLowerCase()));
+  }, [friends, members]);
 
   useEffect(() => {
     if (!authChecked) {
@@ -209,7 +221,7 @@ export default function ListsPage() {
   const handleOpenShare = async (list: List) => {
     setSharingList(list);
     setMembers([]);
-    setInviteEmail('');
+    setInviteFriendId('');
     setInviteRole('viewer');
     setMemberError(null);
     setMembersLoading(true);
@@ -229,7 +241,7 @@ export default function ListsPage() {
     setSharingList(null);
     setMembers([]);
     setMemberError(null);
-    setInviteEmail('');
+    setInviteFriendId('');
     setInviteRole('viewer');
     setMemberSubmitting(false);
     setMemberActionId(null);
@@ -245,10 +257,18 @@ export default function ListsPage() {
       return;
     }
 
+    const selectedFriend = availableFriends.find(friend => friend.friend_id === inviteFriendId);
+    if (!selectedFriend) {
+      setMemberError(
+        friends.length === 0 ? 'Add friends before inviting them.' : 'Select a friend to invite.',
+      );
+      return;
+    }
+
     setMemberSubmitting(true);
     setMemberError(null);
 
-    const result = await inviteMember(sharingList.id, inviteEmail, inviteRole);
+    const result = await inviteMember(sharingList.id, selectedFriend.friend_email, inviteRole);
     if ('error' in result) {
       setMemberError(result.error);
     } else {
@@ -256,7 +276,7 @@ export default function ListsPage() {
         const others = prev.filter(member => member.id !== result.member.id);
         return orderMembers([...others, result.member]);
       });
-      setInviteEmail('');
+      setInviteFriendId('');
     }
 
     setMemberSubmitting(false);
@@ -618,18 +638,45 @@ export default function ListsPage() {
                 {canManageMembers ? (
                   <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-zen-700">Email address</label>
+                      <label className="text-sm font-medium text-zen-700">Choose a friend</label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
-                        <input
-                          type="email"
-                          value={inviteEmail}
-                          onChange={event => setInviteEmail(event.target.value)}
-                          placeholder="teammate@example.com"
-                          className="w-full rounded-xl border border-zen-200 bg-surface/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
+                        <select
+                          value={inviteFriendId}
+                          onChange={event => {
+                            const value = event.target.value;
+                            if (value === '__add__') {
+                              setInviteFriendId('');
+                              router.push('/friends');
+                              return;
+                            }
+                            setMemberError(null);
+                            setInviteFriendId(value);
+                          }}
+                          className="w-full rounded-xl border border-zen-200 bg-surface/90 pl-9 pr-9 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none appearance-none"
                           disabled={memberSubmitting}
-                        />
+                        >
+                          <option value="" disabled>
+                            {friends.length === 0
+                              ? 'No friends yet'
+                              : availableFriends.length === 0
+                                ? 'All friends already invited'
+                                : 'Select a friend'}
+                          </option>
+                          {availableFriends.map(friend => (
+                            <option key={friend.friend_id} value={friend.friend_id}>
+                              {friend.friend_name ? `${friend.friend_name} (${friend.friend_email})` : friend.friend_email}
+                            </option>
+                          ))}
+                          <option value="__add__">Add more friends</option>
+                        </select>
                       </div>
+                      {friends.length === 0 && (
+                        <p className="text-xs text-zen-500">Add friends to invite them to collaborate.</p>
+                      )}
+                      {friends.length > 0 && availableFriends.length === 0 && (
+                        <p className="text-xs text-zen-500">Everyone on your friends list already collaborates on this list.</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-zen-700">Role</label>
@@ -649,7 +696,7 @@ export default function ListsPage() {
                     <button
                       type="button"
                       onClick={() => void handleInvite()}
-                      disabled={memberSubmitting}
+                      disabled={memberSubmitting || !inviteFriendId}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {memberSubmitting ? (
