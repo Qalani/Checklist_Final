@@ -442,7 +442,27 @@ function HomePageContent() {
                   <p className="text-sm text-zen-500 dark:text-slate-400">Focus</p>
                   <p className="text-lg font-semibold text-zen-900 dark:text-white">{isTasksLoading ? 'Syncing…' : nextDueLabel}</p>
                 </div>
+                {isLoading ? (
+                  <div className="flex h-32 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-sage-200 border-t-sage-500" />
+                  </div>
+                ) : null}
+                <DashboardBoard userId={boardUserId} layout={layout} moveWidget={moveWidget} isEditable={isEditMode} />
               </div>
+              <WidgetVisibilityMenu
+                layout={layout}
+                onToggle={widgetId => {
+                  if (!isEditMode) return;
+                  void toggleWidget(widgetId);
+                }}
+                onReset={() => {
+                  if (!isEditMode) return;
+                  void resetLayout();
+                }}
+                isSaving={isSaving}
+                isEditable={isEditMode}
+                onRequestEditMode={() => setIsEditMode(true)}
+              />
             </div>
 
             {demoMode ? (
