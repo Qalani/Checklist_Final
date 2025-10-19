@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('widget visibility toggles persist across reloads in demo mode', async ({ page }) => {
-  await page.goto('/?demo=1');
+  await page.goto('/zen-insights?demo=1');
 
   await expect(page.getByText('Demo mode: changes are stored locally in this browser.')).toBeVisible();
   const productivityWidget = page.locator('[data-widget-type="productivity"]');
