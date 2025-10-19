@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { Suspense, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { Sparkles } from 'lucide-react';
+import { ArrowRight, CalendarClock, FileText, LayoutGrid, List as ListIcon, Sparkles, Users } from 'lucide-react';
 
 import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
@@ -12,6 +14,10 @@ import DashboardBoard from '@/features/dashboard/DashboardBoard';
 import DashboardHero from '@/features/dashboard/DashboardHero';
 import WidgetVisibilityMenu from '@/features/dashboard/WidgetVisibilityMenu';
 import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
+import { useChecklist } from '@/features/checklist/useChecklist';
+import { useLists } from '@/features/lists/useLists';
+import { useFriends } from '@/features/friends/useFriends';
+import { useNotes } from '@/features/notes/useNotes';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 
 function LoadingScreen() {
@@ -40,6 +46,18 @@ function HomePageContent() {
   const demoMode = searchParams?.get('demo') === '1';
   const targetUserId = demoMode ? null : user?.id ?? null;
   const { layout, isLoading, isSaving, error, moveWidget, toggleWidget, resetLayout } = useDashboardLayout(targetUserId);
+  const { tasks, status: checklistStatus, syncing: checklistSyncing } = useChecklist(targetUserId);
+  const {
+    lists,
+    status: listsStatus,
+    syncing: listsSyncing,
+  } = useLists(targetUserId);
+  const { friends, status: friendsStatus, syncing: friendsSyncing } = useFriends(targetUserId);
+  const {
+    notes,
+    status: notesStatus,
+    syncing: notesSyncing,
+  } = useNotes(targetUserId);
 
   const userEmail = useMemo(() => {
     if (demoMode) {
@@ -47,6 +65,122 @@ function HomePageContent() {
     }
     return user?.email ?? user?.user_metadata?.email ?? null;
   }, [demoMode, user]);
+
+  const isTasksLoading = checklistStatus === 'loading' || checklistSyncing;
+  const isListsLoading = listsStatus === 'loading' || listsSyncing;
+  const isFriendsLoading = friendsStatus === 'loading' || friendsSyncing;
+  const isNotesLoading = notesStatus === 'loading' || notesSyncing;
+
+  const activeTasksCount = useMemo(() => {
+    if (demoMode) {
+      return 4;
+    }
+    return tasks.filter(task => !task.completed).length;
+  }, [demoMode, tasks]);
+
+  const completedTasksCount = useMemo(() => {
+    if (demoMode) {
+      return 18;
+    }
+    return tasks.filter(task => task.completed).length;
+  }, [demoMode, tasks]);
+
+  const nextDueLabel = useMemo(() => {
+    if (demoMode) {
+      return 'Next due tomorrow at 9:00 AM';
+    }
+
+    const nextDueTask = tasks
+      .filter(task => !task.completed && task.due_date)
+      .sort((a, b) => {
+        const dateA = new Date(a.due_date as string).getTime();
+        const dateB = new Date(b.due_date as string).getTime();
+        return dateA - dateB;
+      })[0];
+
+    if (!nextDueTask) {
+      return 'No upcoming tasks';
+    }
+
+    return `Next due ${new Date(nextDueTask.due_date as string).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })}`;
+  }, [demoMode, tasks]);
+
+  const listCount = demoMode ? 6 : lists.length;
+  const notesCount = demoMode ? 12 : notes.length;
+  const friendsCount = demoMode ? 3 : friends.length;
+
+  const featureTiles = useMemo(
+    () => [
+      {
+        key: 'tasks' as const,
+        title: 'Zen Tasks',
+        description: 'Capture, prioritize, and complete your tasks with a mindful flow.',
+        href: '/tasks',
+        icon: LayoutGrid,
+        primaryStat: isTasksLoading ? '—' : activeTasksCount,
+        primaryLabel: 'Active tasks',
+        secondaryLabel: isTasksLoading ? 'Syncing tasks…' : nextDueLabel,
+      },
+      {
+        key: 'lists' as const,
+        title: 'Zen Lists',
+        description: 'Curate collections to group ideas, routines, and shared plans.',
+        href: '/lists',
+        icon: ListIcon,
+        primaryStat: isListsLoading ? '—' : listCount,
+        primaryLabel: 'Lists saved',
+        secondaryLabel: isListsLoading
+          ? 'Syncing lists…'
+          : listCount > 0
+            ? 'Tap to explore your collections'
+            : 'Start your first list',
+      },
+      {
+        key: 'notes' as const,
+        title: 'Zen Notes',
+        description: 'Write rich documents, journal entries, and meeting notes with ease.',
+        href: '/notes',
+        icon: FileText,
+        primaryStat: isNotesLoading ? '—' : notesCount,
+        primaryLabel: 'Documents saved',
+        secondaryLabel: isNotesLoading
+          ? 'Syncing notes…'
+          : notesCount > 0
+            ? 'Return to your most recent document'
+            : 'Start your first document',
+      },
+      {
+        key: 'friends' as const,
+        title: 'Zen Friends',
+        description: 'Add people you trust and collaborate in real time.',
+        href: '/friends',
+        icon: Users,
+        primaryStat: isFriendsLoading ? '—' : friendsCount,
+        primaryLabel: 'Friends connected',
+        secondaryLabel: isFriendsLoading
+          ? 'Syncing friends…'
+          : friendsCount > 0
+            ? 'See what your friends are up to'
+            : 'Invite someone new today',
+      },
+    ],
+    [
+      activeTasksCount,
+      friendsCount,
+      isFriendsLoading,
+      isListsLoading,
+      isNotesLoading,
+      isTasksLoading,
+      listCount,
+      nextDueLabel,
+      notesCount,
+    ],
+  );
 
   if (!authChecked) {
     return <LoadingScreen />;
@@ -129,6 +263,27 @@ function HomePageContent() {
               onToggleEditMode={() => setIsEditMode(current => !current)}
             />
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex items-center gap-3 rounded-2xl border border-sage-100 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sage-400 to-sage-500 text-white">
+                  <LayoutGrid className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm text-zen-500 dark:text-slate-400">Completed</p>
+                  <p className="text-lg font-semibold text-zen-900 dark:text-white">{isTasksLoading ? '—' : completedTasksCount}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-sage-100 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-zen-300 to-zen-400 text-zen-900">
+                  <CalendarClock className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm text-zen-500 dark:text-slate-400">Focus</p>
+                  <p className="text-lg font-semibold text-zen-900 dark:text-white">{isTasksLoading ? 'Syncing…' : nextDueLabel}</p>
+                </div>
+              </div>
+            </div>
+
             {demoMode ? (
               <div className="rounded-3xl border border-dashed border-sage-300 bg-white/70 p-4 text-sm text-sage-700 shadow-small backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
                 Demo mode: changes are stored locally in this browser.
@@ -187,6 +342,64 @@ function HomePageContent() {
                 isEditable={isEditMode}
                 onRequestEditMode={() => setIsEditMode(true)}
               />
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <p className="text-sm font-medium uppercase tracking-wide text-sage-600 dark:text-slate-300">Quick access</p>
+                <h2 className="text-2xl font-semibold text-zen-900 dark:text-white">Dive into your workspace apps</h2>
+                <p className="text-sm text-zen-500 dark:text-slate-400">
+                  Jump straight to tasks, lists, notes, or friends without losing your personalized dashboard.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {featureTiles.map(tile => {
+                  const Icon = tile.icon;
+                  return (
+                    <motion.div
+                      key={tile.key}
+                      whileHover={{ y: -4, scale: 1.01 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                    >
+                      <Link
+                        href={tile.href}
+                        className="group block h-full overflow-hidden rounded-3xl border border-sage-100 bg-white/80 shadow-medium backdrop-blur-sm transition-colors hover:border-sage-300 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-600"
+                      >
+                        <div className="flex h-full flex-col justify-between">
+                          <div className="space-y-4 p-6">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 text-white shadow-medium">
+                                  <Icon className="h-6 w-6" />
+                                </div>
+                                <div>
+                                  <h3 className="text-xl font-semibold text-zen-900 dark:text-white">{tile.title}</h3>
+                                  <p className="text-sm text-zen-600 dark:text-slate-300">{tile.description}</p>
+                                </div>
+                              </div>
+                              <ArrowRight className="h-5 w-5 text-zen-400 transition-transform group-hover:translate-x-1" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-sm text-zen-500 dark:text-slate-400">{tile.primaryLabel}</p>
+                                <p className="text-2xl font-semibold text-zen-900 dark:text-white">{tile.primaryStat}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-zen-500 dark:text-slate-400">What&apos;s next</p>
+                                <p className="text-sm font-medium text-zen-700 dark:text-slate-200">{tile.secondaryLabel}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="border-t border-sage-100 bg-sage-50/70 px-6 py-4 text-sm text-sage-600 transition-colors group-hover:bg-sage-100/70 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-300 dark:group-hover:bg-slate-800/80">
+                            Tap to explore {tile.title}
+                          </div>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
           </section>
         </main>
