@@ -5,7 +5,7 @@ import { Suspense, useMemo } from 'react';
 import type { ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { CheckSquare, ListTodo, StickyNote, Users } from 'lucide-react';
+import { ArrowRight, CheckSquare, ListTodo, StickyNote, Users } from 'lucide-react';
 
 import ParallaxBackground from '@/components/ParallaxBackground';
 import SettingsMenu from '@/components/SettingsMenu';
@@ -42,6 +42,12 @@ interface FeatureDefinition {
   icon: ComponentType<{ className?: string }>;
   primary: string;
   secondary: string;
+  accentGradient: string;
+  accentText: string;
+  badgeBg: string;
+  badgeText: string;
+  footerBg: string;
+  footerHoverBg: string;
 }
 
 function HomePageContent() {
@@ -96,6 +102,12 @@ function HomePageContent() {
         icon: CheckSquare,
         primary: tasksLoading ? 'Syncing…' : `${openTasks} active tasks`,
         secondary: tasksLoading ? '' : `${completedTasks} completed`,
+        accentGradient: 'bg-gradient-to-br from-sage-500 to-sage-600',
+        accentText: 'text-white',
+        badgeBg: 'bg-sage-100/80 dark:bg-slate-900/70',
+        badgeText: 'text-sage-600 dark:text-slate-200',
+        footerBg: 'bg-sage-50/80 dark:bg-slate-900/80',
+        footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-slate-800/80',
       },
       {
         key: 'lists',
@@ -105,6 +117,12 @@ function HomePageContent() {
         icon: ListTodo,
         primary: listsLoading ? 'Syncing…' : `${totalLists} curated lists`,
         secondary: '',
+        accentGradient: 'bg-gradient-to-br from-zen-400 to-zen-500',
+        accentText: 'text-zen-950',
+        badgeBg: 'bg-zen-100/80 dark:bg-slate-900/70',
+        badgeText: 'text-zen-500 dark:text-slate-200',
+        footerBg: 'bg-zen-50/80 dark:bg-slate-900/80',
+        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-slate-800/80',
       },
       {
         key: 'notes',
@@ -114,6 +132,12 @@ function HomePageContent() {
         icon: StickyNote,
         primary: notesLoading ? 'Syncing…' : `${totalNotes} saved notes`,
         secondary: '',
+        accentGradient: 'bg-gradient-to-br from-warm-400 to-warm-500',
+        accentText: 'text-white',
+        badgeBg: 'bg-warm-100/80 dark:bg-slate-900/70',
+        badgeText: 'text-warm-600 dark:text-slate-200',
+        footerBg: 'bg-warm-50/80 dark:bg-slate-900/80',
+        footerHoverBg: 'group-hover:bg-warm-100/80 dark:group-hover:bg-slate-800/80',
       },
       {
         key: 'friends',
@@ -123,6 +147,12 @@ function HomePageContent() {
         icon: Users,
         primary: friendsLoading ? 'Syncing…' : `${totalFriends} connected friends`,
         secondary: '',
+        accentGradient: 'bg-gradient-to-br from-zen-500 to-sage-500',
+        accentText: 'text-white',
+        badgeBg: 'bg-zen-100/80 dark:bg-slate-900/70',
+        badgeText: 'text-zen-600 dark:text-slate-200',
+        footerBg: 'bg-zen-50/80 dark:bg-slate-900/80',
+        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-slate-800/80',
       },
     ],
     [
@@ -204,36 +234,43 @@ function FeatureCard({ card }: { card: FeatureDefinition }) {
   const Icon = card.icon;
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="group relative overflow-hidden rounded-3xl border border-white/60 bg-white/70 p-6 shadow-soft backdrop-blur-xl transition hover:-translate-y-1 hover:shadow-lift dark:border-slate-800/40 dark:bg-slate-950/40"
+    <Link
+      href={card.href}
+      className="group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950"
+      aria-label={`Go to ${card.title}`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-zen-200/70 bg-zen-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
-            <Icon className="h-4 w-4" />
-            {card.title}
+      <motion.article
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex h-full flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/70 shadow-soft backdrop-blur-xl transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift dark:border-slate-800/40 dark:bg-slate-950/40"
+      >
+        <div className="flex flex-1 flex-col justify-between gap-6 p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${card.accentGradient} ${card.accentText} shadow-medium transition group-hover:scale-[1.02]`}>
+                <Icon className="h-6 w-6" />
+              </div>
+              <div>
+                <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${card.badgeBg} ${card.badgeText}`}>
+                  {card.title}
+                </div>
+                <p className="mt-3 text-sm text-zen-600 dark:text-slate-300">{card.description}</p>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-zen-300 transition-transform group-hover:translate-x-1 dark:text-slate-500" />
           </div>
-          <p className="text-sm text-zen-600 dark:text-slate-300">{card.description}</p>
+          <dl className="grid gap-2 text-sm">
+            <div className="text-lg font-semibold text-zen-900 dark:text-white">{card.primary}</div>
+            {card.secondary ? (
+              <div className="text-xs text-zen-500 dark:text-slate-400">{card.secondary}</div>
+            ) : null}
+          </dl>
         </div>
-        <Link
-          href={card.href}
-          className="rounded-full border border-transparent bg-zen-900/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zen-800/90 dark:bg-white/80 dark:text-slate-900 dark:hover:bg-white"
-        >
-          Open
-        </Link>
-      </div>
-      <dl className="mt-6 space-y-1 text-sm">
-        <div className="text-base font-semibold text-zen-900 dark:text-white">{card.primary}</div>
-        {card.secondary ? (
-          <div className="text-xs text-zen-500 dark:text-slate-400">{card.secondary}</div>
-        ) : null}
-      </dl>
-      <div className="pointer-events-none absolute inset-0 opacity-0 transition group-hover:opacity-100">
-        <div className="absolute inset-0 bg-gradient-to-br from-zen-100/40 via-transparent to-sage-100/50" />
-      </div>
-    </motion.article>
+        <div className={`border-t border-white/60 px-6 py-4 text-sm text-zen-600 transition-colors dark:border-slate-800 dark:text-slate-300 ${card.footerBg} ${card.footerHoverBg}`}>
+          Tap to explore {card.title}
+        </div>
+      </motion.article>
+    </Link>
   );
 }
