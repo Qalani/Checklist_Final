@@ -103,7 +103,7 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function fetchFriendsData(userId: string): Promise<{
+export async function fetchFriendsData(userId: string): Promise<{
   friends: Friend[];
   incoming: FriendRequest[];
   outgoing: FriendRequest[];

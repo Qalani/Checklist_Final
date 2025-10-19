@@ -50,7 +50,7 @@ function sortCategories(categories: Category[]): Category[] {
   });
 }
 
-async function fetchTasks(userId: string): Promise<Task[]> {
+export async function fetchTasks(userId: string): Promise<Task[]> {
   const { data, error } = await supabase.rpc('get_tasks_with_access');
 
   if (error) {
@@ -65,7 +65,7 @@ async function fetchTasks(userId: string): Promise<Task[]> {
   })) as Task[];
 }
 
-async function fetchCategories(userId: string): Promise<Category[]> {
+export async function fetchCategories(userId: string): Promise<Category[]> {
   const { data, error } = await supabase
     .from('categories')
     .select('*')
