@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 
 import AuthPanel from '@/components/AuthPanel';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
@@ -27,6 +27,7 @@ export default function DashboardPage() {
 }
 
 function DashboardPageContent() {
+  const [isEditMode, setIsEditMode] = useState(false);
   const { user, authChecked } = useAuthSession();
   const searchParams = useSearchParams();
   const demoMode = searchParams?.get('demo') === '1';
@@ -71,7 +72,23 @@ function DashboardPageContent() {
             ) : null}
             {error ? <p className="mt-2 text-sm text-red-600">{error.message}</p> : null}
           </div>
-          <ThemeSwitcher />
+          <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditMode(prev => !prev);
+              }}
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                isEditMode
+                  ? 'border-sage-600 bg-sage-600 text-white hover:bg-sage-700 focus:ring-sage-500'
+                  : 'border-sage-300 text-sage-700 hover:bg-sage-50 focus:ring-sage-400 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+              }`}
+              aria-pressed={isEditMode}
+            >
+              {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
+            </button>
+            <ThemeSwitcher />
+          </div>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -81,17 +98,20 @@ function DashboardPageContent() {
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-sage-200 border-t-sage-500" />
               </div>
             ) : null}
-            <DashboardBoard userId={boardUserId} layout={layout} moveWidget={moveWidget} />
+            <DashboardBoard userId={boardUserId} layout={layout} moveWidget={moveWidget} isEditable={isEditMode} />
           </div>
           <WidgetVisibilityMenu
             layout={layout}
             onToggle={widgetId => {
+              if (!isEditMode) return;
               void toggleWidget(widgetId);
             }}
             onReset={() => {
+              if (!isEditMode) return;
               void resetLayout();
             }}
             isSaving={isSaving}
+            isEditable={isEditMode}
           />
         </div>
       </div>
