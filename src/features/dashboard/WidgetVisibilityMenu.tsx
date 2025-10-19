@@ -8,9 +8,10 @@ interface WidgetVisibilityMenuProps {
   onToggle: (widgetId: string) => void;
   onReset: () => void;
   isSaving: boolean;
+  isEditable: boolean;
 }
 
-export default function WidgetVisibilityMenu({ layout, onToggle, onReset, isSaving }: WidgetVisibilityMenuProps) {
+export default function WidgetVisibilityMenu({ layout, onToggle, onReset, isSaving, isEditable }: WidgetVisibilityMenuProps) {
   const widgets = layout.widgets.map(widget => ({
     widget,
     definition: getWidgetDefinition(widget.type) ?? DASHBOARD_WIDGET_LIBRARY.find(def => def.type === widget.type),
@@ -23,12 +24,15 @@ export default function WidgetVisibilityMenu({ layout, onToggle, onReset, isSavi
         <button
           type="button"
           onClick={onReset}
-          disabled={isSaving}
+          disabled={isSaving || !isEditable}
           className="text-xs font-medium text-sage-600 transition hover:text-sage-700 disabled:opacity-50 dark:text-slate-200"
         >
           Reset
         </button>
       </div>
+      {!isEditable ? (
+        <p className="mt-2 text-xs text-zen-400 dark:text-slate-400">Enter edit mode to toggle widget visibility.</p>
+      ) : null}
       <ul className="mt-4 space-y-3">
         {widgets.map(({ widget, definition }) => (
           <li key={widget.id} className="flex items-start justify-between gap-4 rounded-2xl border border-sage-100/70 p-3 dark:border-slate-700">
@@ -42,7 +46,7 @@ export default function WidgetVisibilityMenu({ layout, onToggle, onReset, isSavi
                 className="h-4 w-4 rounded border-sage-300 text-sage-600 focus:ring-sage-500 dark:border-slate-600"
                 checked={widget.visible}
                 onChange={() => onToggle(widget.id)}
-                disabled={isSaving}
+                disabled={isSaving || !isEditable}
               />
               Visible
             </label>
