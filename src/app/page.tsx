@@ -1,110 +1,83 @@
 'use client';
 
-import Link from 'next/link';
-import { useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { LayoutGrid, List as ListIcon, Sparkles, CalendarClock, ArrowRight, Users, FileText } from 'lucide-react';
-import ThemeSwitcher from '@/components/ThemeSwitcher';
-import ParallaxBackground from '@/components/ParallaxBackground';
+import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Sparkles } from 'lucide-react';
+
 import AuthPanel from '@/components/AuthPanel';
-import QuickStats from '@/components/QuickStats';
-import { useChecklist } from '@/features/checklist/useChecklist';
+import ParallaxBackground from '@/components/ParallaxBackground';
+import SettingsMenu from '@/components/SettingsMenu';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
+import DashboardBoard from '@/features/dashboard/DashboardBoard';
+import DashboardHero from '@/features/dashboard/DashboardHero';
+import WidgetVisibilityMenu from '@/features/dashboard/WidgetVisibilityMenu';
+import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-import { useLists } from '@/features/lists/useLists';
-import { useFriends } from '@/features/friends/useFriends';
-import { useNotes } from '@/features/notes/useNotes';
 
 function LoadingScreen() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-sage-200 border-t-sage-600" />
       </div>
     </div>
   );
 }
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageContent() {
+  const [isEditMode, setIsEditMode] = useState(false);
   const { user, authChecked, signOut } = useAuthSession();
-  const {
-    tasks,
-    categories,
-    status: checklistStatus,
-    syncing: checklistSyncing,
-  } = useChecklist(user?.id ?? null);
-  const {
-    lists,
-    status: listsStatus,
-    syncing: listsSyncing,
-  } = useLists(user?.id ?? null);
-  const { friends, status: friendsStatus, syncing: friendsSyncing } = useFriends(user?.id ?? null);
-  const {
-    notes,
-    status: notesStatus,
-    syncing: notesSyncing,
-  } = useNotes(user?.id ?? null);
+  const searchParams = useSearchParams();
+  const demoMode = searchParams?.get('demo') === '1';
+  const targetUserId = demoMode ? null : user?.id ?? null;
+  const { layout, isLoading, isSaving, error, moveWidget, toggleWidget, resetLayout } = useDashboardLayout(targetUserId);
 
-  const isTasksLoading = checklistStatus === 'loading' || checklistSyncing;
-  const isListsLoading = listsStatus === 'loading' || listsSyncing;
-  const isFriendsLoading = friendsStatus === 'loading' || friendsSyncing;
-  const isNotesLoading = notesStatus === 'loading' || notesSyncing;
-
-  const activeTasksCount = useMemo(() => tasks.filter(task => !task.completed).length, [tasks]);
-  const completedTasksCount = useMemo(() => tasks.filter(task => task.completed).length, [tasks]);
-
-  const nextDueTask = useMemo(() => {
-    return tasks
-      .filter(task => !task.completed && task.due_date)
-      .sort((a, b) => {
-        const dateA = new Date(a.due_date as string).getTime();
-        const dateB = new Date(b.due_date as string).getTime();
-        return dateA - dateB;
-      })[0];
-  }, [tasks]);
-
-  const nextDueLabel = nextDueTask
-    ? `Next due ${new Date(nextDueTask.due_date as string).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`
-    : 'No upcoming tasks';
+  const userEmail = useMemo(() => {
+    if (demoMode) {
+      return 'Demo session';
+    }
+    return user?.email ?? user?.user_metadata?.email ?? null;
+  }, [demoMode, user]);
 
   if (!authChecked) {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  if (!user && !demoMode) {
     return (
       <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
         <ParallaxBackground />
         <div className="relative z-10 flex min-h-screen flex-col">
-          <header className="px-4 sm:px-6 lg:px-8 py-6">
-            <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <header className="px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
-                  <Sparkles className="w-5 h-5 text-white" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 text-white shadow-medium">
+                  <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
                   <p className="text-sm text-zen-600">Your mindful workspace</p>
                 </div>
               </div>
-
               <div className="w-full sm:w-auto">
                 <ThemeSwitcher />
               </div>
             </div>
           </header>
 
-          <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-4 sm:px-6 lg:px-8 pb-12">
-            <div className="max-w-xl text-center lg:text-left space-y-4">
-              <h2 className="text-3xl font-semibold text-zen-900">
-                Stay organized with mindful task management
-              </h2>
-              <p className="text-zen-600 text-base">
+          <main className="flex flex-1 flex-col items-center justify-center gap-12 px-4 pb-12 sm:px-6 lg:flex-row lg:px-8">
+            <div className="max-w-xl space-y-4 text-center lg:text-left">
+              <h2 className="text-3xl font-semibold text-zen-900">Stay organized with mindful task management</h2>
+              <p className="text-base text-zen-600">
                 Create an account or sign in to sync your tasks, lists, and categories securely across devices.
               </p>
             </div>
@@ -115,185 +88,105 @@ export default function HomePage() {
     );
   }
 
-  const featureTiles = [
-    {
-      key: 'tasks',
-      title: 'Zen Tasks',
-      description: 'Capture, prioritize, and complete your tasks with a mindful flow.',
-      href: '/tasks',
-      icon: LayoutGrid,
-      primaryStat: isTasksLoading ? '—' : activeTasksCount,
-      primaryLabel: 'Active tasks',
-      secondaryLabel: isTasksLoading ? 'Syncing tasks…' : nextDueLabel,
-    },
-    {
-      key: 'lists',
-      title: 'Zen Lists',
-      description: 'Curate collections to group ideas, routines, and shared plans.',
-      href: '/lists',
-      icon: ListIcon,
-      primaryStat: isListsLoading ? '—' : lists.length,
-      primaryLabel: 'Lists saved',
-      secondaryLabel: isListsLoading
-        ? 'Syncing lists…'
-        : lists.length > 0
-          ? 'Tap to explore your collections'
-          : 'Start your first list',
-    },
-    {
-      key: 'notes',
-      title: 'Zen Notes',
-      description: 'Write rich documents, journal entries, and meeting notes with ease.',
-      href: '/notes',
-      icon: FileText,
-      primaryStat: isNotesLoading ? '—' : notes.length,
-      primaryLabel: 'Documents saved',
-      secondaryLabel: isNotesLoading
-        ? 'Syncing notes…'
-        : notes.length > 0
-          ? 'Return to your most recent document'
-          : 'Start your first document',
-    },
-    {
-      key: 'friends',
-      title: 'Zen Friends',
-      description: 'Add people you trust and collaborate in real time.',
-      href: '/friends',
-      icon: Users,
-      primaryStat: isFriendsLoading ? '—' : friends.length,
-      primaryLabel: 'Friends connected',
-      secondaryLabel: isFriendsLoading
-        ? 'Syncing friends…'
-        : friends.length > 0
-          ? 'See what your friends are up to'
-          : 'Invite someone new today',
-    },
-  ];
+  const boardUserId = demoMode ? null : user?.id ?? null;
+  const userName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <ParallaxBackground />
-      <div className="relative z-10 min-h-screen flex flex-col">
-        <header className="sticky top-0 z-50 backdrop-blur-xl bg-surface/70 border-b border-zen-200 shadow-soft">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center shadow-medium">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
-                  <p className="text-sm text-zen-600">Your mindful workspace</p>
-                </div>
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <header className="sticky top-0 z-50 border-b border-zen-200 bg-surface/70 backdrop-blur-xl shadow-soft">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 text-white shadow-medium">
+                <Sparkles className="h-5 w-5" />
               </div>
-
-              <div className="flex flex-wrap items-center gap-3 justify-start lg:justify-end">
-                <ThemeSwitcher />
-                <button
-                  type="button"
-                  onClick={() => {
+              <div>
+                <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
+                <p className="text-sm text-zen-600">Your mindful workspace</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-start gap-3 lg:justify-end">
+              <SettingsMenu
+                userEmail={userEmail}
+                onSignOut={() => {
+                  if (!demoMode) {
                     void signOut();
-                  }}
-                  className="px-4 py-2 rounded-lg bg-zen-900 text-white text-sm font-medium shadow-soft hover:bg-zen-800 transition-colors"
-                >
-                  Sign out
-                </button>
-              </div>
+                  }
+                }}
+              />
             </div>
           </div>
         </header>
 
         <main className="flex-1">
-          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
-              <div className="space-y-4 lg:col-span-3">
-                <p className="text-sm text-zen-500">Welcome back</p>
-                <h2 className="text-3xl font-semibold text-zen-900">
-                  Create calm across your work and life with a single dashboard.
-                </h2>
-                <p className="text-zen-600 max-w-xl">
-                  Jump back into tasks or start planning with lists. Your workspace keeps everything synced and easy to find.
-                </p>
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-3 rounded-2xl bg-surface/80 border border-zen-200 px-4 py-3 shadow-soft">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sage-400 to-sage-500 flex items-center justify-center text-white">
-                      <LayoutGrid className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-zen-500">Completed</p>
-                      <p className="text-lg font-semibold text-zen-900">{isTasksLoading ? '—' : completedTasksCount}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-2xl bg-surface/80 border border-zen-200 px-4 py-3 shadow-soft">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-zen-300 to-zen-400 flex items-center justify-center text-zen-900">
-                      <CalendarClock className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-zen-500">Focus</p>
-                      <p className="text-lg font-semibold text-zen-900">{isTasksLoading ? 'Syncing…' : nextDueLabel}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <section className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+            <DashboardHero
+              userName={demoMode ? 'Demo User' : userName}
+              userId={boardUserId}
+              isEditMode={isEditMode}
+              isSaving={isSaving}
+              onToggleEditMode={() => setIsEditMode(current => !current)}
+            />
 
-              <div className="lg:col-span-2">
-                <div className="rounded-3xl bg-surface/80 border border-zen-200 shadow-soft overflow-hidden">
-                  <div className="border-b border-zen-200 px-5 py-4">
-                    <h3 className="text-sm font-semibold text-zen-500 uppercase tracking-wide">Snapshot</h3>
-                  </div>
-                  <div className="p-5">
-                    <QuickStats tasks={tasks} categories={categories} />
-                  </div>
-                </div>
+            {demoMode ? (
+              <div className="rounded-3xl border border-dashed border-sage-300 bg-white/70 p-4 text-sm text-sage-700 shadow-small backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                Demo mode: changes are stored locally in this browser.
               </div>
-            </div>
+            ) : null}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {featureTiles.map(tile => {
-                const Icon = tile.icon;
-                return (
-                  <motion.div
-                    key={tile.key}
-                    whileHover={{ y: -4, scale: 1.01 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-                  >
-                    <Link
-                      href={tile.href}
-                      className="group block h-full rounded-3xl bg-surface/80 border border-zen-200 shadow-soft overflow-hidden"
+            {error ? (
+              <p className="rounded-3xl border border-red-100 bg-red-50/80 p-4 text-sm text-red-700 shadow-small dark:border-red-900/40 dark:bg-red-900/40 dark:text-red-100">
+                {error.message}
+              </p>
+            ) : null}
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="rounded-3xl border border-sage-100 bg-white/80 p-6 shadow-medium backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
+                <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-sage-100/80 bg-sage-50/80 p-4 text-sm text-sage-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-2 font-medium">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 text-xs uppercase tracking-wide text-sage-600 dark:bg-slate-800/80 dark:text-slate-200">
+                      {isEditMode ? 'Edit mode' : 'View mode'}
+                    </span>
+                    <span>
+                      {isEditMode
+                        ? 'Drag widgets between columns, reorder them, or hide cards from the menu.'
+                        : 'Switch to edit mode to personalize the layout for this dashboard.'}
+                    </span>
+                  </div>
+                  {!isEditMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditMode(true)}
+                      className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-sage-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-sage-600 focus:outline-none focus:ring-2 focus:ring-sage-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:focus:ring-slate-400 dark:focus:ring-offset-slate-900"
                     >
-                      <div className="flex h-full flex-col justify-between">
-                        <div className="p-6 space-y-4">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 flex items-center justify-center text-white shadow-medium">
-                                <Icon className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h3 className="text-xl font-semibold text-zen-900">{tile.title}</h3>
-                                <p className="text-sm text-zen-600">{tile.description}</p>
-                              </div>
-                            </div>
-                            <ArrowRight className="w-5 h-5 text-zen-400 transition-transform group-hover:translate-x-1" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-sm text-zen-500">{tile.primaryLabel}</p>
-                              <p className="text-2xl font-semibold text-zen-900">{tile.primaryStat}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-zen-500">What&apos;s next</p>
-                              <p className="text-sm font-medium text-zen-700">{tile.secondaryLabel}</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="px-6 py-4 bg-zen-50/60 text-sm text-zen-500 border-t border-zen-200">
-                          Tap to explore {tile.title}
-                        </div>
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
+                      Enter edit mode
+                    </button>
+                  ) : (
+                    <span className="text-xs text-sage-600 dark:text-slate-300">Changes are saved automatically.</span>
+                  )}
+                </div>
+                {isLoading ? (
+                  <div className="flex h-32 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-sage-200 border-t-sage-500" />
+                  </div>
+                ) : null}
+                <DashboardBoard userId={boardUserId} layout={layout} moveWidget={moveWidget} isEditable={isEditMode} />
+              </div>
+              <WidgetVisibilityMenu
+                layout={layout}
+                onToggle={widgetId => {
+                  if (!isEditMode) return;
+                  void toggleWidget(widgetId);
+                }}
+                onReset={() => {
+                  if (!isEditMode) return;
+                  void resetLayout();
+                }}
+                isSaving={isSaving}
+                isEditable={isEditMode}
+                onRequestEditMode={() => setIsEditMode(true)}
+              />
             </div>
           </section>
         </main>
