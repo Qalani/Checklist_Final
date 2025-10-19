@@ -148,7 +148,13 @@
 
 @layer base {
   body {
-    @apply bg-surface text-zen-900 transition-colors duration-300;
+    --tw-bg-opacity: 1;
+    --tw-text-opacity: 1;
+    background-color: rgb(var(--color-surface) / var(--tw-bg-opacity));
+    color: rgb(var(--color-zen-900) / var(--tw-text-opacity));
+    transition-property: color, background-color;
+    transition-duration: 300ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
