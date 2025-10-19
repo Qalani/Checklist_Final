@@ -1,5 +1,7 @@
 'use client';
 
+import { Suspense } from 'react';
+
 import AuthPanel from '@/components/AuthPanel';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
@@ -17,6 +19,14 @@ function LoadingScreen() {
 }
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <DashboardPageContent />
+    </Suspense>
+  );
+}
+
+function DashboardPageContent() {
   const { user, authChecked } = useAuthSession();
   const searchParams = useSearchParams();
   const demoMode = searchParams?.get('demo') === '1';
