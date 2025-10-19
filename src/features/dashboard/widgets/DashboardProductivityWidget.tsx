@@ -4,12 +4,16 @@ import useSWR from 'swr';
 import { LayoutGrid } from 'lucide-react';
 import DashboardWidgetFrame from './DashboardWidgetFrame';
 import { loadProductivitySummary } from '../data';
+import type { DashboardWidgetProps } from './index';
 
-interface DashboardProductivityWidgetProps {
-  userId: string | null;
-}
+const DEMO_PRODUCTIVITY = {
+  activeCount: 6,
+  completedCount: 18,
+  nextDueTitle: 'Design review with Mia',
+  nextDueTime: 'Today • 3:30 PM',
+};
 
-export default function DashboardProductivityWidget({ userId }: DashboardProductivityWidgetProps) {
+export default function DashboardProductivityWidget({ userId, isDemoMode }: DashboardWidgetProps) {
   const { data, error, isLoading } = useSWR(
     userId ? ['dashboard-productivity', userId] : null,
     () => loadProductivitySummary(userId as string),
@@ -21,6 +25,36 @@ export default function DashboardProductivityWidget({ userId }: DashboardProduct
   const icon = <LayoutGrid className="h-5 w-5" />;
 
   if (!userId) {
+    if (isDemoMode) {
+      return (
+        <DashboardWidgetFrame
+          title="Productivity Pulse"
+          description="Monitor your current workload and upcoming deadlines."
+          icon={icon}
+        >
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-slate-800/70">
+              <p className="text-3xl font-semibold text-zen-900 dark:text-white">{DEMO_PRODUCTIVITY.activeCount}</p>
+              <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">Active</p>
+            </div>
+            <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-slate-800/70">
+              <p className="text-3xl font-semibold text-zen-900 dark:text-white">{DEMO_PRODUCTIVITY.completedCount}</p>
+              <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">Completed</p>
+            </div>
+            <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-slate-800/70">
+              <p className="text-sm font-medium text-zen-700 dark:text-slate-200">{DEMO_PRODUCTIVITY.nextDueTitle}</p>
+              <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">
+                {DEMO_PRODUCTIVITY.nextDueTime}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-zen-400 dark:text-slate-400">
+            Demo data shown. Sign in to see your real task insights.
+          </p>
+        </DashboardWidgetFrame>
+      );
+    }
+
     return (
       <DashboardWidgetFrame title="Productivity Pulse" description="Sign in to see your tasks." icon={icon}>
         <p className="text-sm text-zen-500 dark:text-slate-300">Sign in to explore your productivity insights.</p>

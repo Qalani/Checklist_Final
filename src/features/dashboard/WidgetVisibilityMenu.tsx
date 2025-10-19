@@ -10,6 +10,7 @@ interface WidgetVisibilityMenuProps {
   isSaving: boolean;
   isEditable: boolean;
   onRequestEditMode?: () => void;
+  isDemoMode?: boolean;
 }
 
 export default function WidgetVisibilityMenu({
@@ -19,6 +20,7 @@ export default function WidgetVisibilityMenu({
   isSaving,
   isEditable,
   onRequestEditMode,
+  isDemoMode = false,
 }: WidgetVisibilityMenuProps) {
   const widgets = layout.widgets.map(widget => ({
     widget,
@@ -51,6 +53,12 @@ export default function WidgetVisibilityMenu({
             </button>
           ) : null}
         </div>
+      ) : null}
+      {isDemoMode ? (
+        <p className="mt-4 rounded-2xl border border-dashed border-sage-200 bg-sage-50/80 p-3 text-xs text-sage-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+          Demo changes stay on this device. Toggle widgets to design a layout you love, then sign in to save it
+          permanently.
+        </p>
       ) : null}
       <ul className="mt-4 space-y-3">
         {widgets.map(({ widget, definition }) => (
