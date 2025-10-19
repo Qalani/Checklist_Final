@@ -7,6 +7,7 @@ import DashboardFriendsWidget from './DashboardFriendsWidget';
 
 export interface DashboardWidgetProps {
   userId: string | null;
+  isDemoMode: boolean;
 }
 
 export const DASHBOARD_WIDGET_COMPONENTS: Record<DashboardWidgetType, ComponentType<DashboardWidgetProps>> = {

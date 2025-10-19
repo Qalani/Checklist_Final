@@ -23,6 +23,7 @@ interface DashboardBoardProps {
   layout: DashboardLayout;
   moveWidget: (widgetId: string, slot: DashboardSlot, index: number) => Promise<void>;
   isEditable: boolean;
+  isDemoMode: boolean;
 }
 
 type SortableWidgetData = {
@@ -95,6 +96,7 @@ function SlotColumn({
         className={[
           'flex flex-col gap-4 rounded-3xl border border-transparent transition-colors',
           isEditable && isOver ? 'border-sage-300 dark:border-slate-600' : '',
+          isEditable ? 'min-h-[120px] bg-sage-50/40 dark:bg-slate-900/40' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -105,7 +107,7 @@ function SlotColumn({
   );
 }
 
-export default function DashboardBoard({ userId, layout, moveWidget, isEditable }: DashboardBoardProps) {
+export default function DashboardBoard({ userId, layout, moveWidget, isEditable, isDemoMode }: DashboardBoardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -141,24 +143,44 @@ export default function DashboardBoard({ userId, layout, moveWidget, isEditable 
 
     const originSlot = activeData.slotId;
     const targetSlot = overData.slotId as DashboardSlot;
-    const slotAllWidgets = slots[targetSlot];
+
+    const allWidgetsInTarget = slots[targetSlot];
+    const visibleWidgetsInTarget = visibleWidgetsBySlot[targetSlot];
+
+    const activeIndexAll = slots[originSlot].findIndex(widget => widget.id === activeData.widgetId);
+    const activeVisibleIndex = visibleWidgetsBySlot[originSlot].findIndex(widget => widget.id === activeData.widgetId);
 
     let targetIndex: number;
 
     if (overData.type === 'slot') {
-      targetIndex = slotAllWidgets.length;
+      // Insert at the end of the target slot.
+      targetIndex = allWidgetsInTarget.length;
     } else {
-      const overIndexAll = slotAllWidgets.findIndex(widget => widget.id === overData.widgetId);
-      targetIndex = overIndexAll >= 0 ? overIndexAll : slotAllWidgets.length;
+      const overVisibleIndex = visibleWidgetsInTarget.findIndex(widget => widget.id === overData.widgetId);
+      const afterVisibleWidget = visibleWidgetsInTarget[overVisibleIndex];
+      if (!afterVisibleWidget) {
+        targetIndex = allWidgetsInTarget.length;
+      } else {
+        targetIndex = allWidgetsInTarget.findIndex(widget => widget.id === afterVisibleWidget.id);
+      }
 
-      if (originSlot === targetSlot) {
-        const activeIndexAll = slotAllWidgets.findIndex(widget => widget.id === activeData.widgetId);
-        if (activeIndexAll === targetIndex) {
-          return;
-        }
+      if (originSlot === targetSlot && activeIndexAll !== -1 && targetIndex !== -1) {
         if (targetIndex > activeIndexAll) {
           targetIndex -= 1;
         }
+      }
+    }
+
+    if (targetIndex < 0) {
+      return;
+    }
+
+    // When moving within the same slot we keep the relative position of hidden widgets by
+    // looking at the neighbour that appears after the intended drop point.
+    if (originSlot === targetSlot && activeVisibleIndex !== -1 && overData.type !== 'slot') {
+      const targetVisibleIndex = visibleWidgetsInTarget.findIndex(widget => widget.id === overData.widgetId);
+      if (targetVisibleIndex === activeVisibleIndex) {
+        return;
       }
     }
 
@@ -178,15 +200,17 @@ export default function DashboardBoard({ userId, layout, moveWidget, isEditable 
               </div>
               <SlotColumn slotId={slot.id} widgets={widgets} isEditable={isEditable}>
                 {widgets.length === 0 ? (
-                  <div className="rounded-3xl border border-dashed border-sage-200 p-6 text-center text-sm text-zen-400 dark:border-slate-700 dark:text-slate-500">
-                    {isEditable ? 'Drag widgets here' : 'Enter edit mode to move widgets'}
+                  <div className="rounded-3xl border border-dashed border-sage-200 bg-white/40 p-6 text-center text-sm text-zen-400 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-500">
+                    {isEditable
+                      ? 'Drag widgets here to populate this column.'
+                      : 'Enter edit mode to move widgets into this column.'}
                   </div>
                 ) : (
                   widgets.map(widget => {
                     const WidgetComponent = DASHBOARD_WIDGET_COMPONENTS[widget.type];
                     return (
                       <SortableWidget key={widget.id} widget={widget} isEditable={isEditable}>
-                        <WidgetComponent userId={userId} />
+                        <WidgetComponent userId={userId} isDemoMode={isDemoMode} />
                       </SortableWidget>
                     );
                   })

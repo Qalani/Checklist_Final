@@ -1,4 +1,4 @@
-const CACHE_NAME = "zen-workspace-cache-v1";
+const CACHE_NAME = "zen-workspace-cache-v2";
 const ASSETS_TO_CACHE = ["/"];
 
 self.addEventListener("install", (event) => {
@@ -28,32 +28,64 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function shouldHandleAsNavigation(request) {
+  if (request.mode === "navigate") {
+    return true;
+  }
+
+  const acceptHeader = request.headers.get("accept") || "";
+  return acceptHeader.includes("text/html");
+}
+
+async function cacheResponse(request, response) {
+  if (
+    response &&
+    response.status === 200 &&
+    response.type === "basic" &&
+    !request.url.includes("/__")
+  ) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+}
+
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  const { request } = event;
+
+  if (request.method !== "GET") {
+    return;
+  }
+
+  if (shouldHandleAsNavigation(request)) {
+    event.respondWith(
+      fetch(request)
+        .then(async (response) => {
+          await cacheResponse(request, response);
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) {
+            return cached;
+          }
+          return caches.match("/");
+        })
+    );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      return caches.open(CACHE_NAME).then((cache) =>
-        fetch(event.request)
-          .then((response) => {
-            if (
-              response &&
-              response.status === 200 &&
-              response.type === "basic" &&
-              !event.request.url.includes("/__")
-            ) {
-              cache.put(event.request, response.clone());
-            }
-            return response;
-          })
-          .catch(() => cachedResponse)
-      );
+      return fetch(request)
+        .then(async (response) => {
+          await cacheResponse(request, response);
+          return response;
+        })
+        .catch(() => cachedResponse);
     })
   );
 });
