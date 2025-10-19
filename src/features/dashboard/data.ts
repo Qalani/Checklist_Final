@@ -27,6 +27,18 @@ export interface FriendsSummary {
   pendingOutgoing: number;
 }
 
+export interface DashboardHeroSummary {
+  activeTasks: number;
+  completedTasks: number;
+  sharedLists: number;
+  totalLists: number;
+  noteCount: number;
+  totalFriends: number;
+  pendingConnections: number;
+  nextDueTaskTitle: string | null;
+  nextDueTaskDueDate: string | null;
+}
+
 export async function loadProductivitySummary(userId: string): Promise<ProductivitySummary> {
   const tasks = await fetchTasks(userId);
   const activeCount = tasks.filter(task => !task.completed).length;
@@ -69,5 +81,26 @@ export async function loadFriendsSummary(userId: string): Promise<FriendsSummary
     totalFriends: friends.length,
     pendingIncoming: incoming.length,
     pendingOutgoing: outgoing.length,
+  };
+}
+
+export async function loadDashboardHeroSummary(userId: string): Promise<DashboardHeroSummary> {
+  const [productivity, notes, lists, friends] = await Promise.all([
+    loadProductivitySummary(userId),
+    loadNotesSummary(userId),
+    loadListsSummary(userId),
+    loadFriendsSummary(userId),
+  ]);
+
+  return {
+    activeTasks: productivity.activeCount,
+    completedTasks: productivity.completedCount,
+    sharedLists: lists.sharedCount,
+    totalLists: lists.totalLists,
+    noteCount: notes.totalCount,
+    totalFriends: friends.totalFriends,
+    pendingConnections: friends.pendingIncoming + friends.pendingOutgoing,
+    nextDueTaskTitle: productivity.nextDueTask?.title ?? null,
+    nextDueTaskDueDate: productivity.nextDueTask?.due_date ?? null,
   };
 }

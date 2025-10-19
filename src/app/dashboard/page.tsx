@@ -4,9 +4,10 @@ import { Suspense, useState } from 'react';
 
 import AuthPanel from '@/components/AuthPanel';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
-import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
+import DashboardHero from '@/features/dashboard/DashboardHero';
 import DashboardBoard from '@/features/dashboard/DashboardBoard';
 import WidgetVisibilityMenu from '@/features/dashboard/WidgetVisibilityMenu';
+import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useSearchParams } from 'next/navigation';
 
@@ -57,51 +58,40 @@ function DashboardPageContent() {
 
   const boardUserId = demoMode ? null : user?.id ?? null;
 
+  const userName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 py-12 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4">
-        <header className="flex flex-col items-start justify-between gap-6 rounded-3xl border border-sage-100 bg-white/70 p-6 shadow-medium backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60 lg:flex-row lg:items-center">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-sage-600 dark:text-slate-300">Dashboard</p>
-            <h1 className="mt-1 text-3xl font-semibold text-zen-900 dark:text-white">Your mindful workspace</h1>
-            <p className="mt-2 max-w-2xl text-sm text-zen-500 dark:text-slate-300">
-              View your personalized overview here. When you&apos;re ready to rearrange widgets or update their visibility, switch into edit mode and we&apos;ll save the changes automatically.
-            </p>
-            {demoMode ? (
-              <p className="mt-2 text-xs font-medium text-sage-600 dark:text-slate-300">Demo mode: changes are stored locally in this browser.</p>
-            ) : null}
-            {error ? <p className="mt-2 text-sm text-red-600">{error.message}</p> : null}
+        <div className="flex justify-end">
+          <ThemeSwitcher />
+        </div>
+
+        <DashboardHero
+          userName={demoMode ? 'Demo User' : userName}
+          userId={boardUserId}
+          isEditMode={isEditMode}
+          isSaving={isSaving}
+          onToggleEditMode={() => setIsEditMode(prev => !prev)}
+        />
+        {demoMode ? (
+          <div className="rounded-3xl border border-dashed border-sage-300 bg-white/70 p-4 text-sm text-sage-700 shadow-small backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+            Demo mode: changes are stored locally in this browser.
           </div>
-          <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setIsEditMode(prev => !prev);
-              }}
-              className={`rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
-                isEditMode
-                  ? 'border-sage-600 bg-sage-600 text-white hover:bg-sage-700 focus:ring-sage-500'
-                  : 'border-sage-300 text-sage-700 hover:bg-sage-50 focus:ring-sage-400 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
-              aria-pressed={isEditMode}
-            >
-              {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
-            </button>
-            <ThemeSwitcher />
-          </div>
-        </header>
+        ) : null}
+        {error ? <p className="rounded-3xl border border-red-100 bg-red-50/80 p-4 text-sm text-red-700 shadow-small dark:border-red-900/40 dark:bg-red-900/40 dark:text-red-100">{error.message}</p> : null}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="rounded-3xl border border-sage-100 bg-white/70 p-6 shadow-medium backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-sage-100/70 bg-sage-50/70 p-4 text-sm text-sage-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-3xl border border-sage-100 bg-white/80 p-6 shadow-medium backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-sage-100/80 bg-sage-50/80 p-4 text-sm text-sage-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 font-medium">
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 text-xs uppercase tracking-wide text-sage-600 dark:bg-slate-800/80 dark:text-slate-200">
                   {isEditMode ? 'Edit mode' : 'View mode'}
                 </span>
                 <span>
                   {isEditMode
-                    ? 'Reorder widgets and adjust visibility. Exit edit mode when you are finished.'
-                    : 'Dashboard editing is locked. Enter edit mode to rearrange widgets.'}
+                    ? 'Drag widgets between columns, reorder them, or hide cards from the menu.'
+                    : 'Switch to edit mode to personalize the layout for this dashboard.'}
                 </span>
               </div>
               {!isEditMode ? (
