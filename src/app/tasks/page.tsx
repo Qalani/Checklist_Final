@@ -21,8 +21,7 @@ import TaskBentoGrid from '@/components/TaskBentoGrid';
 import TaskForm from '@/components/TaskForm';
 import CategoryManager from '@/components/CategoryManager';
 import ProgressDashboard from '@/components/ProgressDashboard';
-import QuickStats from '@/components/QuickStats';
-import type { Task, Category, TaskCollaborator } from '@/types';
+import type { Task, TaskCollaborator } from '@/types';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ZenPageHeader from '@/components/ZenPageHeader';
@@ -540,6 +539,27 @@ export default function HomePage() {
   const completedTasks = filteredTasks.filter(task => task.completed);
   const displayedTasks = taskTab === 'active' ? activeTasks : completedTasks;
 
+  const taskTabDetails = taskTab === 'active'
+    ? {
+        title: 'Active tasks',
+        description:
+          activeTasks.length === 0
+            ? 'You’re all caught up. Create a task to keep your momentum.'
+            : 'Stay focused on the work in progress and keep your flow going.',
+        icon: Circle,
+        badgeClassName: 'bg-sage-100 text-sage-700 border border-sage-200',
+      }
+    : {
+        title: 'Completed tasks',
+        description:
+          completedTasks.length === 0
+            ? 'No completed tasks yet. Wrap up an item to celebrate progress.'
+            : 'Celebrate the wins behind you and review what’s been finished.',
+        icon: CheckCircle2,
+        badgeClassName: 'bg-zen-100 text-zen-700 border border-zen-200',
+      };
+  const TaskTabIcon = taskTabDetails.icon;
+
   const isLoading = status === 'loading';
 
   return (
@@ -630,69 +650,86 @@ export default function HomePage() {
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-12">
-              <QuickStats tasks={tasks} categories={categories} />
-            </div>
-
-            <div className="lg:col-span-8">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                <div className="flex items-center gap-1 p-1 bg-surface/70 border border-zen-200 rounded-xl shadow-soft">
-                  {[
-                    { key: 'active' as const, label: `Active (${activeTasks.length})` },
-                    { key: 'completed' as const, label: `Completed (${completedTasks.length})` },
-                  ].map(tab => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setTaskTab(tab.key)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                        taskTab === tab.key
-                          ? 'bg-sage-100 text-sage-700 shadow-soft'
-                          : 'text-zen-600 hover:bg-zen-100'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
+            <section className="space-y-4">
+              <div className="rounded-3xl border border-zen-200 bg-surface/90 shadow-soft p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-zen-400">Task focus</span>
+                    <h2 className="text-2xl font-semibold text-zen-900">{taskTabDetails.title}</h2>
+                    <p className="text-sm text-zen-600 max-w-xl">{taskTabDetails.description}</p>
+                  </div>
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${taskTabDetails.badgeClassName}`}
+                  >
+                    <TaskTabIcon className="h-4 w-4" />
+                    {taskTab === 'active'
+                      ? `${activeTasks.length} active ${activeTasks.length === 1 ? 'task' : 'tasks'}`
+                      : `${completedTasks.length} completed ${completedTasks.length === 1 ? 'task' : 'tasks'}`}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-zen-500">
-                  <span className="hidden sm:inline">Drag and drop to reorder tasks</span>
-                  <span className="sm:hidden">Drag to reorder</span>
+
+                <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-center gap-1 p-1 bg-surface/70 border border-zen-200 rounded-xl shadow-soft">
+                    {[
+                      { key: 'active' as const, label: `Active (${activeTasks.length})` },
+                      { key: 'completed' as const, label: `Completed (${completedTasks.length})` },
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setTaskTab(tab.key)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                          taskTab === tab.key
+                            ? 'bg-sage-100 text-sage-700 shadow-soft'
+                            : 'text-zen-600 hover:bg-zen-100'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-zen-500">
+                    <span className="hidden sm:inline">Drag and drop to reorder tasks</span>
+                    <span className="sm:hidden">Drag to reorder</span>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={taskTab}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -16 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                    >
+                      <TaskBentoGrid
+                        tasks={displayedTasks}
+                        categories={categories}
+                        onEdit={(task) => {
+                          setEditingTask(task);
+                          setShowTaskForm(true);
+                        }}
+                        onDelete={(id) => {
+                          void deleteTask(id);
+                        }}
+                        onToggle={(id, completed) => {
+                          void handleToggleTask(id, completed);
+                        }}
+                        onReorder={(reorderedTasks) => {
+                          void reorderTasks(reorderedTasks);
+                        }}
+                        onManageAccess={(task) => {
+                          void handleOpenShareTask(task);
+                        }}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={taskTab}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -16 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                >
-                  <TaskBentoGrid
-                    tasks={displayedTasks}
-                    categories={categories}
-                    onEdit={(task) => {
-                      setEditingTask(task);
-                      setShowTaskForm(true);
-                    }}
-                    onDelete={(id) => {
-                      void deleteTask(id);
-                    }}
-                    onToggle={(id, completed) => {
-                      void handleToggleTask(id, completed);
-                    }}
-                    onReorder={(reorderedTasks) => {
-                      void reorderTasks(reorderedTasks);
-                    }}
-                    onManageAccess={(task) => {
-                      void handleOpenShareTask(task);
-                    }}
-                  />
-                </motion.div>
-              </AnimatePresence>
-            </div>
+            </section>
 
-            <div className="lg:col-span-4 space-y-6">
+            <aside className="space-y-6">
               <ProgressDashboard tasks={tasks} categories={categories} />
               <CategoryManager
                 categories={categories}
@@ -700,7 +737,7 @@ export default function HomePage() {
                 onUpdateCategory={handleCategoryUpdate}
                 onDeleteCategory={handleCategoryDelete}
               />
-            </div>
+            </aside>
           </div>
         )}
         </main>
