@@ -18,7 +18,7 @@ import type { DashboardLayout, DashboardSlot, DashboardWidgetConfig } from './ty
 import { DASHBOARD_SLOTS, sortWidgetsBySlot } from './layout-metadata';
 import { DASHBOARD_WIDGET_COMPONENTS } from './widgets';
 
-interface DashboardBoardProps {
+export interface DashboardBoardProps {
   userId: string | null;
   layout: DashboardLayout;
   moveWidget: (widgetId: string, slot: DashboardSlot, index: number) => Promise<void>;
