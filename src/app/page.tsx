@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
@@ -25,11 +26,14 @@ import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import SettingsMenu from '@/components/SettingsMenu';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
+import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
 import { useFriends } from '@/features/friends/useFriends';
 import { useNotes } from '@/features/notes/useNotes';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
+import type { DashboardBoardProps } from '@/features/dashboard/DashboardBoard';
+import type { WidgetVisibilityMenuProps } from '@/features/dashboard/WidgetVisibilityMenu';
 
 type QuickAccessKey = 'tasks' | 'lists' | 'notes' | 'friends' | 'insights';
 
@@ -55,6 +59,29 @@ interface QuickAccessTile extends QuickAccessTileDefinition {
 
 const QUICK_ACCESS_KEYS: QuickAccessKey[] = ['tasks', 'lists', 'notes', 'friends', 'insights'];
 
+const DashboardBoard = dynamic<DashboardBoardProps>(
+  () => import('@/features/dashboard/DashboardBoard'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-32 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-sage-200 border-t-sage-500" />
+      </div>
+    ),
+  },
+);
+
+const WidgetVisibilityMenu = dynamic<WidgetVisibilityMenuProps>(
+  () => import('@/features/dashboard/WidgetVisibilityMenu'),
+  {
+    loading: () => (
+      <div className="rounded-3xl border border-sage-100 bg-white/80 p-6 text-sm text-sage-600 shadow-medium dark:border-slate-800 dark:bg-slate-900/70">
+        Loading widgets…
+      </div>
+    ),
+  },
+);
+
 function getDefaultQuickAccessConfig(): QuickAccessConfig[] {
   return QUICK_ACCESS_KEYS.map(key => ({ key }));
 }
@@ -79,6 +106,7 @@ export default function HomePage() {
 }
 
 function HomePageContent() {
+  const [isEditMode, setIsEditMode] = useState(false);
   const [isQuickAccessEditing, setIsQuickAccessEditing] = useState(false);
   const [quickAccessConfig, setQuickAccessConfig] = useState<QuickAccessConfig[]>(() => getDefaultQuickAccessConfig());
   const [quickAccessHydrated, setQuickAccessHydrated] = useState(false);
@@ -86,6 +114,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const demoMode = searchParams?.get('demo') === '1';
   const targetUserId = demoMode ? null : user?.id ?? null;
+  const boardUserId = targetUserId;
   const { tasks, status: checklistStatus, syncing: checklistSyncing } = useChecklist(targetUserId);
   const {
     lists,
@@ -98,6 +127,7 @@ function HomePageContent() {
     status: notesStatus,
     syncing: notesSyncing,
   } = useNotes(targetUserId);
+  const { layout, isLoading, isSaving, moveWidget, toggleWidget, resetLayout } = useDashboardLayout(boardUserId);
 
   const userEmail = useMemo(() => {
     if (demoMode) {
