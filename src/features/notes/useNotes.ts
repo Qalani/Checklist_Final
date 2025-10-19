@@ -71,7 +71,7 @@ function mapRowToNote(row: NoteRow): Note {
   } satisfies Note;
 }
 
-async function fetchNotes(userId: string): Promise<Note[]> {
+export async function fetchNotes(userId: string): Promise<Note[]> {
   const { data, error } = await supabase
     .from('notes')
     .select('*')

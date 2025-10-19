@@ -65,7 +65,7 @@ interface ListMembershipRow {
   } | null;
 }
 
-async function fetchLists(userId: string): Promise<List[]> {
+export async function fetchLists(userId: string): Promise<List[]> {
   const { data, error } = await supabase
     .from('list_members')
     .select(
