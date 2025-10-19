@@ -132,10 +132,10 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                 <Bell className="h-4 w-4" />
                 Notifications
               </div>
-              <label className="flex items-start justify-between gap-4 rounded-2xl border border-zen-200/70 bg-white/70 p-3 text-sm text-zen-600">
+              <label className="flex items-start justify-between gap-4 rounded-2xl border border-zen-200/70 bg-surface/80 p-3 text-sm text-zen-600 dark:text-zen-200">
                 <span>
-                  <span className="block font-medium text-zen-800">In-app alerts</span>
-                  <span className="text-xs text-zen-500">Show reminders and updates inside Zen Workspace.</span>
+                  <span className="block font-medium text-zen-800 dark:text-zen-100">In-app alerts</span>
+                  <span className="text-xs text-zen-500 dark:text-zen-300">Show reminders and updates inside Zen Workspace.</span>
                 </span>
                 <input
                   type="checkbox"
@@ -144,10 +144,10 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                   onChange={() => togglePreference('inAppNotifications')}
                 />
               </label>
-              <label className="flex items-start justify-between gap-4 rounded-2xl border border-zen-200/70 bg-white/70 p-3 text-sm text-zen-600">
+              <label className="flex items-start justify-between gap-4 rounded-2xl border border-zen-200/70 bg-surface/80 p-3 text-sm text-zen-600 dark:text-zen-200">
                 <span>
-                  <span className="block font-medium text-zen-800">Email digests</span>
-                  <span className="text-xs text-zen-500">Receive a weekly summary of tasks and shared activity.</span>
+                  <span className="block font-medium text-zen-800 dark:text-zen-100">Email digests</span>
+                  <span className="text-xs text-zen-500 dark:text-zen-300">Receive a weekly summary of tasks and shared activity.</span>
                 </span>
                 <input
                   type="checkbox"

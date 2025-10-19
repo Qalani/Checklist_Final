@@ -94,7 +94,7 @@ function SlotColumn({
         ref={setNodeRef}
         className={[
           'flex flex-col gap-4 rounded-3xl border border-transparent transition-colors',
-          isEditable && isOver ? 'border-sage-300 dark:border-slate-600' : '',
+          isEditable && isOver ? 'border-sage-300 dark:border-zen-600' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -173,12 +173,12 @@ export default function DashboardBoard({ userId, layout, moveWidget, isEditable 
           return (
             <div key={slot.id} className={`space-y-4 ${slot.columns}`}>
               <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-zen-500 dark:text-slate-300">{slot.title}</h2>
-                <p className="text-sm text-zen-400 dark:text-slate-400">{slot.description}</p>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-200">{slot.title}</h2>
+                <p className="text-sm text-zen-400 dark:text-zen-300">{slot.description}</p>
               </div>
               <SlotColumn slotId={slot.id} widgets={widgets} isEditable={isEditable}>
                 {widgets.length === 0 ? (
-                  <div className="rounded-3xl border border-dashed border-sage-200 p-6 text-center text-sm text-zen-400 dark:border-slate-700 dark:text-slate-500">
+                  <div className="rounded-3xl border border-dashed border-sage-200 p-6 text-center text-sm text-zen-400 dark:border-zen-700/40 dark:text-zen-300">
                     {isEditable ? 'Drag widgets here' : 'Enter edit mode to move widgets'}
                   </div>
                 ) : (
