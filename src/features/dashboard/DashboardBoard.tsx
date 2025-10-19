@@ -22,6 +22,7 @@ interface DashboardBoardProps {
   userId: string | null;
   layout: DashboardLayout;
   moveWidget: (widgetId: string, slot: DashboardSlot, index: number) => Promise<void>;
+  isEditable: boolean;
 }
 
 type SortableWidgetData = {
@@ -38,9 +39,10 @@ type SlotDropData = {
 interface SortableWidgetProps {
   widget: DashboardWidgetConfig;
   children: ReactNode;
+  isEditable: boolean;
 }
 
-function SortableWidget({ widget, children }: SortableWidgetProps) {
+function SortableWidget({ widget, children, isEditable }: SortableWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: widget.id,
     data: {
@@ -48,6 +50,7 @@ function SortableWidget({ widget, children }: SortableWidgetProps) {
       slotId: widget.slot,
       widgetId: widget.id,
     } satisfies SortableWidgetData,
+    disabled: !isEditable,
   });
 
   const style = {
@@ -62,7 +65,7 @@ function SortableWidget({ widget, children }: SortableWidgetProps) {
       data-widget-type={widget.type}
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing"
+      className={isEditable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
     >
       {children}
     </div>
@@ -73,10 +76,12 @@ function SlotColumn({
   slotId,
   widgets,
   children,
+  isEditable,
 }: {
   slotId: DashboardSlot;
   widgets: DashboardWidgetConfig[];
   children: ReactNode;
+  isEditable: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${slotId}-dropzone`,
@@ -89,7 +94,7 @@ function SlotColumn({
         ref={setNodeRef}
         className={[
           'flex flex-col gap-4 rounded-3xl border border-transparent transition-colors',
-          isOver ? 'border-sage-300 dark:border-slate-600' : '',
+          isEditable && isOver ? 'border-sage-300 dark:border-slate-600' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -100,7 +105,7 @@ function SlotColumn({
   );
 }
 
-export default function DashboardBoard({ userId, layout, moveWidget }: DashboardBoardProps) {
+export default function DashboardBoard({ userId, layout, moveWidget, isEditable }: DashboardBoardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -124,7 +129,7 @@ export default function DashboardBoard({ userId, layout, moveWidget }: Dashboard
   }, [slots]);
 
   const handleDragEnd = async ({ active, over }: DragEndEvent) => {
-    if (!over) return;
+    if (!isEditable || !over) return;
 
     const activeId = active.id as UniqueIdentifier;
     const overData = over.data.current as SortableWidgetData | SlotDropData | undefined;
@@ -171,16 +176,16 @@ export default function DashboardBoard({ userId, layout, moveWidget }: Dashboard
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-zen-500 dark:text-slate-300">{slot.title}</h2>
                 <p className="text-sm text-zen-400 dark:text-slate-400">{slot.description}</p>
               </div>
-              <SlotColumn slotId={slot.id} widgets={widgets}>
+              <SlotColumn slotId={slot.id} widgets={widgets} isEditable={isEditable}>
                 {widgets.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-sage-200 p-6 text-center text-sm text-zen-400 dark:border-slate-700 dark:text-slate-500">
-                    Drag widgets here
+                    {isEditable ? 'Drag widgets here' : 'Enter edit mode to move widgets'}
                   </div>
                 ) : (
                   widgets.map(widget => {
                     const WidgetComponent = DASHBOARD_WIDGET_COMPONENTS[widget.type];
                     return (
-                      <SortableWidget key={widget.id} widget={widget}>
+                      <SortableWidget key={widget.id} widget={widget} isEditable={isEditable}>
                         <WidgetComponent userId={userId} />
                       </SortableWidget>
                     );
