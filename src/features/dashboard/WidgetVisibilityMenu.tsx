@@ -3,7 +3,7 @@
 import type { DashboardLayout } from './types';
 import { DASHBOARD_WIDGET_LIBRARY, getWidgetDefinition } from './layout-metadata';
 
-interface WidgetVisibilityMenuProps {
+export interface WidgetVisibilityMenuProps {
   layout: DashboardLayout;
   onToggle: (widgetId: string) => void;
   onReset: () => void;
