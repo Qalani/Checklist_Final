@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -14,7 +14,7 @@ import {
   UserMinus,
   Shield,
   Loader2,
-  Mail,
+  Users,
   X,
 } from 'lucide-react';
 import TaskBentoGrid from '@/components/TaskBentoGrid';
@@ -30,6 +30,7 @@ import AccountSummary from '@/components/AccountSummary';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useRouter } from 'next/navigation';
+import { useFriends } from '@/features/friends/useFriends';
 
 type CollaboratorRole = 'viewer' | 'editor';
 
@@ -85,11 +86,23 @@ export default function HomePage() {
   const [collaborators, setCollaborators] = useState<TaskCollaborator[]>([]);
   const [collaboratorsLoading, setCollaboratorsLoading] = useState(false);
   const [collaboratorError, setCollaboratorError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteFriendId, setInviteFriendId] = useState('');
   const [inviteRole, setInviteRole] = useState<CollaboratorRole>('viewer');
   const [collaboratorSubmitting, setCollaboratorSubmitting] = useState(false);
   const [collaboratorActionId, setCollaboratorActionId] = useState<string | null>(null);
   const resolveRole = useCallback((task: Task): 'owner' | CollaboratorRole => task.access_role ?? 'owner', []);
+
+  const { friends } = useFriends(user?.id ?? null);
+
+  const availableFriends = useMemo(() => {
+    const collaboratorEmails = new Set(
+      collaborators
+        .map(collaborator => collaborator.user_email?.toLowerCase())
+        .filter((email): email is string => Boolean(email && email.trim())),
+    );
+
+    return friends.filter(friend => !collaboratorEmails.has(friend.friend_email.toLowerCase()));
+  }, [collaborators, friends]);
 
   const {
     tasks,
@@ -189,7 +202,7 @@ export default function HomePage() {
     async (task: Task) => {
       setSharingTask(task);
       setCollaborators([]);
-      setInviteEmail('');
+      setInviteFriendId('');
       setInviteRole('viewer');
       setCollaboratorError(null);
       setCollaboratorsLoading(true);
@@ -212,7 +225,7 @@ export default function HomePage() {
     setSharingTask(null);
     setCollaborators([]);
     setCollaboratorError(null);
-    setInviteEmail('');
+    setInviteFriendId('');
     setInviteRole('viewer');
     setCollaboratorSubmitting(false);
     setCollaboratorActionId(null);
@@ -228,10 +241,20 @@ export default function HomePage() {
       return;
     }
 
+    const selectedFriend = availableFriends.find(friend => friend.friend_id === inviteFriendId);
+    if (!selectedFriend) {
+      setCollaboratorError(
+        friends.length === 0
+          ? 'Add friends before inviting them.'
+          : 'Select a friend to invite.',
+      );
+      return;
+    }
+
     setCollaboratorSubmitting(true);
     setCollaboratorError(null);
 
-    const result = await inviteTaskCollaborator(sharingTask.id, inviteEmail, inviteRole);
+    const result = await inviteTaskCollaborator(sharingTask.id, selectedFriend.friend_email, inviteRole);
 
     if ('error' in result) {
       setCollaboratorError(result.error);
@@ -241,11 +264,19 @@ export default function HomePage() {
         const others = prev.filter(collaborator => !collaborator.is_owner && collaborator.id !== result.collaborator.id);
         return orderCollaborators([...ownerRows, ...others, result.collaborator]);
       });
-      setInviteEmail('');
+      setInviteFriendId('');
     }
 
     setCollaboratorSubmitting(false);
-  }, [sharingTask, resolveRole, inviteTaskCollaborator, inviteEmail, inviteRole]);
+  }, [
+    sharingTask,
+    resolveRole,
+    inviteTaskCollaborator,
+    inviteRole,
+    inviteFriendId,
+    availableFriends,
+    friends.length,
+  ]);
 
   const handleCollaboratorRoleChange = useCallback(
     async (collaborator: TaskCollaborator, role: CollaboratorRole) => {
@@ -734,18 +765,45 @@ export default function HomePage() {
                   {resolveRole(sharingTask) === 'owner' ? (
                     <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-zen-700">Friend’s email</label>
+                        <label className="text-sm font-medium text-zen-700">Choose a friend</label>
                         <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
-                          <input
-                            type="email"
-                            value={inviteEmail}
-                            onChange={event => setInviteEmail(event.target.value)}
-                            placeholder="friend@example.com"
-                            className="w-full rounded-xl border border-zen-200 bg-surface/90 pl-9 pr-3 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
+                          <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zen-400" />
+                          <select
+                            value={inviteFriendId}
+                            onChange={event => {
+                              const value = event.target.value;
+                              if (value === '__add__') {
+                                setInviteFriendId('');
+                                router.push('/friends');
+                                return;
+                              }
+                              setCollaboratorError(null);
+                              setInviteFriendId(value);
+                            }}
+                            className="w-full rounded-xl border border-zen-200 bg-surface/90 pl-9 pr-9 py-2 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none appearance-none"
                             disabled={collaboratorSubmitting}
-                          />
+                          >
+                            <option value="" disabled>
+                              {friends.length === 0
+                                ? 'No friends yet'
+                                : availableFriends.length === 0
+                                  ? 'All friends already invited'
+                                  : 'Select a friend'}
+                            </option>
+                            {availableFriends.map(friend => (
+                              <option key={friend.friend_id} value={friend.friend_id}>
+                                {friend.friend_name ? `${friend.friend_name} (${friend.friend_email})` : friend.friend_email}
+                              </option>
+                            ))}
+                            <option value="__add__">Add more friends</option>
+                          </select>
                         </div>
+                        {friends.length === 0 && (
+                          <p className="text-xs text-zen-500">Add friends to invite them to collaborate.</p>
+                        )}
+                        {friends.length > 0 && availableFriends.length === 0 && (
+                          <p className="text-xs text-zen-500">Everyone on your friends list already collaborates on this task.</p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-zen-700">Role</label>
@@ -762,12 +820,12 @@ export default function HomePage() {
                           ))}
                         </select>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleInviteCollaborator()}
-                        disabled={collaboratorSubmitting}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                      >
+                        <button
+                          type="button"
+                          onClick={() => void handleInviteCollaborator()}
+                          disabled={collaboratorSubmitting || !inviteFriendId}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
                         {collaboratorSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                         Invite
                       </button>
