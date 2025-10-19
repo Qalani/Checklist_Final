@@ -10,14 +10,14 @@ import type {
 export const DASHBOARD_SLOTS: DashboardSlotMetadata[] = [
   {
     id: 'primary',
-    title: 'Focus',
-    description: 'Your most important insights and priorities.',
+    title: 'Priorities',
+    description: 'At-a-glance information that anchors the day.',
     columns: 'lg:col-span-2',
   },
   {
     id: 'secondary',
-    title: 'Supporting',
-    description: 'Contextual details that guide your day.',
+    title: 'Workspace',
+    description: 'Helpful references and ongoing documents.',
     columns: 'lg:col-span-1',
   },
   {
