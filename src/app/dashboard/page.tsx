@@ -65,7 +65,7 @@ function DashboardPageContent() {
             <p className="text-sm font-medium uppercase tracking-wide text-sage-600 dark:text-slate-300">Dashboard</p>
             <h1 className="mt-1 text-3xl font-semibold text-zen-900 dark:text-white">Your mindful workspace</h1>
             <p className="mt-2 max-w-2xl text-sm text-zen-500 dark:text-slate-300">
-              Arrange widgets to match your flow. Drag cards to new slots, toggle visibility, and we&apos;ll remember your layout for next time.
+              View your personalized overview here. When you&apos;re ready to rearrange widgets or update their visibility, switch into edit mode and we&apos;ll save the changes automatically.
             </p>
             {demoMode ? (
               <p className="mt-2 text-xs font-medium text-sage-600 dark:text-slate-300">Demo mode: changes are stored locally in this browser.</p>
@@ -93,6 +93,29 @@ function DashboardPageContent() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-3xl border border-sage-100 bg-white/70 p-6 shadow-medium backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-sage-100/70 bg-sage-50/70 p-4 text-sm text-sage-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 font-medium">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 text-xs uppercase tracking-wide text-sage-600 dark:bg-slate-800/80 dark:text-slate-200">
+                  {isEditMode ? 'Edit mode' : 'View mode'}
+                </span>
+                <span>
+                  {isEditMode
+                    ? 'Reorder widgets and adjust visibility. Exit edit mode when you are finished.'
+                    : 'Dashboard editing is locked. Enter edit mode to rearrange widgets.'}
+                </span>
+              </div>
+              {!isEditMode ? (
+                <button
+                  type="button"
+                  onClick={() => setIsEditMode(true)}
+                  className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-sage-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-sage-600 focus:outline-none focus:ring-2 focus:ring-sage-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:focus:ring-slate-400 dark:focus:ring-offset-slate-900"
+                >
+                  Enter edit mode
+                </button>
+              ) : (
+                <span className="text-xs text-sage-600 dark:text-slate-300">Changes are saved automatically.</span>
+              )}
+            </div>
             {isLoading ? (
               <div className="flex h-32 items-center justify-center">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-sage-200 border-t-sage-500" />
@@ -112,6 +135,7 @@ function DashboardPageContent() {
             }}
             isSaving={isSaving}
             isEditable={isEditMode}
+            onRequestEditMode={() => setIsEditMode(true)}
           />
         </div>
       </div>
