@@ -23,7 +23,7 @@ export default function DashboardFriendsWidget({ userId }: DashboardFriendsWidge
   if (!userId) {
     return (
       <DashboardWidgetFrame title="Friend Activity" description="Sign in to collaborate." icon={icon}>
-        <p className="text-sm text-zen-500 dark:text-slate-300">Sign in to view friend requests and connections.</p>
+        <p className="text-sm text-zen-500 dark:text-zen-200">Sign in to view friend requests and connections.</p>
       </DashboardWidgetFrame>
     );
   }
@@ -39,18 +39,18 @@ export default function DashboardFriendsWidget({ userId }: DashboardFriendsWidge
       {data ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zen-500 dark:text-slate-300">Connections</span>
-            <span className="text-lg font-semibold text-zen-900 dark:text-white">{data.totalFriends}</span>
+            <span className="text-sm text-zen-500 dark:text-zen-200">Connections</span>
+            <span className="text-lg font-semibold text-zen-900">{data.totalFriends}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zen-500 dark:text-slate-300">Incoming requests</span>
-            <span className="rounded-full bg-sage-100 px-3 py-1 text-sm font-medium text-sage-700 dark:bg-slate-800/70 dark:text-slate-100">
+            <span className="text-sm text-zen-500 dark:text-zen-200">Incoming requests</span>
+            <span className="rounded-full bg-sage-100 px-3 py-1 text-sm font-medium text-sage-700 dark:bg-zen-800/30 dark:text-zen-900">
               {data.pendingIncoming}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zen-500 dark:text-slate-300">Outgoing requests</span>
-            <span className="rounded-full bg-sage-100 px-3 py-1 text-sm font-medium text-sage-700 dark:bg-slate-800/70 dark:text-slate-100">
+            <span className="text-sm text-zen-500 dark:text-zen-200">Outgoing requests</span>
+            <span className="rounded-full bg-sage-100 px-3 py-1 text-sm font-medium text-sage-700 dark:bg-zen-800/30 dark:text-zen-900">
               {data.pendingOutgoing}
             </span>
           </div>

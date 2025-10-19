@@ -23,7 +23,7 @@ export default function DashboardListsWidget({ userId }: DashboardListsWidgetPro
   if (!userId) {
     return (
       <DashboardWidgetFrame title="Shared Lists" description="Sign in to see your lists." icon={icon}>
-        <p className="text-sm text-zen-500 dark:text-slate-300">Sign in to review your collaborative lists.</p>
+        <p className="text-sm text-zen-500 dark:text-zen-200">Sign in to review your collaborative lists.</p>
       </DashboardWidgetFrame>
     );
   }
@@ -39,12 +39,12 @@ export default function DashboardListsWidget({ userId }: DashboardListsWidgetPro
       {data ? (
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-3xl font-semibold text-zen-900 dark:text-white">{data.totalLists}</p>
-            <p className="text-sm text-zen-500 dark:text-slate-300">Total lists</p>
+            <p className="text-3xl font-semibold text-zen-900">{data.totalLists}</p>
+            <p className="text-sm text-zen-500 dark:text-zen-200">Total lists</p>
           </div>
-          <div className="rounded-2xl bg-sage-50 px-4 py-3 text-center dark:bg-slate-800/70">
-            <p className="text-2xl font-semibold text-zen-900 dark:text-white">{data.sharedCount}</p>
-            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">Shared</p>
+          <div className="rounded-2xl bg-sage-50 px-4 py-3 text-center dark:bg-zen-800/30">
+            <p className="text-2xl font-semibold text-zen-900">{data.sharedCount}</p>
+            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-zen-200">Shared</p>
           </div>
         </div>
       ) : null}

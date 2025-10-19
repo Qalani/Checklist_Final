@@ -33,7 +33,7 @@ const WidgetVisibilityMenu = dynamic<WidgetVisibilityMenuProps>(
   () => import('@/features/dashboard/WidgetVisibilityMenu'),
   {
     loading: () => (
-      <div className="rounded-3xl border border-sage-100 bg-white/80 p-6 text-sm text-sage-600 shadow-medium dark:border-slate-800 dark:bg-slate-900/70">
+      <div className="rounded-3xl border border-zen-200/60 bg-surface/80 p-6 text-sm text-sage-600 shadow-medium dark:border-zen-700/40 dark:bg-zen-800/20 dark:text-zen-200">
         Loading widgets…
       </div>
     ),
@@ -143,7 +143,7 @@ function ZenInsightsPageContent() {
               </p>
               <Link
                 href="/"
-                className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-white/80 px-4 py-2 text-sm font-semibold text-sage-600 shadow-small transition hover:border-sage-600 hover:text-sage-700 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-2"
+                className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-surface/80 px-4 py-2 text-sm font-semibold text-sage-600 shadow-small transition hover:border-sage-600 hover:text-sage-700 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-2 focus:ring-offset-[rgb(var(--color-surface))]"
               >
                 Back to home
               </Link>
@@ -159,7 +159,7 @@ function ZenInsightsPageContent() {
   const userName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
         <header className="sticky top-0 z-50 border-b border-zen-200 bg-surface/70 backdrop-blur-xl shadow-soft">
@@ -197,28 +197,28 @@ function ZenInsightsPageContent() {
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-center gap-3 rounded-2xl border border-sage-100 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
+              <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sage-400 to-sage-500 text-white">
                   <LayoutGrid className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm text-zen-500 dark:text-slate-400">Completed</p>
-                  <p className="text-lg font-semibold text-zen-900 dark:text-white">{isTasksLoading ? '—' : completedTasksCount}</p>
+                  <p className="text-sm text-zen-500 dark:text-zen-300">Completed</p>
+                  <p className="text-lg font-semibold text-zen-900">{isTasksLoading ? '—' : completedTasksCount}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-sage-100 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
+              <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-zen-300 to-zen-400 text-zen-900">
                   <CalendarClock className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm text-zen-500 dark:text-slate-400">Focus</p>
-                  <p className="text-lg font-semibold text-zen-900 dark:text-white">{isTasksLoading ? 'Syncing…' : nextDueLabel}</p>
+                  <p className="text-sm text-zen-500 dark:text-zen-300">Focus</p>
+                  <p className="text-lg font-semibold text-zen-900">{isTasksLoading ? 'Syncing…' : nextDueLabel}</p>
                 </div>
               </div>
             </div>
 
             {demoMode ? (
-              <div className="rounded-3xl border border-dashed border-sage-300 bg-white/70 p-4 text-sm text-sage-700 shadow-small backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+              <div className="rounded-3xl border border-dashed border-sage-300 bg-surface/70 p-4 text-sm text-sage-700 shadow-small backdrop-blur-sm dark:border-zen-700/40 dark:text-zen-200">
                 Demo mode: changes are stored locally in this browser.
               </div>
             ) : null}
@@ -230,10 +230,10 @@ function ZenInsightsPageContent() {
             ) : null}
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="rounded-3xl border border-sage-100 bg-white/80 p-6 shadow-medium backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70">
-                <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-sage-100/80 bg-sage-50/80 p-4 text-sm text-sage-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 md:flex-row md:items-center md:justify-between">
+              <div className="rounded-3xl border border-zen-200/60 bg-surface/80 p-6 shadow-medium backdrop-blur-sm dark:border-zen-700/40">
+                <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-sage-100/80 bg-sage-50/80 p-4 text-sm text-sage-700 dark:border-zen-700/40 dark:bg-zen-800/20 dark:text-zen-200 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-2 font-medium">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 text-xs uppercase tracking-wide text-sage-600 dark:bg-slate-800/80 dark:text-slate-200">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-surface/80 px-3 py-1 text-xs uppercase tracking-wide text-sage-600 dark:text-zen-900">
                       {isEditMode ? 'Edit mode' : 'View mode'}
                     </span>
                     <span>
@@ -246,12 +246,12 @@ function ZenInsightsPageContent() {
                     <button
                       type="button"
                       onClick={() => setIsEditMode(true)}
-                      className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-sage-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-sage-600 focus:outline-none focus:ring-2 focus:ring-sage-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:focus:ring-slate-400 dark:focus:ring-offset-slate-900"
+                      className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-sage-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-sage-600 focus:outline-none focus:ring-2 focus:ring-sage-500 focus:ring-offset-2 focus:ring-offset-[rgb(var(--color-surface))] dark:border-zen-600 dark:bg-zen-700 dark:hover:bg-zen-600 dark:focus:ring-zen-500"
                     >
                       Enter edit mode
                     </button>
                   ) : (
-                    <span className="text-xs text-sage-600 dark:text-slate-300">Changes are saved automatically.</span>
+                    <span className="text-xs text-sage-600 dark:text-zen-200">Changes are saved automatically.</span>
                   )}
                 </div>
                 {isLoading ? (

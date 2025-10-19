@@ -23,7 +23,7 @@ export default function DashboardProductivityWidget({ userId }: DashboardProduct
   if (!userId) {
     return (
       <DashboardWidgetFrame title="Productivity Pulse" description="Sign in to see your tasks." icon={icon}>
-        <p className="text-sm text-zen-500 dark:text-slate-300">Sign in to explore your productivity insights.</p>
+        <p className="text-sm text-zen-500 dark:text-zen-200">Sign in to explore your productivity insights.</p>
       </DashboardWidgetFrame>
     );
   }
@@ -38,17 +38,17 @@ export default function DashboardProductivityWidget({ userId }: DashboardProduct
     >
       {data ? (
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-slate-800/70">
-            <p className="text-3xl font-semibold text-zen-900 dark:text-white">{data.activeCount}</p>
-            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">Active</p>
+          <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-zen-800/30">
+            <p className="text-3xl font-semibold text-zen-900">{data.activeCount}</p>
+            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-zen-200">Active</p>
           </div>
-          <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-slate-800/70">
-            <p className="text-3xl font-semibold text-zen-900 dark:text-white">{data.completedCount}</p>
-            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">Completed</p>
+          <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-zen-800/30">
+            <p className="text-3xl font-semibold text-zen-900">{data.completedCount}</p>
+            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-zen-200">Completed</p>
           </div>
-          <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-slate-800/70">
-            <p className="text-sm font-medium text-zen-700 dark:text-slate-200">{data.nextDueTask ? data.nextDueTask.title : 'No upcoming tasks'}</p>
-            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-slate-300">
+          <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-zen-800/30">
+            <p className="text-sm font-medium text-zen-700 dark:text-zen-100">{data.nextDueTask ? data.nextDueTask.title : 'No upcoming tasks'}</p>
+            <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-zen-200">
               {data.nextDueTask?.due_date
                 ? new Date(data.nextDueTask.due_date).toLocaleString(undefined, {
                     month: 'short',
