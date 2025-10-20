@@ -21,23 +21,23 @@ export const themeOptions: ThemeOption[] = [
   {
     id: 'dawn-light',
     label: 'Dawn light',
-    description: 'Warm sunrise tones with vibrant coral accents.',
+    description: 'Radiant peaches paired with crisp morning sky blues.',
     type: 'light',
-    preview: ['#fce9d8', '#f2633a', '#ffd083'],
+    preview: ['#fff7ef', '#f08b4d', '#426ecd'],
   },
   {
     id: 'midnight-dark',
     label: 'Midnight dark',
-    description: 'Moody indigos with electric teal highlights.',
+    description: 'Velvety navy shadows with luminous aqua highlights.',
     type: 'dark',
-    preview: ['#1a1f33', '#257499', '#744a8c'],
+    preview: ['#101523', '#6181c4', '#75ccc3'],
   },
   {
     id: 'forest-dark',
     label: 'Forest dark',
-    description: 'Deep woodland hues with lush emerald accents.',
+    description: 'Shadowed evergreens warmed by soft amber light.',
     type: 'dark',
-    preview: ['#1c2921', '#34a579', '#ba9f69'],
+    preview: ['#121c17', '#74a786', '#d7b15f'],
   },
 ];
 
