@@ -141,12 +141,12 @@ export default function FriendsPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Friends"
-          subtitle="Connect and collaborate mindfully"
+          subtitle="Strengthen accountability with trusted allies"
           icon={Users}
           backHref="/"
           actions={
@@ -160,10 +160,10 @@ export default function FriendsPage() {
         <main className="flex-1">
           <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
             <div className="space-y-3">
-              <p className="text-sm uppercase tracking-wide text-zen-500">Stay connected</p>
-              <h2 className="text-3xl font-semibold text-zen-900">Invite trusted collaborators in a single step.</h2>
+              <p className="text-sm uppercase tracking-wide text-zen-500">Stay aligned</p>
+              <h2 className="text-3xl font-semibold text-zen-900">Invite the partners who keep you grounded.</h2>
               <p className="max-w-2xl text-sm text-zen-600">
-                Add friends by email to share your progress and stay in sync. Everyone you add will instantly appear here and in other collaborative views.
+                Add collaborators by email to exchange progress updates and maintain momentum together. Invites appear instantly here and across shared workspaces.
               </p>
             </div>
 
@@ -171,7 +171,7 @@ export default function FriendsPage() {
               <div
                 className={`rounded-xl border px-4 py-3 text-sm shadow-soft ${
                   feedback.type === 'success'
-                    ? 'border-sage-200 bg-sage-50 text-sage-700'
+                    ? 'border-zen-200 bg-zen-50 text-zen-700'
                     : 'border-red-200 bg-red-50 text-red-700'
                 }`}
               >
@@ -208,7 +208,7 @@ export default function FriendsPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-sage-600 px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-zen-600 px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-zen-500 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                   {submitting ? 'Adding…' : 'Add friend'}
@@ -319,7 +319,7 @@ export default function FriendsPage() {
                               void handleAcceptRequest(request.id);
                             }}
                             disabled={acceptingId === request.id || decliningId === request.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-sage-600 px-3 py-2 text-sm font-medium text-white shadow-soft transition hover:bg-sage-500 disabled:cursor-not-allowed disabled:opacity-70"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-zen-600 px-3 py-2 text-sm font-medium text-white shadow-soft transition hover:bg-zen-500 disabled:cursor-not-allowed disabled:opacity-70"
                           >
                             {acceptingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                             Accept

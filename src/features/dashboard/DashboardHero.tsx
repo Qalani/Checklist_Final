@@ -26,7 +26,7 @@ function HeroMetric({ label, value, helper, icon }: HeroMetricProps) {
   return (
     <div className="flex h-full flex-col justify-between rounded-2xl border border-zen-200/60 bg-surface/80 p-4 shadow-small backdrop-blur-sm dark:border-zen-700/40">
       <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sage-100 text-sage-700 dark:bg-zen-800/30 dark:text-zen-900">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zen-100 text-zen-600 dark:bg-zen-800/30 dark:text-zen-900">
           {icon}
         </span>
         <p className="text-xs font-medium uppercase tracking-wide text-zen-500 dark:text-zen-200">{label}</p>
@@ -46,7 +46,7 @@ export default function DashboardHero({ userName, userId, isEditMode, isSaving, 
 
   const greeting = useMemo(() => {
     if (!userName) {
-      return 'Welcome to your Zen workspace';
+      return 'Welcome to Zen Workspace';
     }
     const hours = new Date().getHours();
     if (hours < 12) return `Good morning, ${userName}`;
@@ -55,17 +55,17 @@ export default function DashboardHero({ userName, userId, isEditMode, isSaving, 
   }, [userName]);
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-zen-200/60 bg-gradient-to-br from-zen-50/90 via-sage-50/80 to-warm-50/70 p-6 shadow-large backdrop-blur-md dark:border-zen-700/40 dark:from-zen-200/15 dark:via-zen-100/10 dark:to-zen-50/10">
-      <div className="absolute -top-10 -right-10 h-48 w-48 rounded-full bg-sage-200/40 blur-3xl dark:bg-zen-800/20" aria-hidden />
+    <section className="relative overflow-hidden rounded-3xl border border-zen-200/60 bg-gradient-to-br from-zen-50/95 via-sage-50/85 to-warm-50/75 p-6 shadow-large backdrop-blur-lg dark:border-zen-700/40 dark:from-zen-200/15 dark:via-zen-100/10 dark:to-zen-50/10">
+      <div className="absolute -top-12 -right-16 h-48 w-48 rounded-full bg-zen-200/40 blur-3xl dark:bg-zen-800/20" aria-hidden />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full bg-surface/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sage-700 shadow-small dark:text-zen-900">
+          <div className="inline-flex items-center gap-2 rounded-full bg-surface/85 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zen-600 shadow-small dark:text-zen-900">
             <Sparkles className="h-4 w-4" />
-            Personalized Overview
+            Composed overview
           </div>
           <h1 className="text-3xl font-semibold text-zen-900">{greeting}</h1>
           <p className="text-sm text-zen-600 dark:text-zen-200">
-            Track your progress, reconnect with collaborators, and arrange widgets however you like. Switch into edit mode to drag cards around or hide what you don&apos;t need.
+            Track progress, rebalance commitments, and arrange widgets to match your rhythm. Switch into edit mode to curate the dashboard that keeps you centred.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
             <button
@@ -73,15 +73,15 @@ export default function DashboardHero({ userName, userId, isEditMode, isSaving, 
               onClick={onToggleEditMode}
               className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[rgb(var(--color-surface))] ${
                 isEditMode
-                  ? 'border-sage-600 bg-sage-600 text-white hover:bg-sage-700 focus:ring-sage-500'
-                  : 'border-sage-300 text-sage-700 hover:bg-sage-50 focus:ring-sage-400 dark:border-zen-700/50 dark:text-zen-200 dark:hover:bg-zen-800/30'
+                  ? 'border-zen-600 bg-zen-600 text-white hover:bg-zen-700 focus:ring-zen-500'
+                  : 'border-zen-200 text-zen-700 hover:bg-zen-50 focus:ring-zen-300 dark:border-zen-700/50 dark:text-zen-200 dark:hover:bg-zen-800/30'
               }`}
             >
               {isEditMode ? 'Done editing' : 'Edit dashboard'}
             </button>
             {isSaving ? (
-              <span className="inline-flex items-center gap-2 rounded-full border border-sage-200 bg-surface/80 px-3 py-1 text-xs font-medium uppercase tracking-wide text-sage-600 dark:border-zen-700/40 dark:text-zen-200">
-                <span className="h-3 w-3 animate-ping rounded-full bg-sage-500" /> Saving layout
+              <span className="inline-flex items-center gap-2 rounded-full border border-zen-200 bg-surface/85 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zen-600 dark:border-zen-700/40 dark:text-zen-200">
+                <span className="h-3 w-3 animate-ping rounded-full bg-zen-500" /> Saving layout
               </span>
             ) : null}
           </div>
@@ -111,7 +111,7 @@ export default function DashboardHero({ userName, userId, isEditMode, isSaving, 
           <HeroMetric
             label="Completed"
             value={isLoading ? '—' : data?.completedTasks ?? '—'}
-            helper="Finished items this workspace"
+            helper="Closed items across Zen Workspace"
             icon={<CheckCircle2 className="h-4 w-4" />}
           />
           <HeroMetric

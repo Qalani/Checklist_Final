@@ -121,12 +121,12 @@ function ZenInsightsPageContent() {
           <header className="px-4 py-6 sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 text-white shadow-medium">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-zen-500 to-sage-500 text-white shadow-medium">
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
-                  <p className="text-sm text-zen-600">Your mindful workspace</p>
+                  <p className="text-sm text-zen-600">Your composed control center</p>
                 </div>
               </div>
               <div className="w-full sm:w-auto">
@@ -139,11 +139,11 @@ function ZenInsightsPageContent() {
             <div className="max-w-xl space-y-4 text-center lg:text-left">
               <h2 className="text-3xl font-semibold text-zen-900">Sign in to unlock Zen Insights</h2>
               <p className="text-base text-zen-600">
-                Access your personalized dashboard widgets and visibility controls after signing in.
+                Access tailored dashboard widgets, focus metrics, and sharing controls once you&apos;re signed in.
               </p>
               <Link
                 href="/"
-                className="inline-flex items-center justify-center rounded-full border border-sage-500 bg-surface/80 px-4 py-2 text-sm font-semibold text-sage-600 shadow-small transition hover:border-sage-600 hover:text-sage-700 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-2 focus:ring-offset-[rgb(var(--color-surface))]"
+                className="inline-flex items-center justify-center rounded-full border border-zen-300 bg-surface/80 px-4 py-2 text-sm font-semibold text-zen-600 shadow-small transition hover:border-zen-400 hover:text-zen-700 focus:outline-none focus:ring-2 focus:ring-zen-300 focus:ring-offset-2 focus:ring-offset-[rgb(var(--color-surface))]"
               >
                 Back to home
               </Link>
@@ -159,18 +159,18 @@ function ZenInsightsPageContent() {
   const userName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
-        <header className="sticky top-0 z-50 border-b border-zen-200 bg-surface/70 backdrop-blur-xl shadow-soft">
+        <header className="sticky top-0 z-50 border-b border-zen-200/70 bg-surface/80 backdrop-blur-2xl shadow-soft">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sage-500 to-sage-600 text-white shadow-medium">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-zen-500 to-sage-500 text-white shadow-medium">
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
                 <h1 className="text-2xl font-semibold text-zen-900">Zen Insights</h1>
-                <p className="text-sm text-zen-600">Customize widgets and surface mindful metrics</p>
+                <p className="text-sm text-zen-600">Curate dashboards and highlight meaningful metrics</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-start gap-3 lg:justify-end">
@@ -198,7 +198,7 @@ function ZenInsightsPageContent() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sage-400 to-sage-500 text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-zen-400 to-zen-600 text-white">
                   <LayoutGrid className="h-5 w-5" />
                 </div>
                 <div>
@@ -207,7 +207,7 @@ function ZenInsightsPageContent() {
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-zen-300 to-zen-400 text-zen-900">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-warm-400 to-warm-500 text-white">
                   <CalendarClock className="h-5 w-5" />
                 </div>
                 <div>
