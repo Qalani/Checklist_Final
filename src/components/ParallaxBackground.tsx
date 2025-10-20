@@ -14,25 +14,25 @@ export default function ParallaxBackground() {
         style={{
           y: layerOneY,
           background:
-            'radial-gradient(circle at 20% 20%, rgba(var(--color-sage-400), 0.32), transparent 60%)',
+            'radial-gradient(circle at 18% 18%, rgba(var(--color-zen-400), 0.38), transparent 62%)',
         }}
-        className="absolute -inset-[30%] opacity-70 blur-3xl"
+        className="absolute -inset-[32%] opacity-70 blur-[140px]"
       />
       <motion.div
         style={{
           y: layerTwoY,
           background:
-            'radial-gradient(circle at 80% 30%, rgba(var(--color-warm-400), 0.28), transparent 65%)',
+            'radial-gradient(circle at 82% 30%, rgba(var(--color-sage-300), 0.34), transparent 68%)',
         }}
-        className="absolute -inset-[35%] opacity-60 blur-3xl"
+        className="absolute -inset-[36%] opacity-65 blur-[160px]"
       />
       <motion.div
         style={{
           y: layerThreeY,
           background:
-            'radial-gradient(circle at 50% 80%, rgba(var(--color-zen-300), 0.25), transparent 70%)',
+            'radial-gradient(circle at 50% 82%, rgba(var(--color-warm-200), 0.28), transparent 72%)',
         }}
-        className="absolute -inset-[40%] opacity-55 blur-[140px]"
+        className="absolute -inset-[40%] opacity-55 blur-[180px]"
       />
     </div>
   );

@@ -48,8 +48,8 @@ export default function ZenWordProcessor({
   value,
   onChange,
   className,
-  placeholder = 'Begin capturing your thoughts…',
-  helperText = 'Use the toolbar to format your note just like a document.',
+  placeholder = 'Start a composed note…',
+  helperText = 'Style headings, quotes, and lists with the toolbar for a polished record.',
   readOnly = false,
   ...rest
 }: ZenWordProcessorProps) {

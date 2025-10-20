@@ -3,13 +3,13 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Zen Workspace",
-    short_name: "Zen Workspace",
+    short_name: "Zen",
     description:
-      "A beautiful, minimalist productivity workspace to keep your tasks, routines, and reflections aligned.",
+      "A composed productivity companion that keeps tasks, rituals, notes, and relationships gracefully aligned with the Solace palette.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#6366f1",
+    background_color: "#0E1622",
+    theme_color: "#7199B6",
     orientation: "any",
     icons: [],
   };

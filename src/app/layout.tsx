@@ -8,10 +8,10 @@ import { ServiceWorkerRegistration } from "@/components/service-worker-registrat
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Zen Workspace - Mindful Productivity Hub",
-  description: "A beautiful, minimalist productivity workspace",
+  title: "Zen Workspace - Composed Productivity Hub",
+  description: "A sleek, calming productivity platform for harmonising tasks, notes, and relationships.",
   applicationName: "Zen Workspace",
-  themeColor: "#6366f1",
+  themeColor: "#7199B6",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

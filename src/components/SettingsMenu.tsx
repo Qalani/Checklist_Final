@@ -192,7 +192,7 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                     </span>
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-sage-300 text-sage-600 focus:ring-sage-500"
+                      className="mt-1 h-4 w-4 rounded border-zen-300 text-zen-600 focus:ring-zen-400"
                       checked={preferences.inAppNotifications}
                       onChange={() => togglePreference('inAppNotifications')}
                     />
@@ -204,7 +204,7 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                     </span>
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-sage-300 text-sage-600 focus:ring-sage-500"
+                      className="mt-1 h-4 w-4 rounded border-zen-300 text-zen-600 focus:ring-zen-400"
                       checked={preferences.emailDigests}
                       onChange={() => togglePreference('emailDigests')}
                     />

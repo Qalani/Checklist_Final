@@ -327,12 +327,12 @@ export default function NotesPage() {
   const showEditor = activeNote != null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Notes"
-          subtitle="Compose mindful documents with a focused word processor"
+          subtitle="Capture polished thinking in a calm editor"
           icon={FileText}
           backHref="/"
           actions={
@@ -343,7 +343,7 @@ export default function NotesPage() {
                 onClick={() => {
                   void handleCreateNote();
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sage-600 px-4 py-2 text-sm font-medium text-white shadow-medium transition-all hover:bg-sage-700 hover:shadow-lift sm:w-auto"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-warm-500 px-4 py-2 text-sm font-medium text-white shadow-medium transition-all hover:bg-warm-600 hover:shadow-lift sm:w-auto"
               >
                 <Plus className="h-4 w-4" />
                 New document
@@ -506,18 +506,18 @@ export default function NotesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-surface/70 p-10 text-center">
-                    <FileText className="h-10 w-10 text-sage-500" />
+                  <div className="flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-surface/75 p-10 text-center">
+                    <FileText className="h-10 w-10 text-zen-500" />
                     <h2 className="mt-4 text-xl font-semibold text-zen-900">Create your first document</h2>
                     <p className="mt-2 max-w-md text-sm text-zen-500">
-                      Craft ideas, meeting notes, and plans with our mindful editor. Your changes save automatically while you stay in the flow.
+                      Capture strategy notes, reflections, and ideas inside a serene editor. Every keystroke saves in the background so you can stay present.
                     </p>
                     <button
                       type="button"
                       onClick={() => {
                         void handleCreateNote();
                       }}
-                      className="mt-6 inline-flex items-center gap-2 rounded-xl bg-sage-600 px-4 py-2 text-sm font-medium text-white shadow-medium transition-all hover:bg-sage-700 hover:shadow-lift"
+                      className="mt-6 inline-flex items-center gap-2 rounded-xl bg-warm-500 px-4 py-2 text-sm font-medium text-white shadow-medium transition-all hover:bg-warm-600 hover:shadow-lift"
                     >
                       <Plus className="h-4 w-4" />
                       Start writing
