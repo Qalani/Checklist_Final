@@ -158,7 +158,7 @@
   }
 
   :root[data-theme$='dark'] body {
-    color: rgb(var(--color-zen-50) / var(--tw-text-opacity));
+    color: rgb(var(--color-zen-900) / var(--tw-text-opacity));
   }
 }
 
