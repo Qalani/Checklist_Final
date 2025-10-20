@@ -25,7 +25,7 @@ import {
   Pencil,
   Trash2,
   RefreshCcw,
-  Snooze,
+  AlarmClock,
 } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
@@ -320,7 +320,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
           )}
           {snoozedLabel && (
             <span className="px-2 py-1 rounded-lg text-xs font-medium bg-warm-50 text-warm-700 flex items-center gap-1">
-              <Snooze className="w-3 h-3" />
+              <AlarmClock className="w-3 h-3" />
               Snoozed until {snoozedLabel}
             </span>
           )}

@@ -31,7 +31,7 @@ import {
   Share2,
   Shield,
   RefreshCcw,
-  Snooze,
+  AlarmClock,
 } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
@@ -271,7 +271,7 @@ function SortableTaskItem({
               )}
               {snoozedLabel && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-warm-50 text-warm-700 flex items-center gap-1">
-                  <Snooze className="w-3 h-3" />
+                  <AlarmClock className="w-3 h-3" />
                   Snoozed until {snoozedLabel}
                 </span>
               )}

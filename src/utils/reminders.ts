@@ -59,42 +59,44 @@ function addMonthsPreserveTime(date: Date, months: number, day: number): Date {
 }
 
 export function normalizeReminderRecurrence(
-  recurrence?: ReminderRecurrence | null,
+  recurrence?: unknown,
 ): ReminderRecurrence | null {
-  if (!recurrence) {
+  if (!recurrence || typeof recurrence !== 'object') {
     return null;
   }
 
-  const frequency = recurrence.frequency ?? 'once';
+  const typedRecurrence = recurrence as Partial<ReminderRecurrence> & Record<string, unknown>;
+
+  const frequency = typedRecurrence.frequency ?? 'once';
   if (!['once', 'daily', 'weekly', 'monthly'].includes(frequency)) {
     return null;
   }
 
-  const interval = recurrence.interval && Number.isFinite(recurrence.interval)
-    ? Math.max(1, Math.floor(recurrence.interval))
+  const interval = typedRecurrence.interval && Number.isFinite(typedRecurrence.interval)
+    ? Math.max(1, Math.floor(typedRecurrence.interval))
     : 1;
 
   const sanitized: ReminderRecurrence = { frequency: frequency as ReminderFrequency, interval };
 
-  if (recurrence.start_at) {
-    const parsedStart = parseDateLike(recurrence.start_at);
+  if (typedRecurrence.start_at) {
+    const parsedStart = parseDateLike(typedRecurrence.start_at);
     if (parsedStart) {
       sanitized.start_at = parsedStart.toISOString();
     }
   }
 
-  if (recurrence.end_at) {
-    const parsedEnd = parseDateLike(recurrence.end_at);
+  if (typedRecurrence.end_at) {
+    const parsedEnd = parseDateLike(typedRecurrence.end_at);
     if (parsedEnd) {
       sanitized.end_at = parsedEnd.toISOString();
     }
   }
 
   if (frequency === 'weekly') {
-    const weekdays = Array.isArray(recurrence.weekdays) ? recurrence.weekdays : [];
+    const weekdays = Array.isArray(typedRecurrence.weekdays) ? typedRecurrence.weekdays : [];
     sanitized.weekdays = uniqueSortedNumbers(weekdays, 0, 6);
   } else if (frequency === 'monthly') {
-    const monthdays = Array.isArray(recurrence.monthdays) ? recurrence.monthdays : [];
+    const monthdays = Array.isArray(typedRecurrence.monthdays) ? typedRecurrence.monthdays : [];
     sanitized.monthdays = uniqueSortedNumbers(monthdays, 1, 31);
   }
 
