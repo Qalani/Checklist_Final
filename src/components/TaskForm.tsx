@@ -445,21 +445,22 @@ export default function TaskForm({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface rounded-3xl shadow-lift max-w-lg w-full max-h-[90vh] overflow-y-auto border border-zen-200 p-6 sm:p-8"
+        className="bg-surface rounded-3xl shadow-lift max-w-lg w-full border border-zen-200 overflow-hidden"
       >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold text-zen-900">
-            {task ? 'Edit Task' : 'New Task'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl hover:bg-zen-100 transition-colors"
-          >
-            <X className="w-5 h-5 text-zen-600" />
-          </button>
-        </div>
+        <div className="max-h-[90vh] overflow-y-auto p-6 sm:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-semibold text-zen-900">
+              {task ? 'Edit Task' : 'New Task'}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl hover:bg-zen-100 transition-colors"
+            >
+              <X className="w-5 h-5 text-zen-600" />
+            </button>
+          </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-zen-700 mb-2">
               Task Title
@@ -783,6 +784,7 @@ export default function TaskForm({
             </button>
           </div>
         </form>
+        </div>
       </motion.div>
     </motion.div>
   );
