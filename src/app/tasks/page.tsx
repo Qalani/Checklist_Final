@@ -30,6 +30,8 @@ import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useRouter } from 'next/navigation';
 import { useFriends } from '@/features/friends/useFriends';
+import { getNextReminderOccurrence, shouldScheduleReminder } from '@/utils/reminders';
+import { supabase } from '@/lib/supabase';
 
 type CollaboratorRole = 'viewer' | 'editor';
 
@@ -384,7 +386,7 @@ export default function HomePage() {
   );
 
   const showTaskReminderNotification = useCallback(
-    (taskId: string, taskTitle: string, dueDate: Date) => {
+    (task: Task, occurrence: Date) => {
       if (notificationPermission !== 'granted' || typeof window === 'undefined' || !('Notification' in window)) {
         return;
       }
@@ -396,9 +398,14 @@ export default function HomePage() {
       }
 
       try {
+        const dueDateText = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+        const reminderText = occurrence.toLocaleString();
+        const body = dueDateText
+          ? `"${task.title}" is due ${dueDateText}. Reminder for ${reminderText}.`
+          : `Reminder for "${task.title}" at ${reminderText}.`;
         const notification = new NotificationAPI('Task reminder', {
-          body: `"${taskTitle}" is due ${dueDate.toLocaleString()}.`,
-          tag: `task-reminder-${taskId}`,
+          body,
+          tag: `task-reminder-${task.id}`,
         });
 
         setTimeout(() => {
@@ -409,6 +416,36 @@ export default function HomePage() {
       }
     },
     [notificationPermission],
+  );
+
+  const handleReminderTriggered = useCallback(
+    async (task: Task, occurrence: Date) => {
+      showTaskReminderNotification(task, occurrence);
+
+      const nextOccurrence = getNextReminderOccurrence(
+        {
+          ...task,
+          reminder_last_trigger_at: occurrence.toISOString(),
+          reminder_next_trigger_at: occurrence.toISOString(),
+          reminder_snoozed_until: null,
+        },
+        { from: new Date(occurrence.getTime() + 1000) },
+      );
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          reminder_last_trigger_at: occurrence.toISOString(),
+          reminder_next_trigger_at: nextOccurrence ? nextOccurrence.toISOString() : null,
+          reminder_snoozed_until: null,
+        })
+        .eq('id', task.id);
+
+      if (error) {
+        console.error('Unable to update reminder schedule', error);
+      }
+    },
+    [showTaskReminderNotification],
   );
 
   useEffect(() => {
@@ -441,6 +478,7 @@ export default function HomePage() {
       return;
     }
 
+    const now = new Date();
     const taskIds = new Set(tasks.map(task => task.id));
     triggered.forEach((_signature, id) => {
       if (!taskIds.has(id)) {
@@ -449,38 +487,37 @@ export default function HomePage() {
     });
 
     tasks.forEach(task => {
-      if (
-        !task.due_date ||
-        task.completed ||
-        task.reminder_minutes_before === null ||
-        typeof task.reminder_minutes_before === 'undefined'
-      ) {
+      if (task.completed || !shouldScheduleReminder(task)) {
         triggered.delete(task.id);
         return;
       }
 
-      const dueTime = new Date(task.due_date).getTime();
+      const nextOccurrence = getNextReminderOccurrence(task, { from: now, includeCurrent: true });
 
-      if (Number.isNaN(dueTime)) {
+      if (!nextOccurrence) {
         triggered.delete(task.id);
         return;
       }
 
-      const reminderTime = dueTime - task.reminder_minutes_before * 60_000;
-      const delay = reminderTime - Date.now();
-      const signature = `${dueTime}-${task.reminder_minutes_before}`;
+      const signature = nextOccurrence.toISOString();
+
+      const delay = nextOccurrence.getTime() - Date.now();
 
       if (delay <= 0) {
         if (triggered.get(task.id) !== signature) {
           triggered.set(task.id, signature);
-          showTaskReminderNotification(task.id, task.title, new Date(dueTime));
+          void handleReminderTriggered(task, nextOccurrence);
         }
+        return;
+      }
+
+      if (triggered.get(task.id) === signature) {
         return;
       }
 
       const timeoutId = window.setTimeout(() => {
         triggered.set(task.id, signature);
-        showTaskReminderNotification(task.id, task.title, new Date(dueTime));
+        void handleReminderTriggered(task, nextOccurrence);
         registry.delete(task.id);
       }, delay);
 
@@ -493,7 +530,7 @@ export default function HomePage() {
       });
       registry.clear();
     };
-  }, [notificationPermission, showTaskReminderNotification, tasks]);
+  }, [handleReminderTriggered, notificationPermission, tasks]);
 
   const handleToggleTask = useCallback(
     async (id: string, completed: boolean) => {

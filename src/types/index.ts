@@ -1,3 +1,14 @@
+export type ReminderFrequency = 'once' | 'daily' | 'weekly' | 'monthly';
+
+export interface ReminderRecurrence {
+  frequency: ReminderFrequency;
+  interval?: number | null;
+  weekdays?: number[] | null;
+  monthdays?: number[] | null;
+  start_at?: string | null;
+  end_at?: string | null;
+}
+
 export interface Task extends Record<string, unknown> {
   id: string;
   title: string;
@@ -12,6 +23,11 @@ export interface Task extends Record<string, unknown> {
   user_id?: string;
   due_date?: string | null;
   reminder_minutes_before?: number | null;
+  reminder_recurrence?: ReminderRecurrence | null;
+  reminder_next_trigger_at?: string | null;
+  reminder_last_trigger_at?: string | null;
+  reminder_snoozed_until?: string | null;
+  reminder_timezone?: string | null;
   access_role?: 'owner' | 'editor' | 'viewer';
 }
 

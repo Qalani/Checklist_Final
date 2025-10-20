@@ -20,9 +20,22 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, Circle, MoreHorizontal, Flag, Clock, GripVertical, BellRing, Share2, Shield } from 'lucide-react';
+import {
+  CheckCircle2,
+  Circle,
+  MoreHorizontal,
+  Flag,
+  Clock,
+  GripVertical,
+  BellRing,
+  Share2,
+  Shield,
+  RefreshCcw,
+  Snooze,
+} from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
+import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -127,6 +140,19 @@ function SortableTaskItem({
     typeof task.reminder_minutes_before === 'number' && !Number.isNaN(task.reminder_minutes_before)
       ? formatReminder(task.reminder_minutes_before)
       : null;
+  const nextReminder = getNextReminderOccurrence(task, { includeCurrent: true });
+  const nextReminderLabel = nextReminder ? formatReminderDate(nextReminder, task.reminder_timezone) : null;
+  const recurrenceLabel = describeReminderRecurrence(task.reminder_recurrence);
+  const snoozedLabel = (() => {
+    if (!task.reminder_snoozed_until) {
+      return null;
+    }
+    const parsed = new Date(task.reminder_snoozed_until);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return formatReminderDate(parsed, task.reminder_timezone);
+  })();
 
   const accessRole = task.access_role ?? 'owner';
   const isOwner = accessRole === 'owner';
@@ -229,6 +255,24 @@ function SortableTaskItem({
                 <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700 flex items-center gap-1">
                   <BellRing className="w-3 h-3" />
                   {reminderLabel}
+                </span>
+              )}
+              {recurrenceLabel && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-zen-50 text-zen-700 flex items-center gap-1">
+                  <RefreshCcw className="w-3 h-3" />
+                  {recurrenceLabel}
+                </span>
+              )}
+              {nextReminderLabel && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700/90 flex items-center gap-1">
+                  <BellRing className="w-3 h-3" />
+                  Next: {nextReminderLabel}
+                </span>
+              )}
+              {snoozedLabel && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-warm-50 text-warm-700 flex items-center gap-1">
+                  <Snooze className="w-3 h-3" />
+                  Snoozed until {snoozedLabel}
                 </span>
               )}
             </div>

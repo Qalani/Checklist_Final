@@ -24,9 +24,12 @@ import {
   Shield,
   Pencil,
   Trash2,
+  RefreshCcw,
+  Snooze,
 } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
+import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
 
 interface TaskBentoGridProps {
   tasks: Task[];
@@ -119,6 +122,19 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
     typeof task.reminder_minutes_before === 'number' && !Number.isNaN(task.reminder_minutes_before)
       ? formatReminder(task.reminder_minutes_before)
       : null;
+  const nextReminder = getNextReminderOccurrence(task, { includeCurrent: true });
+  const nextReminderLabel = nextReminder ? formatReminderDate(nextReminder, task.reminder_timezone) : null;
+  const recurrenceLabel = describeReminderRecurrence(task.reminder_recurrence);
+  const snoozedLabel = (() => {
+    if (!task.reminder_snoozed_until) {
+      return null;
+    }
+    const parsed = new Date(task.reminder_snoozed_until);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return formatReminderDate(parsed, task.reminder_timezone);
+  })();
 
   const priorityColors = {
     low: 'text-zen-500 bg-zen-100',
@@ -288,6 +304,24 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
             <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1">
               <BellRing className="w-3 h-3" />
               {reminderLabel}
+            </span>
+          )}
+          {recurrenceLabel && (
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-zen-50 text-zen-700 flex items-center gap-1">
+              <RefreshCcw className="w-3 h-3" />
+              {recurrenceLabel}
+            </span>
+          )}
+          {nextReminderLabel && (
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700/90 flex items-center gap-1">
+              <BellRing className="w-3 h-3" />
+              Next: {nextReminderLabel}
+            </span>
+          )}
+          {snoozedLabel && (
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-warm-50 text-warm-700 flex items-center gap-1">
+              <Snooze className="w-3 h-3" />
+              Snoozed until {snoozedLabel}
             </span>
           )}
         </div>
