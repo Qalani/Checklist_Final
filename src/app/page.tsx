@@ -17,7 +17,9 @@ import { useFriends } from '@/features/friends/useFriends';
 
 function LoadingScreen() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div
+      className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-[rgb(var(--color-zen-900)_/_0.95)] dark:via-[rgb(var(--color-zen-900)_/_0.85)] dark:to-[rgb(var(--color-sage-900)_/_0.9)]"
+    >
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-sage-200 border-t-sage-600" />
@@ -169,7 +171,9 @@ function HomePageContent() {
   );
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
+    <div
+      className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50 dark:from-[rgb(var(--color-zen-900)_/_0.95)] dark:via-[rgb(var(--color-zen-900)_/_0.85)] dark:to-[rgb(var(--color-sage-900)_/_0.9)]"
+    >
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
         <header className="flex flex-col gap-6 border-b border-zen-200/60 bg-surface/70 px-6 py-6 backdrop-blur-lg sm:flex-row sm:items-center sm:justify-between lg:px-12 dark:border-zen-700/40">
