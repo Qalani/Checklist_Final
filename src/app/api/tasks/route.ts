@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { normalizeReminderRecurrence } from '@/utils/reminders';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -54,6 +55,10 @@ export async function POST(request: Request) {
     completed,
     due_date: dueDate,
     reminder_minutes_before: reminderMinutesBefore,
+    reminder_recurrence: reminderRecurrence,
+    reminder_next_trigger_at: reminderNextTriggerAt,
+    reminder_snoozed_until: reminderSnoozedUntil,
+    reminder_timezone: reminderTimezone,
   } = body as {
     title?: unknown;
     description?: unknown;
@@ -64,6 +69,10 @@ export async function POST(request: Request) {
     completed?: unknown;
     due_date?: unknown;
     reminder_minutes_before?: unknown;
+    reminder_recurrence?: unknown;
+    reminder_next_trigger_at?: unknown;
+    reminder_snoozed_until?: unknown;
+    reminder_timezone?: unknown;
   };
 
   if (typeof title !== 'string' || !title.trim()) {
@@ -120,6 +129,60 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'A due date is required to schedule a reminder.' }, { status: 400 });
   }
 
+  let normalizedRecurrence = null;
+
+  if (typeof reminderRecurrence === 'object' && reminderRecurrence !== null) {
+    normalizedRecurrence = normalizeReminderRecurrence(reminderRecurrence as Record<string, unknown>);
+    if (!normalizedRecurrence) {
+      return NextResponse.json({ error: 'Reminder recurrence must specify a valid pattern.' }, { status: 400 });
+    }
+  } else if (typeof reminderRecurrence !== 'undefined' && reminderRecurrence !== null) {
+    return NextResponse.json({ error: 'Reminder recurrence must be an object or null.' }, { status: 400 });
+  }
+
+  const parseDateField = (value: unknown, fieldName: string) => {
+    if (typeof value === 'string') {
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new Error(`${fieldName} must be a valid ISO date string.`);
+      }
+      return parsed.toISOString();
+    }
+    if (value === null || typeof value === 'undefined') {
+      return null;
+    }
+    throw new Error(`${fieldName} must be a string or null.`);
+  };
+
+  let normalizedNextTrigger: string | null;
+  let normalizedSnoozedUntil: string | null;
+
+  try {
+    normalizedNextTrigger = parseDateField(reminderNextTriggerAt, 'reminder_next_trigger_at');
+    normalizedSnoozedUntil = parseDateField(reminderSnoozedUntil, 'reminder_snoozed_until');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid reminder date provided.';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  let normalizedTimezone: string | null = null;
+  if (typeof reminderTimezone === 'string') {
+    const trimmed = reminderTimezone.trim();
+    normalizedTimezone = trimmed.length > 0 ? trimmed : null;
+  } else if (typeof reminderTimezone !== 'undefined' && reminderTimezone !== null) {
+    return NextResponse.json({ error: 'Reminder timezone must be a string or null.' }, { status: 400 });
+  }
+
+  if (
+    (normalizedRecurrence || normalizedNextTrigger || normalizedSnoozedUntil) &&
+    (normalizedReminder === null || normalizedDueDate === null)
+  ) {
+    return NextResponse.json(
+      { error: 'Recurring reminders require a due date and reminder offset.' },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabaseAdmin
     .from('tasks')
     .insert({
@@ -132,6 +195,10 @@ export async function POST(request: Request) {
       completed: normalizedCompleted,
       due_date: normalizedDueDate,
       reminder_minutes_before: normalizedReminder,
+      reminder_recurrence: normalizedRecurrence,
+      reminder_next_trigger_at: normalizedNextTrigger,
+      reminder_snoozed_until: normalizedSnoozedUntil,
+      reminder_timezone: normalizedTimezone,
       user_id: userResult.user.id,
     })
     .select()

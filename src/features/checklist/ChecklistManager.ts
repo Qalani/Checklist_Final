@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import type { Category, Task, TaskCollaborator } from '@/types';
+import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
+import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
@@ -50,6 +51,21 @@ function sortCategories(categories: Category[]): Category[] {
   });
 }
 
+function normalizeReminderFields(task: Task): Task {
+  const reminderRecurrence = normalizeReminderRecurrence(
+    (task.reminder_recurrence as ReminderRecurrence | null | undefined) ?? null,
+  );
+
+  return {
+    ...task,
+    reminder_recurrence: reminderRecurrence,
+    reminder_next_trigger_at: task.reminder_next_trigger_at ?? null,
+    reminder_last_trigger_at: task.reminder_last_trigger_at ?? null,
+    reminder_snoozed_until: task.reminder_snoozed_until ?? null,
+    reminder_timezone: task.reminder_timezone ?? null,
+  };
+}
+
 export async function fetchTasks(userId: string): Promise<Task[]> {
   const { data, error } = await supabase.rpc('get_tasks_with_access');
 
@@ -59,10 +75,14 @@ export async function fetchTasks(userId: string): Promise<Task[]> {
 
   const records = Array.isArray(data) ? data : [];
 
-  return records.map((record) => ({
-    ...record,
-    access_role: (record as { access_role?: Task['access_role'] }).access_role ?? (record.user_id === userId ? 'owner' : undefined),
-  })) as Task[];
+  return records.map((record) => {
+    const task = normalizeReminderFields(record as Task);
+    return {
+      ...task,
+      access_role:
+        (record as { access_role?: Task['access_role'] }).access_role ?? (record.user_id === userId ? 'owner' : undefined),
+    };
+  });
 }
 
 export async function fetchCategories(userId: string): Promise<Category[]> {
@@ -268,6 +288,10 @@ export class ChecklistManager {
           completed: Boolean(taskData.completed),
           due_date: taskData.due_date ?? null,
           reminder_minutes_before: taskData.reminder_minutes_before ?? null,
+          reminder_recurrence: taskData.reminder_recurrence ?? null,
+          reminder_next_trigger_at: taskData.reminder_next_trigger_at ?? null,
+          reminder_snoozed_until: taskData.reminder_snoozed_until ?? null,
+          reminder_timezone: taskData.reminder_timezone ?? null,
           order: nextOrder,
         }),
       });
@@ -718,8 +742,21 @@ export class ChecklistManager {
   }
 
   private normalizeTask(incoming: Task, previous?: Task): Task {
-    const accessRole = incoming.access_role ?? previous?.access_role ?? (incoming.user_id === this.userId ? 'owner' : previous?.access_role);
-    return { ...incoming, access_role: accessRole };
+    const accessRole =
+      incoming.access_role ?? previous?.access_role ?? (incoming.user_id === this.userId ? 'owner' : previous?.access_role);
+    const reminderRecurrence = normalizeReminderRecurrence(
+      (incoming.reminder_recurrence as ReminderRecurrence | null | undefined) ?? previous?.reminder_recurrence ?? null,
+    );
+
+    return {
+      ...incoming,
+      reminder_recurrence: reminderRecurrence,
+      reminder_next_trigger_at: incoming.reminder_next_trigger_at ?? previous?.reminder_next_trigger_at ?? null,
+      reminder_last_trigger_at: incoming.reminder_last_trigger_at ?? previous?.reminder_last_trigger_at ?? null,
+      reminder_snoozed_until: incoming.reminder_snoozed_until ?? previous?.reminder_snoozed_until ?? null,
+      reminder_timezone: incoming.reminder_timezone ?? previous?.reminder_timezone ?? null,
+      access_role: accessRole,
+    };
   }
 
   private applyTaskChange(payload: RealtimePostgresChangesPayload<Task>) {
