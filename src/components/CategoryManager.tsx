@@ -140,7 +140,7 @@ export default function CategoryManager({
             }
             setIsAdding(!isAdding);
           }}
-          className="p-2 rounded-lg hover:bg-sage-100 transition-colors text-sage-600"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-sage-100 transition-colors text-sage-600"
         >
           {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
         </button>
@@ -168,7 +168,7 @@ export default function CategoryManager({
                   <button
                     key={color}
                     onClick={() => setNewColor(color)}
-                    className={`w-8 h-8 rounded-lg transition-all ${
+                    className={`w-8 h-8 rounded-full transition-all ${
                       newColor === color ? 'ring-2 ring-sage-600 ring-offset-2' : ''
                     }`}
                     style={{ backgroundColor: color }}
@@ -237,13 +237,13 @@ export default function CategoryManager({
             <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => setEditingId(editingId === category.id ? null : category.id)}
-                className="p-1 rounded hover:bg-zen-200 transition-colors"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-zen-200 transition-colors"
               >
                 <Edit2 className="w-3 h-3 text-zen-600" />
               </button>
               <button
                 onClick={() => handleDelete(category.id)}
-                className="p-1 rounded hover:bg-red-100 transition-colors"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-red-100 transition-colors"
               >
                 <X className="w-3 h-3 text-red-600" />
               </button>

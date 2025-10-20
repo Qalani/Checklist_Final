@@ -791,7 +791,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={handleCloseShareTask}
-                    className="p-2 rounded-lg text-zen-500 hover:text-zen-700 hover:bg-zen-100 transition-colors"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-zen-500 hover:text-zen-700 hover:bg-zen-100 transition-colors"
                     aria-label="Close collaborator dialog"
                   >
                     <X className="w-4 h-4" />

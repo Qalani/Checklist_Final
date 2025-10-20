@@ -369,7 +369,7 @@ function ToolbarButton({ onClick, label, disabled = false, active = false, child
         onClick();
       }}
       aria-label={label}
-      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-zen-500 transition-colors ${
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-zen-500 transition-colors ${
         active ? 'bg-sage-100 text-sage-700 shadow-soft' : 'hover:bg-sage-50'
       } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
       disabled={disabled}
