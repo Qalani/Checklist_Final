@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme-context";
@@ -11,13 +11,16 @@ export const metadata: Metadata = {
   title: "Zen Workspace - Composed Productivity Hub",
   description: "A sleek, calming productivity platform for harmonising tasks, notes, and relationships.",
   applicationName: "Zen Workspace",
-  themeColor: "#7199B6",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Zen Workspace",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7199B6",
 };
 
 export default function RootLayout({
