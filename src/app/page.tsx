@@ -5,7 +5,7 @@ import { Suspense, useMemo } from 'react';
 import type { ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
 
 import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
@@ -39,7 +39,7 @@ export default function HomePage() {
 }
 
 interface FeatureDefinition {
-  key: 'tasks' | 'lists' | 'notes' | 'friends';
+  key: 'tasks' | 'lists' | 'notes' | 'friends' | 'calendar';
   title: string;
   description: string;
   href: string;
@@ -92,12 +92,52 @@ function HomePageContent() {
     return tasks.filter(task => task.completed).length;
   }, [demoMode, tasks]);
 
+  const nextDueTask = useMemo(() => {
+    if (demoMode) {
+      const now = new Date();
+      const demoDate = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+      return { title: 'Design system sync', due_date: demoDate.toISOString() };
+    }
+    return (
+      tasks
+        .filter(task => !task.completed && task.due_date)
+        .sort((a, b) => new Date(a.due_date as string).getTime() - new Date(b.due_date as string).getTime())[0] ?? null
+    );
+  }, [demoMode, tasks]);
+
   const totalLists = demoMode ? 6 : lists.length;
   const totalNotes = demoMode ? 12 : notes.length;
   const totalFriends = demoMode ? 3 : friends.length;
 
   const featureCards = useMemo<FeatureDefinition[]>(
     () => [
+      {
+        key: 'calendar',
+        title: 'Calendar',
+        description: 'Visualise tasks, reminders, and notes on a shared timeline.',
+        href: '/calendar',
+        icon: CalendarDays,
+        primary: tasksLoading
+          ? 'Syncing…'
+          : nextDueTask
+            ? `Next: ${nextDueTask.title}`
+            : 'No upcoming due dates',
+        secondary:
+          nextDueTask?.due_date
+            ? new Date(nextDueTask.due_date).toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : 'Stay in control at a glance',
+        accentGradient: 'bg-gradient-to-br from-zen-500 to-warm-500',
+        accentText: 'text-white',
+        badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
+        badgeText: 'text-zen-600 dark:text-zen-900',
+        footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
+        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
+      },
       {
         key: 'tasks',
         title: 'Tasks',
@@ -163,6 +203,7 @@ function HomePageContent() {
       completedTasks,
       friendsLoading,
       listsLoading,
+      nextDueTask,
       notesLoading,
       openTasks,
       tasksLoading,
