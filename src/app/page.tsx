@@ -5,10 +5,12 @@ import { Suspense, useMemo } from 'react';
 import type { ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, CheckSquare, ListTodo, StickyNote, Users } from 'lucide-react';
+import { ArrowRight, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
 
+import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import SettingsMenu from '@/components/SettingsMenu';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
@@ -56,7 +58,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const demoMode = searchParams?.get('demo') === '1';
 
-  const { user, signOut } = useAuthSession();
+  const { user, authChecked, signOut } = useAuthSession();
   const targetUserId = demoMode ? null : user?.id ?? null;
 
   const { tasks, status: checklistStatus, syncing: checklistSyncing } = useChecklist(targetUserId);
@@ -170,6 +172,14 @@ function HomePageContent() {
     ],
   );
 
+  if (!authChecked && !demoMode) {
+    return <LoadingScreen />;
+  }
+
+  if (!user && !demoMode) {
+    return <SignedOutLanding />;
+  }
+
   return (
     <div
       className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]"
@@ -229,6 +239,76 @@ function HomePageContent() {
               </div>
             </section>
           </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function SignedOutLanding() {
+  return (
+    <div
+      className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]"
+    >
+      <ParallaxBackground />
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <header className="px-6 py-6 lg:px-12">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-zen-500 to-sage-500 text-white shadow-medium">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-zen-500">Zen Workspace</p>
+                <p className="text-sm text-zen-600 dark:text-zen-200">Composed productivity for mindful teams</p>
+              </div>
+            </div>
+            <div className="w-full sm:w-auto">
+              <ThemeSwitcher />
+            </div>
+          </div>
+        </header>
+
+        <main className="flex flex-1 flex-col items-center justify-center gap-12 px-6 pb-16 pt-4 sm:px-8 lg:flex-row lg:px-12">
+          <div className="max-w-xl space-y-6 text-center lg:text-left">
+            <div className="space-y-3">
+              <h1 className="text-3xl font-semibold text-zen-900 sm:text-4xl">Sign in to continue</h1>
+              <p className="text-sm text-zen-600 dark:text-zen-200">
+                Access serene task boards, curated rituals, and shared notes—everything you need to keep momentum with ease.
+              </p>
+            </div>
+
+            <ul className="grid gap-3 text-left text-sm text-zen-600 dark:text-zen-200">
+              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+                <CheckSquare className="h-4 w-4 text-zen-500" />
+                <span>Track mindful tasks and celebrate progress with calming visuals.</span>
+              </li>
+              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+                <ListTodo className="h-4 w-4 text-sage-500" />
+                <span>Design living checklists that adapt to your rituals and workflows.</span>
+              </li>
+              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+                <StickyNote className="h-4 w-4 text-warm-500" />
+                <span>Capture nuanced notes and reflections alongside your priorities.</span>
+              </li>
+              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+                <Users className="h-4 w-4 text-zen-500" />
+                <span>Invite trusted collaborators to stay in sync and accountable.</span>
+              </li>
+            </ul>
+
+            <div className="flex flex-col items-center gap-3 pt-2 sm:flex-row sm:justify-start">
+              <Link
+                href="/?demo=1"
+                className="inline-flex items-center justify-center rounded-full border border-zen-300 bg-surface/80 px-4 py-2 text-sm font-semibold text-zen-600 shadow-small transition hover:border-zen-400 hover:text-zen-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--color-surface))]"
+              >
+                Preview a guided demo
+              </Link>
+              <span className="text-xs text-zen-500 dark:text-zen-300">No account yet? Explore the interface first.</span>
+            </div>
+          </div>
+
+          <AuthPanel />
         </main>
       </div>
     </div>
