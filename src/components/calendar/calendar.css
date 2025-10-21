@@ -1,0 +1,81 @@
+.rbc-calendar {
+  background-color: transparent;
+  font-family: inherit;
+}
+
+.rbc-time-view,
+.rbc-month-view,
+.rbc-agenda-view {
+  border: none;
+  background-color: transparent;
+}
+
+.rbc-month-row,
+.rbc-time-content,
+.rbc-time-header-content,
+.rbc-time-header,
+.rbc-time-header-cell,
+.rbc-time-slot,
+.rbc-timeslot-group,
+.rbc-day-bg,
+.rbc-row-bg,
+.rbc-header,
+.rbc-allday-cell {
+  border-color: rgba(var(--color-zen-200), 0.45) !important;
+}
+
+.rbc-header {
+  padding: 0.75rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(var(--color-zen-700), 0.85);
+  background: transparent;
+}
+
+[data-theme$='dark'] .rbc-header {
+  color: rgba(var(--color-zen-900), 0.85);
+}
+
+.rbc-today {
+  background-color: rgba(var(--color-zen-100), 0.55);
+}
+
+[data-theme$='dark'] .rbc-today {
+  background-color: rgba(var(--color-zen-200), 0.18);
+}
+
+.rbc-off-range-bg {
+  background: rgba(var(--color-zen-50), 0.65);
+}
+
+[data-theme$='dark'] .rbc-off-range-bg {
+  background: rgba(var(--color-zen-200), 0.08);
+}
+
+.rbc-event,
+.rbc-day-slot .rbc-background-event {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.rbc-day-slot .rbc-event-content,
+.rbc-event-content {
+  overflow: visible !important;
+}
+
+.rbc-time-slot .rbc-label {
+  font-size: 0.7rem;
+  color: rgba(var(--color-zen-600), 0.9);
+}
+
+[data-theme$='dark'] .rbc-time-slot .rbc-label {
+  color: rgba(var(--color-zen-900), 0.7);
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-icon,
+.rbc-addons-dnd .rbc-addons-dnd-resize-ew-icon {
+  display: none;
+}
