@@ -1,8 +1,14 @@
 'use client';
 
 import { useCallback, useMemo, type ComponentType } from 'react';
-import { Calendar, dateFnsLocalizer, type Event, type View } from 'react-big-calendar';
-import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import {
+  Calendar,
+  dateFnsLocalizer,
+  type CalendarProps,
+  type Event,
+  type View,
+} from 'react-big-calendar';
+import withDragAndDrop, { type EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { CalendarCheck, Bell, StickyNote, Users } from 'lucide-react';
@@ -17,13 +23,15 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import './calendar.css';
 
+type CalendarView = 'month' | 'week' | 'day';
+
 interface CalendarTimelineProps {
   date: Date;
-  view: View;
+  view: CalendarView;
   events: CalendarEventRecord[];
   isLoading?: boolean;
   onRangeChange?: (range: { start: Date; end: Date }) => void;
-  onViewChange?: (view: View) => void;
+  onViewChange?: (view: CalendarView) => void;
   onNavigate?: (date: Date) => void;
   onEventDrop?: (payload: { record: CalendarEventRecord; start: Date; end: Date; isAllDay: boolean }) => void;
 }
@@ -44,7 +52,9 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-const DragAndDropCalendar = withDragAndDrop<TimelineEvent>(Calendar as unknown as ComponentType);
+const DragAndDropCalendar = withDragAndDrop<TimelineEvent>(
+  Calendar as ComponentType<CalendarProps<TimelineEvent, object>>,
+);
 
 function isTaskMetadata(metadata: unknown): metadata is CalendarTaskMetadata {
   return Boolean(
@@ -106,10 +116,8 @@ function EventContent({ event }: { event: TimelineEvent }) {
             />
           ) : null}
         </span>
-        {!event.allDay ? (
-          <span>
-            {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
+        {!event.allDay && event.start ? (
+          <span>{event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         ) : null}
       </div>
       {isNote ? (
@@ -147,7 +155,6 @@ export function CalendarTimeline({
         endDate.setTime(startDate.getTime() + 30 * 60 * 1000);
       }
       return {
-        id: record.id,
         title: record.title,
         start: startDate,
         end: endDate,
@@ -212,19 +219,26 @@ export function CalendarTimeline({
   );
 
   const handleEventDrop = useCallback(
-    (payload: { event: TimelineEvent; start: Date; end: Date; isAllDay: boolean }) => {
+    (payload: EventInteractionArgs<TimelineEvent>) => {
       if (!onEventDrop) {
         return;
       }
       const record = payload.event.resource;
-      onEventDrop({ record, start: payload.start, end: payload.end, isAllDay: payload.isAllDay });
+      const nextStart = new Date(payload.start);
+      const nextEnd = new Date(payload.end);
+      onEventDrop({ record, start: nextStart, end: nextEnd, isAllDay: Boolean(payload.isAllDay) });
     },
     [onEventDrop],
   );
 
   const handleViewChange = useCallback(
     (nextView: View) => {
-      onViewChange?.(nextView);
+      if (!onViewChange) {
+        return;
+      }
+      if (nextView === 'month' || nextView === 'week' || nextView === 'day') {
+        onViewChange(nextView);
+      }
     },
     [onViewChange],
   );
@@ -241,6 +255,7 @@ export function CalendarTimeline({
       <DragAndDropCalendar
         date={date}
         view={view}
+        views={['month', 'week', 'day']}
         events={timelineEvents}
         localizer={localizer}
         onRangeChange={handleRangeChange}

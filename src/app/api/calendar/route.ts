@@ -142,13 +142,16 @@ export async function GET(request: Request) {
       tasksById.set(task.id, { ...task, access_role: 'owner' });
     });
 
-    const sharedTaskRows = (sharedTasksResult.data ?? []) as Array<{
+    type SharedTaskRow = {
       role?: AccessRole | null;
-      task?: Task | null;
-    }>;
+      task?: Task | Task[] | null;
+    };
+
+    const sharedTaskRows = (sharedTasksResult.data ?? []) as SharedTaskRow[];
 
     sharedTaskRows.forEach((row) => {
-      const task = row.task;
+      const rawTask = row.task;
+      const task = Array.isArray(rawTask) ? rawTask[0] ?? null : rawTask ?? null;
       if (!task) {
         return;
       }

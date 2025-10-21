@@ -35,11 +35,11 @@ import type { CalendarEventRecord, CalendarScope, CalendarTaskMetadata } from '@
 import { supabase } from '@/lib/supabase';
 import { getNextReminderOccurrence } from '@/utils/reminders';
 
-type View = 'month' | 'week' | 'day';
+type CalendarView = 'month' | 'week' | 'day';
 
 type StatusMessage = { type: 'success' | 'error'; message: string } | null;
 
-function computeRange(view: View, referenceDate: Date): { start: Date; end: Date } {
+function computeRange(view: CalendarView, referenceDate: Date): { start: Date; end: Date } {
   if (view === 'month') {
     const start = startOfWeek(startOfMonth(referenceDate), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(referenceDate), { weekStartsOn: 1 });
@@ -56,7 +56,7 @@ function computeRange(view: View, referenceDate: Date): { start: Date; end: Date
   return { start, end };
 }
 
-function shiftDate(view: View, currentDate: Date, direction: 'prev' | 'next'): Date {
+function shiftDate(view: CalendarView, currentDate: Date, direction: 'prev' | 'next'): Date {
   if (view === 'month') {
     return direction === 'next' ? addMonths(currentDate, 1) : subMonths(currentDate, 1);
   }
@@ -78,7 +78,7 @@ function isTaskMetadata(metadata: unknown): metadata is CalendarTaskMetadata {
 export default function CalendarPage() {
   const router = useRouter();
   const { user, authChecked, signOut } = useAuthSession();
-  const [view, setView] = useState<View>('month');
+  const [view, setView] = useState<CalendarView>('month');
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [currentRange, setCurrentRange] = useState<{ start: Date; end: Date }>(() => computeRange('month', new Date()));
   const [scope, setScope] = useState<CalendarScope>('all');
@@ -120,7 +120,7 @@ export default function CalendarPage() {
   }, []);
 
   const handleViewChange = useCallback(
-    (nextView: View) => {
+    (nextView: CalendarView) => {
       setView(nextView);
       const recalculatedRange = computeRange(nextView, currentDate);
       setCurrentRange(recalculatedRange);
@@ -256,7 +256,7 @@ export default function CalendarPage() {
             />
             <div className="flex flex-wrap items-center gap-3">
               <div className="inline-flex items-center gap-1 rounded-full border border-zen-200/80 bg-surface/70 p-1 shadow-soft dark:border-zen-700/40">
-                {(['month', 'week', 'day'] as View[]).map((option) => (
+                {(['month', 'week', 'day'] as CalendarView[]).map((option) => (
                   <button
                     key={option}
                     type="button"
