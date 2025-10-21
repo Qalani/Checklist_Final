@@ -5,7 +5,7 @@ import { Suspense, useMemo } from 'react';
 import type { ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
+import { ArrowRight, CalendarClock, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
 
 import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
@@ -16,6 +16,7 @@ import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
 import { useNotes } from '@/features/notes/useNotes';
 import { useFriends } from '@/features/friends/useFriends';
+import { shouldScheduleReminder } from '@/utils/reminders';
 
 function LoadingScreen() {
   return (
@@ -39,7 +40,7 @@ export default function HomePage() {
 }
 
 interface FeatureDefinition {
-  key: 'tasks' | 'lists' | 'notes' | 'friends';
+  key: 'tasks' | 'calendar' | 'lists' | 'notes' | 'friends';
   title: string;
   description: string;
   href: string;
@@ -92,6 +93,20 @@ function HomePageContent() {
     return tasks.filter(task => task.completed).length;
   }, [demoMode, tasks]);
 
+  const scheduledTasks = useMemo(() => {
+    if (demoMode) {
+      return 7;
+    }
+    return tasks.filter(task => Boolean(task.due_date)).length;
+  }, [demoMode, tasks]);
+
+  const activeReminders = useMemo(() => {
+    if (demoMode) {
+      return 5;
+    }
+    return tasks.filter(task => shouldScheduleReminder(task)).length;
+  }, [demoMode, tasks]);
+
   const totalLists = demoMode ? 6 : lists.length;
   const totalNotes = demoMode ? 12 : notes.length;
   const totalFriends = demoMode ? 3 : friends.length;
@@ -107,6 +122,21 @@ function HomePageContent() {
         primary: tasksLoading ? 'Syncing…' : `${openTasks} active tasks`,
         secondary: tasksLoading ? '' : `${completedTasks} completed`,
         accentGradient: 'bg-gradient-to-br from-zen-500 to-zen-600',
+        accentText: 'text-white',
+        badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
+        badgeText: 'text-zen-600 dark:text-zen-900',
+        footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
+        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
+      },
+      {
+        key: 'calendar',
+        title: 'Calendar',
+        description: 'Glide through a unified schedule of tasks, reminders, and notes.',
+        href: '/calendar',
+        icon: CalendarClock,
+        primary: tasksLoading ? 'Syncing…' : `${scheduledTasks} scheduled`,
+        secondary: tasksLoading ? '' : `${activeReminders} reminders`,
+        accentGradient: 'bg-gradient-to-br from-zen-400 to-warm-500',
         accentText: 'text-white',
         badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
         badgeText: 'text-zen-600 dark:text-zen-900',
@@ -160,11 +190,13 @@ function HomePageContent() {
       },
     ],
     [
+      activeReminders,
       completedTasks,
       friendsLoading,
       listsLoading,
       notesLoading,
       openTasks,
+      scheduledTasks,
       tasksLoading,
       totalFriends,
       totalLists,
