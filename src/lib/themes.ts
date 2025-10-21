@@ -28,16 +28,16 @@ export const themeOptions: ThemeOption[] = [
   {
     id: 'midnight-dark',
     label: 'Midnight dark',
-    description: 'Inky blue gradients with misty teal luminance.',
+    description: 'Velvety indigo shadows with radiant teal and amethyst accents.',
     type: 'dark',
-    preview: ['#0e1622', '#527aa0', '#8fbecb'],
+    preview: ['#0c101c', '#7496c6', '#c08cd4'],
   },
   {
     id: 'forest-dark',
     label: 'Forest dark',
-    description: 'Deep woodland greens offset by smoky violets.',
+    description: 'Lush evergreen depths warmed by emberlit brass highlights.',
     type: 'dark',
-    preview: ['#10211a', '#4f8276', '#9c89ba'],
+    preview: ['#0c1311', '#96c8ae', '#d4a05a'],
   },
 ];
 
