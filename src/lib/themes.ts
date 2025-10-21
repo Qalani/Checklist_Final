@@ -14,30 +14,30 @@ export const themeOptions: ThemeOption[] = [
   {
     id: 'zen-light',
     label: 'Zen light',
-    description: 'Soft neutrals with calming sage greens.',
+    description: 'Cool sky neutrals from the Solace palette with tranquil teal and lilac accents.',
     type: 'light',
-    preview: ['#f8f9fa', '#5a7a5a', '#d9cdb8'],
+    preview: ['#f5f8fa', '#7199b6', '#8474ce'],
   },
   {
     id: 'dawn-light',
     label: 'Dawn light',
-    description: 'Radiant peaches paired with crisp morning sky blues.',
+    description: 'Sun-washed taupes with gentle teal and lavender highlights.',
     type: 'light',
-    preview: ['#fff7ef', '#f08b4d', '#426ecd'],
+    preview: ['#faf0e5', '#bc8c64', '#6ba6a7'],
   },
   {
     id: 'midnight-dark',
     label: 'Midnight dark',
-    description: 'Velvety navy shadows with luminous aqua highlights.',
+    description: 'Inky blue gradients with misty teal luminance.',
     type: 'dark',
-    preview: ['#101523', '#6181c4', '#75ccc3'],
+    preview: ['#0e1622', '#527aa0', '#8fbecb'],
   },
   {
     id: 'forest-dark',
     label: 'Forest dark',
-    description: 'Shadowed evergreens warmed by soft amber light.',
+    description: 'Deep woodland greens offset by smoky violets.',
     type: 'dark',
-    preview: ['#121c17', '#74a786', '#d7b15f'],
+    preview: ['#10211a', '#4f8276', '#9c89ba'],
   },
 ];
 

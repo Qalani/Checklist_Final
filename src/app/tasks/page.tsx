@@ -600,12 +600,12 @@ export default function HomePage() {
   const isLoading = status === 'loading';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
       <div className="relative z-10 min-h-screen">
         <ZenPageHeader
           title="Zen Tasks"
-          subtitle="Your mindful workspace"
+          subtitle="Structure priorities with poise"
           icon={Sparkles}
           backHref="/"
           actions={
@@ -616,7 +616,7 @@ export default function HomePage() {
                   setEditingTask(null);
                   setShowTaskForm(true);
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sage-600 px-4 py-2 font-medium text-white shadow-medium transition-all hover:bg-sage-700 hover:shadow-lift sm:w-auto"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-zen-600 px-4 py-2 font-medium text-white shadow-medium transition-all hover:bg-zen-700 hover:shadow-lift sm:w-auto"
               >
                 <Plus className="h-4 w-4" />
                 New Task
@@ -626,7 +626,7 @@ export default function HomePage() {
                   onClick={() => {
                     void requestNotificationPermission();
                   }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-3 py-2 text-sm font-medium text-zen-600 transition-all hover:border-sage-200 hover:bg-sage-50 sm:w-auto"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-3 py-2 text-sm font-medium text-zen-600 transition-all hover:border-zen-300 hover:bg-zen-50 sm:w-auto"
                 >
                   <Bell className="h-4 w-4" />
                   Enable notifications
@@ -638,7 +638,7 @@ export default function HomePage() {
                 </div>
               ) : null}
               {notificationPermission === 'granted' ? (
-                <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-sage-200 bg-surface/70 px-3 py-2 text-sm text-sage-700 sm:w-auto">
+                <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/75 px-3 py-2 text-sm text-zen-600 sm:w-auto">
                   <Bell className="h-4 w-4" />
                   Notifications on
                 </div>
@@ -653,8 +653,8 @@ export default function HomePage() {
                 onClick={() => setFilterPriority(null)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
                   !filterPriority
-                    ? 'bg-sage-100 text-sage-700'
-                    : 'bg-zen-100 text-zen-600 hover:bg-zen-200'
+                    ? 'bg-zen-100 text-zen-700'
+                    : 'bg-surface/80 text-zen-600 hover:bg-zen-50'
                 }`}
               >
                 All

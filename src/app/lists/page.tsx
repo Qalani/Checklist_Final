@@ -345,12 +345,12 @@ export default function ListsPage() {
   const canManageMembers = sharingRole === 'owner';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
       <div className="relative z-10 min-h-screen flex flex-col">
         <ZenPageHeader
           title="Zen Lists"
-          subtitle="Curate mindful collections"
+          subtitle="Design composed rituals and playbooks"
           icon={ListIcon}
           backHref="/"
           actions={
@@ -362,18 +362,18 @@ export default function ListsPage() {
         />
 
         <main className="flex-1">
-          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+          <section className="max-w-7xl mx-auto px-4 py-10 space-y-8 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 items-start">
               <div className="space-y-4">
-                <h2 className="text-3xl font-semibold text-zen-900">Shape routines, rituals, and shared moments.</h2>
+                <h2 className="text-3xl font-semibold text-zen-900">Shape polished collections that stay in sync.</h2>
                 <p className="text-zen-600 max-w-2xl">
-                  Lists help you organise ideas that don&apos;t fit into traditional tasks. Capture reading plans, packing essentials, or weekly rituals and keep them beautifully organised.
+                  Lists help you orchestrate context—from client check-ins to quarterly rituals—without the clutter. Build elegant reference points and keep every detail harmonised.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={handleOpenCreate}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sage-500/90 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors"
+                    className="inline-flex items-center gap-2 rounded-xl bg-zen-600 px-4 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-zen-700"
                   >
                     <Plus className="w-4 h-4" />
                     New list

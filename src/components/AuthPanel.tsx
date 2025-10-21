@@ -168,8 +168,8 @@ export default function AuthPanel() {
         </h2>
         <p className="text-sm text-zen-600 mt-1">
           {mode === 'sign_in'
-            ? 'Sign in to manage your mindful tasks.'
-            : 'Sign up to start your mindful task journey.'}
+            ? 'Sign in to access your composed Zen workspace.'
+            : 'Sign up to build calm momentum with Zen.'}
         </p>
       </div>
 
@@ -177,7 +177,7 @@ export default function AuthPanel() {
         <button
           type="button"
           onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border-2 border-zen-200 hover:border-sage-500 text-zen-800 font-medium transition-colors disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border-2 border-zen-200 hover:border-zen-400 text-zen-800 font-medium transition-colors disabled:opacity-60"
           disabled={isSubmitting || isResetting || isOAuthLoading}
         >
           <svg

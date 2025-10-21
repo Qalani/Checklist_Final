@@ -8,7 +8,7 @@ import ThemeSwitcher from './ThemeSwitcher';
 
 interface SettingsMenuProps {
   userEmail?: string | null;
-  onSignOut: () => void;
+  onSignOut: () => Promise<void> | void;
 }
 
 type PreferenceKey = 'inAppNotifications' | 'emailDigests';
@@ -49,6 +49,8 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number } | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const updatePanelPosition = useCallback(() => {
     if (!buttonRef.current) {
@@ -143,6 +145,25 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
     }));
   };
 
+  const handleSignOut = useCallback(async () => {
+    if (signingOut) {
+      return;
+    }
+
+    setSignOutError(null);
+    setSigningOut(true);
+
+    try {
+      await Promise.resolve(onSignOut());
+      setOpen(false);
+    } catch (error) {
+      console.error('Failed to sign out', error);
+      setSignOutError('Unable to sign out right now. Please try again.');
+    } finally {
+      setSigningOut(false);
+    }
+  }, [onSignOut, signingOut]);
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -192,7 +213,7 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                     </span>
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-sage-300 text-sage-600 focus:ring-sage-500"
+                      className="mt-1 h-4 w-4 rounded border-zen-300 text-zen-600 focus:ring-zen-400"
                       checked={preferences.inAppNotifications}
                       onChange={() => togglePreference('inAppNotifications')}
                     />
@@ -204,7 +225,7 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                     </span>
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-sage-300 text-sage-600 focus:ring-sage-500"
+                      className="mt-1 h-4 w-4 rounded border-zen-300 text-zen-600 focus:ring-zen-400"
                       checked={preferences.emailDigests}
                       onChange={() => togglePreference('emailDigests')}
                     />
@@ -224,16 +245,23 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                     <LogOut className="h-4 w-4" />
                     Account
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      onSignOut();
-                    }}
-                    className="w-full rounded-xl border border-red-200 bg-red-50/70 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
-                  >
-                    Sign out
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleSignOut();
+                      }}
+                      disabled={signingOut}
+                      className="w-full rounded-xl border border-red-200 bg-red-50/70 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {signingOut ? 'Signing out…' : 'Sign out'}
+                    </button>
+                    {signOutError ? (
+                      <p className="text-xs text-red-600" role="alert" aria-live="polite">
+                        {signOutError}
+                      </p>
+                    ) : null}
+                  </div>
                 </section>
               </div>
             </div>,

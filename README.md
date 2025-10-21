@@ -1,10 +1,10 @@
-# Zen Workspace - Modern Productivity App
+# Zen Workspace – Composed Productivity App
 
-A beautiful, minimalist productivity workspace built with Next.js 15, React 19, TypeScript, and Supabase. Features a clean "Zen Workspace" design with Bento grid layout, drag-and-drop task reordering, categories, priority levels, and real-time sync.
+A sleek, calming productivity workspace built with Next.js 15, React 19, TypeScript, and Supabase. Zen Workspace now embraces the Solace palette, introducing cool sky neutrals, soft gradients, and refined typography across every surface.
 
 ## ✨ Features
 
-- **Zen Workspace Design**: Clean, minimalist interface with sage green accents and soft shadows
+- **Solace palette**: Sleek interface with tranquil gradients, elevated glassmorphism, and composed typography
 - **Bento Grid Layout**: Modern card-based organization with flexible layouts
 - **Task Management**: Create, edit, delete, and complete tasks with ease
 - **Drag & Drop**: Reorder tasks with smooth animations
@@ -205,7 +205,7 @@ src/
 ## 🎨 Design System
 
 ### Color Palette
-- **Zen**: Neutral grays for backgrounds and text
+- **Solace palette**: Cool neutrals for backgrounds and typography
 - **Sage**: Primary green for accents and CTAs
 - **Warm**: Warm neutrals for subtle highlights
 
