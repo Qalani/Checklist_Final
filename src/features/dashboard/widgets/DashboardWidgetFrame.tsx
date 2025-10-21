@@ -36,7 +36,7 @@ export default function DashboardWidgetFrame({
           {description ? <p className="text-sm text-zen-500 dark:text-zen-200">{description}</p> : null}
         </div>
       </header>
-      <div className="min-h-[120px] text-zen-700 dark:text-zen-100">
+      <div className="min-h-[120px] text-zen-700 dark:text-zen-200">
         {isLoading ? (
           <div className="flex h-24 items-center justify-center">
             <div className="h-6 w-6 animate-spin rounded-full border-4 border-sage-200 border-t-sage-500 dark:border-zen-700 dark:border-t-zen-200" />

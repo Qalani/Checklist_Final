@@ -41,7 +41,7 @@ export default function DashboardNotesWidget({ userId }: DashboardNotesWidgetPro
           <p className="text-4xl font-semibold text-zen-900">{data.totalCount}</p>
           <p className="text-sm text-zen-500 dark:text-zen-200">Documents saved</p>
           <div className="rounded-2xl bg-sage-50 p-4 dark:bg-zen-800/30">
-            <p className="text-sm font-medium text-zen-700 dark:text-zen-100">{data.recentTitle ?? 'No recent notes yet'}</p>
+            <p className="text-sm font-medium text-zen-700 dark:text-zen-200">{data.recentTitle ?? 'No recent notes yet'}</p>
             <p className="mt-1 text-xs text-zen-500 dark:text-zen-200">
               {data.lastUpdatedAt ? `Updated ${new Date(data.lastUpdatedAt).toLocaleString()}` : 'Create a note to get started'}
             </p>

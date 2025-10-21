@@ -47,7 +47,7 @@ export default function DashboardProductivityWidget({ userId }: DashboardProduct
             <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-zen-200">Completed</p>
           </div>
           <div className="rounded-2xl bg-sage-50 p-4 text-center dark:bg-zen-800/30">
-            <p className="text-sm font-medium text-zen-700 dark:text-zen-100">{data.nextDueTask ? data.nextDueTask.title : 'No upcoming tasks'}</p>
+            <p className="text-sm font-medium text-zen-700 dark:text-zen-200">{data.nextDueTask ? data.nextDueTask.title : 'No upcoming tasks'}</p>
             <p className="mt-1 text-xs uppercase tracking-wide text-zen-500 dark:text-zen-200">
               {data.nextDueTask?.due_date
                 ? new Date(data.nextDueTask.due_date).toLocaleString(undefined, {
