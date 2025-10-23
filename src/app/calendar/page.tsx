@@ -6,6 +6,7 @@ import {
   addDays,
   addMonths,
   addWeeks,
+  format,
   endOfMonth,
   endOfWeek,
   startOfDay,
@@ -29,9 +30,14 @@ import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ZenPageHeader from '@/components/ZenPageHeader';
 import AccountSummary from '@/components/AccountSummary';
 import { CalendarTimeline } from '@/components/calendar/CalendarTimeline';
+import { CalendarDayPlanner } from '@/components/calendar/CalendarDayPlanner';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useCalendarData } from '@/features/calendar/useCalendarData';
+import { useChecklist } from '@/features/checklist/useChecklist';
+import { useLists } from '@/features/lists/useLists';
+import { useNotes } from '@/features/notes/useNotes';
 import type { CalendarEventRecord, CalendarScope, CalendarTaskMetadata } from '@/features/calendar/types';
+import type { Category, Task } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { getNextReminderOccurrence } from '@/utils/reminders';
 
@@ -80,6 +86,7 @@ export default function CalendarPage() {
   const { user, authChecked, signOut } = useAuthSession();
   const [view, setView] = useState<CalendarView>('month');
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [currentRange, setCurrentRange] = useState<{ start: Date; end: Date }>(() => computeRange('month', new Date()));
   const [scope, setScope] = useState<CalendarScope>('all');
   const [status, setStatus] = useState<StatusMessage>(null);
@@ -106,12 +113,28 @@ export default function CalendarPage() {
     };
   }, [status]);
 
+  useEffect(() => {
+    setSelectedDate((previous) => {
+      const startTime = currentRange.start.getTime();
+      const endTime = currentRange.end.getTime();
+      const previousTime = previous.getTime();
+      if (previousTime < startTime || previousTime > endTime) {
+        return new Date(currentDate.getTime());
+      }
+      return previous;
+    });
+  }, [currentDate, currentRange.end, currentRange.start]);
+
   const { events, isLoading, isValidating, error, refresh } = useCalendarData(user?.id ?? null, {
     start: currentRange.start,
     end: currentRange.end,
     scope,
     pause: !authChecked,
   });
+
+  const { categories, saveTask, createCategory } = useChecklist(user?.id ?? null);
+  const { createList } = useLists(user?.id ?? null);
+  const { createNote } = useNotes(user?.id ?? null);
 
   const userEmail = useMemo(() => user?.email ?? user?.user_metadata?.email ?? null, [user]);
 
@@ -124,15 +147,27 @@ export default function CalendarPage() {
       setView(nextView);
       const recalculatedRange = computeRange(nextView, currentDate);
       setCurrentRange(recalculatedRange);
+      setSelectedDate((previous) => {
+        const candidate = previous ?? new Date(currentDate.getTime());
+        const startTime = recalculatedRange.start.getTime();
+        const endTime = recalculatedRange.end.getTime();
+        const candidateTime = candidate.getTime();
+        if (candidateTime < startTime || candidateTime > endTime) {
+          return new Date(currentDate.getTime());
+        }
+        return candidate;
+      });
     },
     [currentDate],
   );
 
   const handleNavigate = useCallback(
     (nextDate: Date) => {
-      setCurrentDate(nextDate);
-      const recalculatedRange = computeRange(view, nextDate);
+      const normalized = new Date(nextDate.getTime());
+      setCurrentDate(normalized);
+      const recalculatedRange = computeRange(view, normalized);
       setCurrentRange(recalculatedRange);
+      setSelectedDate(normalized);
     },
     [view],
   );
@@ -141,9 +176,11 @@ export default function CalendarPage() {
     (direction: 'prev' | 'next') => {
       setCurrentDate((previous) => {
         const updated = shiftDate(view, previous, direction);
-        const recalculatedRange = computeRange(view, updated);
+        const normalized = new Date(updated.getTime());
+        const recalculatedRange = computeRange(view, normalized);
         setCurrentRange(recalculatedRange);
-        return updated;
+        setSelectedDate(normalized);
+        return normalized;
       });
     },
     [view],
@@ -153,6 +190,7 @@ export default function CalendarPage() {
     const today = new Date();
     setCurrentDate(today);
     setCurrentRange(computeRange(view, today));
+    setSelectedDate(today);
   }, [view]);
 
   const handleEventDrop = useCallback(
@@ -213,6 +251,119 @@ export default function CalendarPage() {
       }
     },
     [refresh],
+  );
+
+  const handleSelectDate = useCallback(
+    (nextDate: Date) => {
+      const normalized = new Date(nextDate.getTime());
+      setSelectedDate(normalized);
+      setCurrentDate(normalized);
+      setCurrentRange(computeRange(view, normalized));
+    },
+    [view],
+  );
+
+  const handlePlannerTaskCreate = useCallback(
+    async (taskInput: Partial<Task>): Promise<{ success: boolean; error?: string }> => {
+      const result = await saveTask(taskInput, null);
+      if (result && 'error' in result && result.error) {
+        const message = result.error;
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+
+      const dueDateSource = taskInput.due_date ? new Date(taskInput.due_date) : selectedDate;
+      const dueLabel = Number.isNaN(dueDateSource.getTime())
+        ? 'the selected day'
+        : format(dueDateSource, 'MMM d, yyyy');
+      setStatus({ type: 'success', message: `Task scheduled for ${dueLabel}.` });
+
+      try {
+        await refresh();
+      } catch (error) {
+        console.error('Failed to refresh calendar after creating task', error);
+      }
+
+      return { success: true };
+    },
+    [refresh, saveTask, selectedDate],
+  );
+
+  const handlePlannerListCreate = useCallback(
+    async (
+      input: { name: string; description?: string; createdAt?: string },
+    ): Promise<{ success: boolean; error?: string }> => {
+      const result = await createList(input);
+      if (result && 'error' in result && result.error) {
+        const message = result.error;
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+
+      const label = format(selectedDate, 'MMM d, yyyy');
+      setStatus({ type: 'success', message: `List created for ${label}.` });
+
+      return { success: true };
+    },
+    [createList, selectedDate],
+  );
+
+  const handlePlannerNoteCreate = useCallback(
+    async (
+      input: { title?: string; content?: string; timestamp?: string },
+    ): Promise<{ success: boolean; error?: string }> => {
+      const result = await createNote(input);
+      if (result && 'error' in result && result.error) {
+        const message = result.error;
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+
+      let noteDate = selectedDate;
+      if (result && 'note' in result && result.note) {
+        const stamp = result.note.updated_at ?? result.note.created_at;
+        if (stamp) {
+          const parsed = new Date(stamp);
+          if (!Number.isNaN(parsed.getTime())) {
+            noteDate = parsed;
+          }
+        }
+      } else if (input.timestamp) {
+        const parsed = new Date(input.timestamp);
+        if (!Number.isNaN(parsed.getTime())) {
+          noteDate = parsed;
+        }
+      }
+
+      const noteLabel = format(noteDate, 'MMM d, yyyy');
+      setStatus({ type: 'success', message: `Note saved for ${noteLabel}.` });
+
+      try {
+        await refresh();
+      } catch (error) {
+        console.error('Failed to refresh calendar after creating note', error);
+      }
+
+      return { success: true };
+    },
+    [createNote, refresh, selectedDate],
+  );
+
+  const handlePlannerCategoryCreate = useCallback(
+    async (
+      input: { name: string; color: string },
+    ): Promise<{ success: boolean; error?: string; category?: Category }> => {
+      try {
+        const category = await createCategory(input);
+        return { success: true, category };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to create category. Please try again.';
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+    },
+    [createCategory],
   );
 
   const statusMessage = status ?? (error ? { type: 'error', message: error } : null);
@@ -343,8 +494,18 @@ export default function CalendarPage() {
               onViewChange={handleViewChange}
               onNavigate={handleNavigate}
               onEventDrop={handleEventDrop}
+              onSelectDate={handleSelectDate}
+              selectedDate={selectedDate}
             />
           </div>
+          <CalendarDayPlanner
+            date={selectedDate}
+            categories={categories}
+            onCreateTask={handlePlannerTaskCreate}
+            onCreateList={handlePlannerListCreate}
+            onCreateNote={handlePlannerNoteCreate}
+            onCreateCategory={handlePlannerCategoryCreate}
+          />
         </main>
       </div>
     </div>

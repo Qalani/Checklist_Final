@@ -1,15 +1,16 @@
 'use client';
 
-import { useCallback, useMemo, type ComponentType } from 'react';
+import { useCallback, useMemo, type ComponentType, type ReactNode } from 'react';
 import {
   Calendar,
   dateFnsLocalizer,
   type CalendarProps,
   type Event,
   type View,
+  type SlotInfo,
 } from 'react-big-calendar';
 import withDragAndDrop, { type EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { format, parse, startOfWeek, getDay, isSameDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { CalendarCheck, Bell, StickyNote, Users } from 'lucide-react';
 
@@ -34,6 +35,8 @@ interface CalendarTimelineProps {
   onViewChange?: (view: CalendarView) => void;
   onNavigate?: (date: Date) => void;
   onEventDrop?: (payload: { record: CalendarEventRecord; start: Date; end: Date; isAllDay: boolean }) => void;
+  onSelectDate?: (date: Date) => void;
+  selectedDate?: Date | null;
 }
 
 interface TimelineEvent extends Event {
@@ -149,6 +152,8 @@ export function CalendarTimeline({
   onViewChange,
   onNavigate,
   onEventDrop,
+  onSelectDate,
+  selectedDate = null,
 }: CalendarTimelineProps) {
   const timelineEvents = useMemo<TimelineEvent[]>(() => {
     return events.map((record) => {
@@ -259,6 +264,53 @@ export function CalendarTimeline({
     [onNavigate],
   );
 
+  const handleSelectSlot = useCallback(
+    (slotInfo: SlotInfo) => {
+      if (!onSelectDate) {
+        return;
+      }
+      const nextDate = new Date(slotInfo.start);
+      onSelectDate(nextDate);
+    },
+    [onSelectDate],
+  );
+
+  const handleSelectEvent = useCallback(
+    (event: TimelineEvent) => {
+      onSelectDate?.(new Date(event.start));
+    },
+    [onSelectDate],
+  );
+
+  const dayPropGetter = useCallback(
+    (value: Date) => {
+      if (!selectedDate) {
+        return {};
+      }
+      return isSameDay(value, selectedDate) ? { className: 'calendar-selected-day' } : {};
+    },
+    [selectedDate],
+  );
+
+  const slotPropGetter = useCallback(
+    (value: Date) => {
+      if (!selectedDate) {
+        return {};
+      }
+      return isSameDay(value, selectedDate) ? { className: 'calendar-selected-slot' } : {};
+    },
+    [selectedDate],
+  );
+
+  const DateCellWrapper = useMemo(() => {
+    return function CalendarDateCellWrapper({ value, children }: { value: Date; children?: ReactNode }) {
+      const isSelected = selectedDate ? isSameDay(value, selectedDate) : false;
+      return (
+        <div className={isSelected ? 'calendar-selected-date-cell' : undefined}>{children}</div>
+      );
+    };
+  }, [selectedDate]);
+
   return (
     <div className="calendar-shell relative overflow-hidden rounded-3xl border border-zen-200/70 bg-surface/80 p-4 shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-zen-700/40 dark:bg-zen-950/40">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-zen-100/75 via-transparent to-zen-50/60 dark:from-zen-700/30 dark:via-transparent dark:to-zen-900/40" />
@@ -273,27 +325,24 @@ export function CalendarTimeline({
         onView={handleViewChange}
         onNavigate={handleNavigate}
         onEventDrop={handleEventDrop}
+        onSelectSlot={handleSelectSlot}
+        onSelectEvent={handleSelectEvent}
         draggableAccessor={draggableAccessor}
         resizableAccessor={() => false}
-        selectable={false}
+        selectable="ignoreEvents"
         popup
         longPressThreshold={150}
         className="calendar-timeline relative z-10"
-        components={{ event: EventContent }}
+        components={{ event: EventContent, dateCellWrapper: DateCellWrapper }}
         eventPropGetter={eventPropGetter}
+        dayPropGetter={dayPropGetter}
+        slotPropGetter={slotPropGetter}
         dayLayoutAlgorithm="no-overlap"
         showAllEvents
       />
       {isLoading ? (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface/70 backdrop-blur-md">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-zen-200 border-t-zen-500" />
-        </div>
-      ) : null}
-      {!isLoading && timelineEvents.length === 0 ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="rounded-2xl border border-zen-200/70 bg-surface/95 px-6 py-4 text-sm text-zen-600 shadow-soft dark:border-zen-700/40 dark:text-zen-200">
-            No calendar events in this range yet.
-          </div>
         </div>
       ) : null}
     </div>

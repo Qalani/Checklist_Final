@@ -139,6 +139,39 @@
   background: rgba(var(--color-zen-200), 0.08);
 }
 
+.calendar-timeline .calendar-selected-day {
+  background: rgba(var(--color-zen-500), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--color-zen-500), 0.25);
+}
+
+[data-theme$='dark'] .calendar-timeline .calendar-selected-day {
+  background: rgba(var(--color-zen-200), 0.16);
+  box-shadow: inset 0 0 0 1px rgba(var(--color-zen-100), 0.2);
+}
+
+.calendar-timeline .calendar-selected-slot {
+  background: rgba(var(--color-zen-500), 0.14);
+}
+
+[data-theme$='dark'] .calendar-timeline .calendar-selected-slot {
+  background: rgba(var(--color-zen-200), 0.2);
+}
+
+.calendar-timeline .calendar-selected-date-cell .rbc-button-link {
+  background: rgba(var(--color-zen-500), 0.18);
+  color: rgb(var(--color-zen-800));
+  border-radius: 9999px;
+  padding: 0.2rem 0.55rem;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(var(--color-zen-500), 0.24);
+}
+
+[data-theme$='dark'] .calendar-timeline .calendar-selected-date-cell .rbc-button-link {
+  background: rgba(var(--color-zen-400), 0.3);
+  color: rgba(var(--color-zen-50), 0.96);
+  box-shadow: 0 12px 30px rgba(var(--color-zen-400), 0.28);
+}
+
 .calendar-timeline .rbc-month-row + .rbc-month-row {
   border-top: 1px solid rgba(var(--color-zen-200), 0.35);
 }
