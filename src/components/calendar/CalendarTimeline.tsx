@@ -98,26 +98,29 @@ function EventContent({ event }: { event: TimelineEvent }) {
   const showShared = record.scope === 'shared';
 
   return (
-    <div className="flex flex-col gap-1 text-xs leading-tight text-zen-900 dark:text-zen-900">
+    <div className="flex flex-col gap-1 text-xs leading-tight text-white">
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1 font-medium">
-          <Icon className="h-3.5 w-3.5" />
-          <span className="truncate">{record.title}</span>
+        <span className="inline-flex items-center gap-1 text-[13px] font-semibold leading-tight">
+          <Icon className="h-4 w-4 text-white/80" />
+          <span className="calendar-event-title text-white">{record.title}</span>
         </span>
-        {showShared ? <Users className="h-3 w-3 text-zen-700 dark:text-zen-700" /> : null}
+        {showShared ? <Users className="h-3.5 w-3.5 text-white/75" /> : null}
       </div>
-      <div className="flex items-center justify-between gap-2 text-[11px] text-zen-700/80 dark:text-zen-700">
-        <span className="truncate">
+      <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-white/80">
+        <span className="inline-flex items-center gap-1 truncate">
           {categoryLabel}
           {taskMetadata?.categoryColor ? (
             <span
               className="ml-1 inline-flex h-2 w-2 rounded-full"
-              style={{ backgroundColor: taskMetadata.categoryColor }}
+              style={{
+                backgroundColor: taskMetadata.categoryColor,
+                boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.35)',
+              }}
             />
           ) : null}
         </span>
         {!event.allDay && event.start ? (
-          <span>{event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="font-semibold text-white">{event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         ) : null}
       </div>
       {isNote ? (
@@ -127,7 +130,7 @@ function EventContent({ event }: { event: TimelineEvent }) {
             return null;
           }
           return (
-            <p className="text-[10px] text-zen-600/80 dark:text-zen-700">
+            <p className="text-[10px] text-white/70">
               Updated {new Date(updatedAt).toLocaleString([], { month: 'short', day: 'numeric' })}
             </p>
           );
@@ -166,31 +169,37 @@ export function CalendarTimeline({
 
   const eventPropGetter = useCallback((event: TimelineEvent) => {
     const record = event.resource;
-    let background = 'rgba(var(--color-zen-200), 0.9)';
+
+    let backgroundColor = 'rgba(var(--color-zen-500), 0.92)';
+    let backgroundImage = 'linear-gradient(135deg, rgba(var(--color-zen-500), 0.95), rgba(var(--color-zen-400), 0.86))';
     let border = 'rgba(var(--color-zen-400), 0.55)';
-    let color = 'rgb(var(--color-zen-900))';
 
     if (record.type === 'task_reminder') {
-      background = 'rgba(var(--color-warm-200), 0.85)';
-      border = 'rgba(var(--color-warm-400), 0.55)';
+      backgroundColor = 'rgba(var(--color-warm-500), 0.94)';
+      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-500), 0.96), rgba(var(--color-warm-400), 0.84))';
+      border = 'rgba(var(--color-warm-400), 0.6)';
     } else if (record.type === 'note') {
-      background = 'rgba(var(--color-warm-100), 0.85)';
-      border = 'rgba(var(--color-warm-300), 0.45)';
+      backgroundColor = 'rgba(var(--color-warm-400), 0.92)';
+      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-400), 0.94), rgba(var(--color-warm-300), 0.82))';
+      border = 'rgba(var(--color-warm-300), 0.6)';
     }
 
     if (record.scope === 'shared') {
-      background = 'rgba(var(--color-sage-200), 0.85)';
-      border = 'rgba(var(--color-sage-500), 0.55)';
+      backgroundColor = 'rgba(var(--color-sage-500), 0.94)';
+      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-sage-500), 0.96), rgba(var(--color-sage-400), 0.84))';
+      border = 'rgba(var(--color-sage-400), 0.65)';
     }
 
     return {
       style: {
-        backgroundColor: background,
+        backgroundColor,
+        backgroundImage,
         border: `1px solid ${border}`,
-        borderRadius: '14px',
-        color,
-        boxShadow: '0 10px 25px rgba(15, 23, 42, 0.08)',
-        padding: '8px 10px',
+        borderRadius: '18px',
+        color: 'white',
+        boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
+        padding: '10px 12px',
+        backdropFilter: 'blur(6px)',
       },
     };
   }, []);
@@ -251,7 +260,9 @@ export function CalendarTimeline({
   );
 
   return (
-    <div className="relative">
+    <div className="calendar-shell relative overflow-hidden rounded-3xl border border-zen-200/70 bg-surface/80 p-4 shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-zen-700/40 dark:bg-zen-950/40">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-zen-100/75 via-transparent to-zen-50/60 dark:from-zen-700/30 dark:via-transparent dark:to-zen-900/40" />
+      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-zen-200/45 blur-3xl dark:bg-zen-700/30" />
       <DragAndDropCalendar
         date={date}
         view={view}
@@ -267,20 +278,20 @@ export function CalendarTimeline({
         selectable={false}
         popup
         longPressThreshold={150}
-        className="calendar-timeline"
+        className="calendar-timeline relative z-10"
         components={{ event: EventContent }}
         eventPropGetter={eventPropGetter}
         dayLayoutAlgorithm="no-overlap"
         showAllEvents
       />
       {isLoading ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-surface/60 backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface/70 backdrop-blur-md">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-zen-200 border-t-zen-500" />
         </div>
       ) : null}
       {!isLoading && timelineEvents.length === 0 ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="rounded-2xl border border-zen-200/70 bg-surface/90 px-6 py-4 text-sm text-zen-600 shadow-soft dark:border-zen-700/40 dark:text-zen-200">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+          <div className="rounded-2xl border border-zen-200/70 bg-surface/95 px-6 py-4 text-sm text-zen-600 shadow-soft dark:border-zen-700/40 dark:text-zen-200">
             No calendar events in this range yet.
           </div>
         </div>
