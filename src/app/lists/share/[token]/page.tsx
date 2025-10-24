@@ -74,8 +74,9 @@ function createMetadataDescription(list: PublicListRecord | null): string | unde
   return 'View this polished Zen list without creating an account.';
 }
 
-export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
-  const list = await fetchPublicList(params.token);
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const list = await fetchPublicList(token);
 
   return {
     title: list ? `${list.name} • Shared Zen list` : 'Shared list unavailable • Zen Lists',
@@ -100,8 +101,9 @@ function formatDate(value: string | null) {
   });
 }
 
-export default async function PublicListPage({ params }: { params: { token: string } }) {
-  const list = await fetchPublicList(params.token);
+export default async function PublicListPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const list = await fetchPublicList(token);
 
   if (!list) {
     notFound();
