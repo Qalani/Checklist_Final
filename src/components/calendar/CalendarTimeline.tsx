@@ -314,6 +314,16 @@ export function CalendarTimeline({
     };
   }, [selectedDate]);
 
+  const calendarHeight = useMemo(() => {
+    if (view === 'month') {
+      return 720;
+    }
+    if (view === 'week') {
+      return 840;
+    }
+    return 680;
+  }, [view]);
+
   return (
     <div className="calendar-shell relative overflow-hidden rounded-3xl border border-zen-200/70 bg-surface/80 p-4 shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-zen-700/40 dark:bg-zen-950/40">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-zen-100/75 via-transparent to-zen-50/60 dark:from-zen-700/30 dark:via-transparent dark:to-zen-900/40" />
@@ -342,6 +352,7 @@ export function CalendarTimeline({
         slotPropGetter={slotPropGetter}
         dayLayoutAlgorithm="no-overlap"
         showAllEvents
+        style={{ height: calendarHeight }}
       />
       {isLoading ? (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface/70 backdrop-blur-md">
