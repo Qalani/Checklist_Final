@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   List as ListIcon,
@@ -15,6 +15,12 @@ import {
   Loader2,
   X,
   UserMinus,
+  Copy,
+  Check,
+  RefreshCcw,
+  Globe2,
+  Link as LinkIcon,
+  ArrowUpRight,
 } from 'lucide-react';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
@@ -91,6 +97,9 @@ export default function ListsPage() {
     inviteMember,
     updateMemberRole,
     removeMember,
+    enablePublicShare,
+    rotatePublicShare,
+    disablePublicShare,
   } = useLists(user?.id ?? null);
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM);
   const [editingList, setEditingList] = useState<List | null>(null);
@@ -105,6 +114,11 @@ export default function ListsPage() {
   const [inviteRole, setInviteRole] = useState<MemberRole>('viewer');
   const [memberSubmitting, setMemberSubmitting] = useState(false);
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
+  const [shareActionError, setShareActionError] = useState<string | null>(null);
+  const [shareSubmitting, setShareSubmitting] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [shareOrigin, setShareOrigin] = useState('');
+  const shareCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -117,6 +131,14 @@ export default function ListsPage() {
 
     return friends.filter(friend => !memberEmails.has(friend.friend_email.toLowerCase()));
   }, [friends, members]);
+
+  const shareUrl = useMemo(() => {
+    if (!sharingList?.public_share_token || !shareOrigin) {
+      return '';
+    }
+
+    return `${shareOrigin}/lists/share/${sharingList.public_share_token}`;
+  }, [shareOrigin, sharingList?.public_share_token]);
 
   useEffect(() => {
     if (!authChecked) {
@@ -135,6 +157,30 @@ export default function ListsPage() {
       setFormError(null);
     }
   }, [showForm]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setShareOrigin(window.location.origin);
+    }
+
+    return () => {
+      if (shareCopyTimeoutRef.current) {
+        clearTimeout(shareCopyTimeoutRef.current);
+        shareCopyTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sharingList) {
+      return;
+    }
+
+    const latest = lists.find(list => list.id === sharingList.id);
+    if (latest && latest !== sharingList) {
+      setSharingList(latest);
+    }
+  }, [lists, sharingList]);
 
   const resolveRole = (list: List): MemberRole => list.access_role ?? 'owner';
 
@@ -224,6 +270,8 @@ export default function ListsPage() {
     setInviteFriendId('');
     setInviteRole('viewer');
     setMemberError(null);
+    setShareActionError(null);
+    setShareLinkCopied(false);
     setMembersLoading(true);
 
     const result = await loadMembers(list.id);
@@ -245,6 +293,13 @@ export default function ListsPage() {
     setInviteRole('viewer');
     setMemberSubmitting(false);
     setMemberActionId(null);
+    setShareActionError(null);
+    setShareLinkCopied(false);
+    setShareSubmitting(false);
+    if (shareCopyTimeoutRef.current) {
+      clearTimeout(shareCopyTimeoutRef.current);
+      shareCopyTimeoutRef.current = null;
+    }
   };
 
   const handleInvite = async () => {
@@ -337,12 +392,125 @@ export default function ListsPage() {
     }
   };
 
+  const handleEnablePublicShare = async () => {
+    if (!sharingList) {
+      return;
+    }
+
+    const listId = sharingList.id;
+    setShareSubmitting(true);
+    setShareActionError(null);
+
+    const result = await enablePublicShare(listId);
+    if ('error' in result) {
+      setShareActionError(result.error);
+    } else if (result?.token) {
+      setSharingList(prev => (prev && prev.id === listId ? { ...prev, public_share_token: result.token, public_share_enabled: true } : prev));
+      setShareLinkCopied(false);
+    }
+
+    setShareSubmitting(false);
+  };
+
+  const handleRotatePublicShare = async () => {
+    if (!sharingList) {
+      return;
+    }
+
+    const listId = sharingList.id;
+    setShareSubmitting(true);
+    setShareActionError(null);
+
+    const result = await rotatePublicShare(listId);
+    if ('error' in result) {
+      setShareActionError(result.error);
+    } else if (result?.token) {
+      setSharingList(prev => (prev && prev.id === listId ? { ...prev, public_share_token: result.token, public_share_enabled: true } : prev));
+      setShareLinkCopied(false);
+    }
+
+    setShareSubmitting(false);
+  };
+
+  const handleDisablePublicShare = async () => {
+    if (!sharingList) {
+      return;
+    }
+
+    const listId = sharingList.id;
+    const confirmed =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm('Disable public sharing? Existing share links will immediately stop working.');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setShareSubmitting(true);
+    setShareActionError(null);
+
+    const result = await disablePublicShare(listId);
+    if (result && 'error' in result) {
+      setShareActionError(result.error);
+    } else {
+      setSharingList(prev => (prev && prev.id === listId ? { ...prev, public_share_token: null, public_share_enabled: false } : prev));
+      setShareLinkCopied(false);
+    }
+
+    setShareSubmitting(false);
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareUrl) {
+      setShareActionError('Enable public sharing to generate a link you can copy.');
+      return;
+    }
+
+    setShareActionError(null);
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareLinkCopied(true);
+        if (shareCopyTimeoutRef.current) {
+          clearTimeout(shareCopyTimeoutRef.current);
+        }
+        shareCopyTimeoutRef.current = setTimeout(() => {
+          setShareLinkCopied(false);
+          shareCopyTimeoutRef.current = null;
+        }, 2000);
+        return;
+      }
+
+      throw new Error('Clipboard access is not available in this browser.');
+    } catch (error) {
+      setShareActionError(
+        error instanceof Error
+          ? `${error.message} Select the link below to copy it manually.`
+          : 'Unable to copy the link automatically. Select the link below to copy it manually.',
+      );
+    }
+  };
+
+  const handlePreviewShareLink = () => {
+    if (!shareUrl) {
+      setShareActionError('Enable public sharing to preview the link.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   if (!authChecked || !user) {
     return <LoadingScreen />;
   }
 
   const sharingRole = sharingList ? resolveRole(sharingList) : null;
   const canManageMembers = sharingRole === 'owner';
+  const shareIsActive = Boolean(sharingList?.public_share_enabled && sharingList.public_share_token);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
@@ -635,6 +803,122 @@ export default function ListsPage() {
               </div>
 
               <div className="mt-6 grid gap-4">
+                <div className="rounded-2xl border border-zen-200 bg-surface/90 shadow-soft p-5 space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zen-100 text-zen-700 text-xs font-medium">
+                        <Globe2 className="w-3 h-3" />
+                        Share with a link
+                      </div>
+                      <p className="text-sm text-zen-600">
+                        {canManageMembers
+                          ? 'Generate a polished public view to share with anyone—even without an account.'
+                          : 'The owner can create a public link so anyone can read this list without signing in.'}
+                      </p>
+                    </div>
+                    {canManageMembers && shareIsActive && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRotatePublicShare()}
+                        disabled={shareSubmitting}
+                        className="inline-flex items-center gap-2 self-start rounded-xl border border-zen-200 px-3 py-2 text-xs font-medium text-zen-600 transition-colors hover:border-zen-300 hover:text-zen-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {shareSubmitting ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RefreshCcw className="w-3 h-3" />
+                        )}
+                        Refresh link
+                      </button>
+                    )}
+                  </div>
+
+                  {shareActionError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                      {shareActionError}
+                    </div>
+                  )}
+
+                  {shareIsActive && sharingList?.public_share_token ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 rounded-xl border border-zen-200 bg-zen-50 px-3 py-2 text-xs text-zen-600">
+                            <LinkIcon className="w-4 h-4 shrink-0 text-zen-400" />
+                            <span className="truncate">
+                              {shareUrl || 'Link will appear after the page loads.'}
+                            </span>
+                          </div>
+                        </div>
+                        {canManageMembers && (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleCopyShareLink()}
+                              disabled={shareSubmitting}
+                              className="inline-flex items-center gap-2 rounded-xl bg-sage-500 px-3 py-2 text-xs font-medium text-white shadow-soft transition-colors hover:bg-sage-600 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {shareSubmitting ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : shareLinkCopied ? (
+                                <Check className="w-3 h-3" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                              {shareLinkCopied ? 'Copied' : 'Copy link'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handlePreviewShareLink}
+                              disabled={shareSubmitting}
+                              className="inline-flex items-center gap-2 rounded-xl border border-zen-200 px-3 py-2 text-xs font-medium text-zen-600 transition-colors hover:border-zen-300 hover:text-zen-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <ArrowUpRight className="w-3 h-3" />
+                              Preview
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDisablePublicShare()}
+                              disabled={shareSubmitting}
+                              className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-500 transition-colors hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {shareSubmitting ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <X className="w-3 h-3" />
+                              )}
+                              Stop sharing
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {!canManageMembers && (
+                        <p className="text-xs text-zen-500">
+                          Share this link carefully—anyone with it can read the list.
+                        </p>
+                      )}
+                    </div>
+                  ) : canManageMembers ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleEnablePublicShare()}
+                      disabled={shareSubmitting}
+                      className="inline-flex items-center gap-2 rounded-xl bg-zen-600 px-4 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-zen-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {shareSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Globe2 className="w-4 h-4" />
+                      )}
+                      Enable public link
+                    </button>
+                  ) : (
+                    <p className="text-xs text-zen-500">
+                      Only owners can enable a public share link for this list.
+                    </p>
+                  )}
+                </div>
+
                 {canManageMembers ? (
                   <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
                     <div className="space-y-2">

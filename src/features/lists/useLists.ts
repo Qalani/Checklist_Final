@@ -39,6 +39,9 @@ export interface UseListsResult extends ListsState {
   inviteMember: (listId: string, email: string, role: ListMemberRole) => Promise<{ member: ListMember } | ErrorResult>;
   updateMemberRole: (memberId: string, role: ListMemberRole) => Promise<{ member: ListMember } | ErrorResult>;
   removeMember: (memberId: string) => Promise<void | ErrorResult>;
+  enablePublicShare: (listId: string) => Promise<{ token: string } | ErrorResult>;
+  rotatePublicShare: (listId: string) => Promise<{ token: string } | ErrorResult>;
+  disablePublicShare: (listId: string) => Promise<void | ErrorResult>;
   refresh: (force?: boolean) => Promise<void>;
 }
 
@@ -64,6 +67,7 @@ interface ListMembershipRow {
     description: string | null;
     created_at: string | null;
     user_id: string;
+    public_share: { token: string }[] | null;
   } | null;
 }
 
@@ -79,7 +83,8 @@ export async function fetchLists(userId: string): Promise<List[]> {
           name,
           description,
           created_at,
-          user_id
+          user_id,
+          public_share:list_public_shares(token)
         )
       `,
     )
@@ -97,6 +102,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
     .filter(record => record.list !== null)
     .map(record => {
       const list = record.list!;
+      const shareRecord = Array.isArray(list.public_share) ? list.public_share[0] : null;
       return {
         id: list.id,
         name: list.name,
@@ -105,6 +111,8 @@ export async function fetchLists(userId: string): Promise<List[]> {
         user_id: list.user_id,
         owner_id: list.user_id,
         access_role: record.role,
+        public_share_token: shareRecord?.token ?? null,
+        public_share_enabled: Boolean(shareRecord?.token),
       } satisfies List;
     });
 }
@@ -321,6 +329,8 @@ export function useLists(userId: string | null): UseListsResult {
                 user_id: data.user_id,
                 owner_id: data.user_id,
                 access_role: 'owner',
+                public_share_token: null,
+                public_share_enabled: false,
               },
             ],
             status: prev.status === 'idle' ? 'ready' : prev.status,
@@ -513,6 +523,145 @@ export function useLists(userId: string | null): UseListsResult {
     [],
   );
 
+  const enablePublicShare = useCallback<UseListsResult['enablePublicShare']>(
+    async (listId) => {
+      if (!userId) {
+        return { error: 'You must be signed in to manage public sharing.' };
+      }
+
+      const existing = listsRef.current.find(list => list.id === listId);
+      if (!existing) {
+        return { error: 'List not found.' };
+      }
+
+      if (existing.access_role !== 'owner') {
+        return { error: 'Only owners can enable public sharing.' };
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('enable_list_public_share', {
+          list_uuid: listId,
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Unable to enable public sharing.');
+        }
+
+        const share = data as { token?: string | null } | null;
+        const token = share?.token ?? null;
+
+        if (!token) {
+          throw new Error('Public share token was not returned.');
+        }
+
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === listId
+              ? { ...list, public_share_token: token, public_share_enabled: true }
+              : list,
+          ),
+        }));
+
+        return { token };
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to enable public sharing.') };
+      }
+    },
+    [userId],
+  );
+
+  const rotatePublicShare = useCallback<UseListsResult['rotatePublicShare']>(
+    async (listId) => {
+      if (!userId) {
+        return { error: 'You must be signed in to rotate public sharing.' };
+      }
+
+      const existing = listsRef.current.find(list => list.id === listId);
+      if (!existing) {
+        return { error: 'List not found.' };
+      }
+
+      if (existing.access_role !== 'owner') {
+        return { error: 'Only owners can rotate public sharing.' };
+      }
+
+      if (!existing.public_share_enabled || !existing.public_share_token) {
+        return { error: 'Public sharing is not enabled for this list.' };
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('rotate_list_public_share', {
+          list_uuid: listId,
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Unable to refresh the share link.');
+        }
+
+        const share = data as { token?: string | null } | null;
+        const token = share?.token ?? null;
+
+        if (!token) {
+          throw new Error('Public share token was not returned.');
+        }
+
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === listId
+              ? { ...list, public_share_token: token, public_share_enabled: true }
+              : list,
+          ),
+        }));
+
+        return { token };
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to refresh the share link.') };
+      }
+    },
+    [userId],
+  );
+
+  const disablePublicShare = useCallback<UseListsResult['disablePublicShare']>(
+    async (listId) => {
+      if (!userId) {
+        return { error: 'You must be signed in to disable public sharing.' };
+      }
+
+      const existing = listsRef.current.find(list => list.id === listId);
+      if (!existing) {
+        return { error: 'List not found.' };
+      }
+
+      if (existing.access_role !== 'owner') {
+        return { error: 'Only owners can disable public sharing.' };
+      }
+
+      try {
+        const { error } = await supabase.rpc('disable_list_public_share', {
+          list_uuid: listId,
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Unable to disable public sharing.');
+        }
+
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === listId
+              ? { ...list, public_share_token: null, public_share_enabled: false }
+              : list,
+          ),
+        }));
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to disable public sharing.') };
+      }
+    },
+    [userId],
+  );
+
   return {
     ...state,
     createList,
@@ -522,6 +671,9 @@ export function useLists(userId: string | null): UseListsResult {
     inviteMember,
     updateMemberRole,
     removeMember,
+    enablePublicShare,
+    rotatePublicShare,
+    disablePublicShare,
     refresh: (force) => runRefresh(force),
   };
 }
