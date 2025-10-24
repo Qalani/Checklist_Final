@@ -36,7 +36,9 @@ interface NoteRow {
 }
 
 interface UseNotesResult extends NotesState {
-  createNote: (input?: { title?: string; content?: string }) => Promise<{ note: Note } | ErrorResult | void>;
+  createNote: (
+    input?: { title?: string; content?: string; timestamp?: string | Date },
+  ) => Promise<{ note: Note } | ErrorResult | void>;
   updateNote: (
     id: string,
     input: { title?: string; content?: string },
@@ -243,19 +245,41 @@ export function useNotes(userId: string | null): UseNotesResult {
       const draftTitle = input.title?.trim();
       const baseTitle = draftTitle && draftTitle.length > 0 ? draftTitle : 'Untitled document';
       const rawContent = input.content ?? '';
+      const timestampInput = input.timestamp;
+      let isoTimestamp: string | null = null;
+
+      if (timestampInput instanceof Date) {
+        const parsed = new Date(timestampInput.getTime());
+        if (!Number.isNaN(parsed.getTime())) {
+          isoTimestamp = parsed.toISOString();
+        }
+      } else if (typeof timestampInput === 'string' && timestampInput.trim().length > 0) {
+        const parsed = new Date(timestampInput);
+        if (!Number.isNaN(parsed.getTime())) {
+          isoTimestamp = parsed.toISOString();
+        }
+      }
+
       const { html, summary, wordCount } = computeNoteMetadata(rawContent);
 
       setState(prev => ({ ...prev, syncing: true }));
 
+      const record: Partial<NoteRow> & { user_id: string } = {
+        user_id: userId,
+        title: baseTitle,
+        content: html,
+        summary,
+        word_count: wordCount,
+      };
+
+      if (isoTimestamp) {
+        record.created_at = isoTimestamp;
+        record.updated_at = isoTimestamp;
+      }
+
       const { data, error } = await supabase
         .from('notes')
-        .insert({
-          user_id: userId,
-          title: baseTitle,
-          content: html,
-          summary,
-          word_count: wordCount,
-        })
+        .insert(record)
         .select()
         .single<NoteRow>();
 

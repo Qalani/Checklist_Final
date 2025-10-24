@@ -30,7 +30,9 @@ interface ErrorResult {
 }
 
 export interface UseListsResult extends ListsState {
-  createList: (input: { name: string; description?: string }) => Promise<void | ErrorResult>;
+  createList: (
+    input: { name: string; description?: string; createdAt?: string | Date },
+  ) => Promise<void | ErrorResult>;
   updateList: (id: string, input: { name: string; description?: string }) => Promise<void | ErrorResult>;
   deleteList: (id: string) => Promise<void | ErrorResult>;
   loadMembers: (listId: string) => Promise<LoadMembersSuccess | ErrorResult>;
@@ -271,13 +273,34 @@ export function useLists(userId: string | null): UseListsResult {
       }
 
       try {
+        const timestampInput = input.createdAt;
+        let createdAt: string | null = null;
+
+        if (timestampInput instanceof Date) {
+          const parsed = new Date(timestampInput.getTime());
+          if (!Number.isNaN(parsed.getTime())) {
+            createdAt = parsed.toISOString();
+          }
+        } else if (typeof timestampInput === 'string' && timestampInput.trim().length > 0) {
+          const parsed = new Date(timestampInput);
+          if (!Number.isNaN(parsed.getTime())) {
+            createdAt = parsed.toISOString();
+          }
+        }
+
+        const record: { name: string; description: string | null; user_id: string; created_at?: string } = {
+          name: input.name,
+          description: input.description ?? null,
+          user_id: userId,
+        };
+
+        if (createdAt) {
+          record.created_at = createdAt;
+        }
+
         const { data, error } = await supabase
           .from('lists')
-          .insert({
-            name: input.name,
-            description: input.description ?? null,
-            user_id: userId,
-          })
+          .insert(record)
           .select('*')
           .single();
 
