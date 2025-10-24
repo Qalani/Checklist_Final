@@ -277,7 +277,10 @@ export function CalendarTimeline({
 
   const handleSelectEvent = useCallback(
     (event: TimelineEvent) => {
-      onSelectDate?.(new Date(event.start));
+      if (!onSelectDate || !event.start) {
+        return;
+      }
+      onSelectDate(new Date(event.start));
     },
     [onSelectDate],
   );
