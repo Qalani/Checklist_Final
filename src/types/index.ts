@@ -58,6 +58,8 @@ export interface List {
   owner_id?: string;
   access_role?: 'owner' | 'editor' | 'viewer';
   members?: ListMember[];
+  public_share_token?: string | null;
+  public_share_enabled?: boolean;
 }
 
 export interface ListMember {
