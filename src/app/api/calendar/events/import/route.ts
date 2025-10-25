@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       }
 
       const uidBase = event.uid || `${event.summary || ''}:${event.startDate.toString()}:${event.endDate?.toString() ?? ''}`;
-      const uid = createHash('sha1').update(uidBase).digest('hex');
+      const uid = createHash('sha256').update(uidBase).digest('hex');
 
       candidateRecords.push({
         user_id: userId,
