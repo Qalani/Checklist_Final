@@ -525,9 +525,25 @@
   }
 
   .calendar-timeline .rbc-month-view {
-    min-width: 640px;
-    padding: 0.5rem 0.75rem 0.75rem;
-    border-radius: 1.5rem;
+    width: 100%;
+    min-width: 100%;
+    padding: 0.5rem 0 0.75rem;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .calendar-timeline .rbc-time-view {
+    width: 100%;
+    min-width: 100%;
+    padding: 0.5rem 0 1rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .calendar-timeline .rbc-time-view > .rbc-time-header {
+    border-radius: 0;
   }
 
   .calendar-timeline .rbc-month-row {
