@@ -635,7 +635,7 @@ export default function CalendarPage() {
             </div>
           ) : null}
 
-          <div className="rounded-3xl border border-zen-200/70 bg-surface/85 p-4 shadow-large backdrop-blur-xl dark:border-zen-700/40">
+          <div className="rounded-none border-0 bg-transparent p-0 shadow-none backdrop-blur-none dark:bg-transparent sm:rounded-3xl sm:border sm:border-zen-200/70 sm:bg-surface/85 sm:p-4 sm:shadow-large sm:backdrop-blur-xl dark:sm:border-zen-700/40">
             <CalendarTimeline
               date={currentDate}
               view={view}
