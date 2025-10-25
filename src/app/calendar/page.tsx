@@ -36,6 +36,7 @@ import { useCalendarData } from '@/features/calendar/useCalendarData';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
 import { useNotes } from '@/features/notes/useNotes';
+import { useZenReminders } from '@/features/reminders/useZenReminders';
 import type { CalendarEventRecord, CalendarScope, CalendarTaskMetadata } from '@/features/calendar/types';
 import type { Category, Task } from '@/types';
 import { supabase } from '@/lib/supabase';
@@ -135,6 +136,7 @@ export default function CalendarPage() {
   const { categories, saveTask, createCategory } = useChecklist(user?.id ?? null);
   const { createList } = useLists(user?.id ?? null);
   const { createNote } = useNotes(user?.id ?? null);
+  const { createReminder } = useZenReminders(user?.id ?? null);
 
   const userEmail = useMemo(() => user?.email ?? user?.user_metadata?.email ?? null, [user]);
 
@@ -349,6 +351,34 @@ export default function CalendarPage() {
     [createNote, refresh, selectedDate],
   );
 
+  const handlePlannerReminderCreate = useCallback(
+    async (
+      input: { title: string; description?: string; remindAt: string; timezone?: string | null },
+    ): Promise<{ success: boolean; error?: string }> => {
+      const result = await createReminder(input);
+      if (result && 'error' in result && result.error) {
+        const message = result.error;
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+
+      const remindDate = new Date(input.remindAt);
+      const label = Number.isNaN(remindDate.getTime())
+        ? 'the selected time'
+        : format(remindDate, "MMM d, yyyy 'at' HH:mm");
+      setStatus({ type: 'success', message: `Zen reminder scheduled for ${label}.` });
+
+      try {
+        await refresh();
+      } catch (error) {
+        console.error('Failed to refresh calendar after creating reminder', error);
+      }
+
+      return { success: true };
+    },
+    [createReminder, refresh],
+  );
+
   const handlePlannerCategoryCreate = useCallback(
     async (
       input: { name: string; color: string },
@@ -505,6 +535,7 @@ export default function CalendarPage() {
             onCreateList={handlePlannerListCreate}
             onCreateNote={handlePlannerNoteCreate}
             onCreateCategory={handlePlannerCategoryCreate}
+            onCreateReminder={handlePlannerReminderCreate}
           />
         </main>
       </div>

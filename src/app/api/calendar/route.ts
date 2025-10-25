@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
-import type { Task, Note } from '@/types';
+import type { Task, Note, ZenReminder } from '@/types';
 import { getUpcomingReminderOccurrences, shouldScheduleReminder } from '@/utils/reminders';
 import type {
   CalendarEventRecord,
@@ -9,6 +9,7 @@ import type {
   CalendarResponsePayload,
   CalendarScope,
   CalendarTaskMetadata,
+  CalendarZenReminderMetadata,
 } from '@/features/calendar/types';
 
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
@@ -114,13 +115,14 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [ownedTasksResult, sharedTasksResult, notesResult] = await Promise.all([
+    const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult] = await Promise.all([
       supabaseAdmin.from('tasks').select('*').eq('user_id', userId),
       supabaseAdmin
         .from('task_collaborators')
         .select('role, task:tasks(*)')
         .eq('user_id', userId),
       supabaseAdmin.from('notes').select('*').eq('user_id', userId),
+      supabaseAdmin.from('zen_reminders').select('*').eq('user_id', userId),
     ]);
 
     if (ownedTasksResult.error) {
@@ -133,6 +135,10 @@ export async function GET(request: Request) {
 
     if (notesResult.error) {
       throw notesResult.error;
+    }
+
+    if (remindersResult.error) {
+      throw remindersResult.error;
     }
 
     const tasksById = new Map<string, Task & { access_role?: AccessRole }>();
@@ -283,6 +289,40 @@ export async function GET(request: Request) {
         allDay: true,
         scope: 'personal',
         metadata: noteMetadata,
+      });
+    });
+
+    const zenReminders = (remindersResult.data ?? []) as ZenReminder[];
+    zenReminders.forEach((reminder) => {
+      const remindDate = reminder.remind_at ? new Date(reminder.remind_at) : null;
+      if (!remindDate) {
+        return;
+      }
+
+      const remindTime = remindDate.getTime();
+      if (Number.isNaN(remindTime) || remindTime < rangeStartMs || remindTime > rangeEndMs) {
+        return;
+      }
+
+      const remindEnd = new Date(remindTime + THIRTY_MINUTES_MS);
+      const reminderMetadata = {
+        reminderId: reminder.id,
+        timezone: reminder.timezone ?? null,
+        createdAt: reminder.created_at ?? null,
+        updatedAt: reminder.updated_at ?? null,
+      } satisfies CalendarZenReminderMetadata;
+
+      events.push({
+        id: `zen-reminder:${reminder.id}:${reminder.remind_at}`,
+        entityId: reminder.id,
+        type: 'zen_reminder',
+        title: reminder.title,
+        description: reminder.description ?? null,
+        start: toIsoString(remindDate),
+        end: toIsoString(remindEnd),
+        allDay: false,
+        scope: 'personal',
+        metadata: reminderMetadata,
       });
     });
 

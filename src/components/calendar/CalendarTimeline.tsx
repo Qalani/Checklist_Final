@@ -18,6 +18,7 @@ import type {
   CalendarEventRecord,
   CalendarNoteMetadata,
   CalendarTaskMetadata,
+  CalendarZenReminderMetadata,
 } from '@/features/calendar/types';
 
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -76,6 +77,14 @@ function isNoteMetadata(metadata: unknown): metadata is CalendarNoteMetadata {
   );
 }
 
+function isZenReminderMetadata(metadata: unknown): metadata is CalendarZenReminderMetadata {
+  return Boolean(
+    metadata &&
+      typeof metadata === 'object' &&
+      'reminderId' in (metadata as Record<string, unknown>),
+  );
+}
+
 function normalizeRange(input: Date[] | { start: Date; end: Date }): { start: Date; end: Date } {
   if (Array.isArray(input)) {
     if (input.length === 0) {
@@ -94,10 +103,14 @@ function EventContent({ event }: { event: TimelineEvent }) {
   const taskMetadata = isTaskMetadata(metadata) ? (metadata as CalendarTaskMetadata) : null;
   const noteMetadata = isNoteMetadata(metadata) ? (metadata as CalendarNoteMetadata) : null;
   const isReminder = record.type === 'task_reminder';
+  const isZenReminder = record.type === 'zen_reminder';
   const isNote = record.type === 'note';
 
-  const Icon = isNote ? StickyNote : isReminder ? Bell : CalendarCheck;
-  const categoryLabel = taskMetadata?.category ?? (isReminder ? 'Reminder' : isNote ? 'Note' : 'Task');
+  const reminderMetadata = isZenReminderMetadata(metadata) ? (metadata as CalendarZenReminderMetadata) : null;
+
+  const Icon = isNote ? StickyNote : isReminder || isZenReminder ? Bell : CalendarCheck;
+  const categoryLabel =
+    taskMetadata?.category ?? (isReminder ? 'Reminder' : isZenReminder ? 'Zen Reminder' : isNote ? 'Note' : 'Task');
   const showShared = record.scope === 'shared';
 
   return (
@@ -135,6 +148,18 @@ function EventContent({ event }: { event: TimelineEvent }) {
           return (
             <p className="text-[10px] text-white/70">
               Updated {new Date(updatedAt).toLocaleString([], { month: 'short', day: 'numeric' })}
+            </p>
+          );
+        })()
+      ) : null}
+      {isZenReminder ? (
+        (() => {
+          if (!reminderMetadata?.timezone) {
+            return null;
+          }
+          return (
+            <p className="text-[10px] text-white/70">
+              {reminderMetadata.timezone}
             </p>
           );
         })()
@@ -183,6 +208,10 @@ export function CalendarTimeline({
       backgroundColor = 'rgba(var(--color-warm-500), 0.94)';
       backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-500), 0.96), rgba(var(--color-warm-400), 0.84))';
       border = 'rgba(var(--color-warm-400), 0.6)';
+    } else if (record.type === 'zen_reminder') {
+      backgroundColor = 'rgba(var(--color-sage-500), 0.94)';
+      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-sage-500), 0.95), rgba(var(--color-zen-400), 0.82))';
+      border = 'rgba(var(--color-sage-400), 0.6)';
     } else if (record.type === 'note') {
       backgroundColor = 'rgba(var(--color-warm-400), 0.92)';
       backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-400), 0.94), rgba(var(--color-warm-300), 0.82))';

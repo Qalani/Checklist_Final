@@ -2,7 +2,7 @@ import type { ReminderRecurrence } from '@/types';
 
 export type CalendarScope = 'all' | 'personal' | 'shared';
 
-export type CalendarEventType = 'task_due' | 'task_reminder' | 'note';
+export type CalendarEventType = 'task_due' | 'task_reminder' | 'note' | 'zen_reminder';
 
 export interface CalendarReminderMetadata {
   minutesBefore: number | null;
@@ -28,9 +28,17 @@ export interface CalendarNoteMetadata {
   createdAt: string | null;
 }
 
+export interface CalendarZenReminderMetadata {
+  reminderId: string;
+  timezone: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 export type CalendarEventMetadata =
   | CalendarTaskMetadata
   | CalendarNoteMetadata
+  | CalendarZenReminderMetadata
   | Record<string, unknown>;
 
 export interface CalendarEventRecord {
