@@ -389,9 +389,9 @@ export function CalendarTimeline({
   }, [view]);
 
   return (
-    <div className="calendar-shell relative overflow-hidden rounded-3xl border border-zen-200/70 bg-surface/80 p-4 shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-zen-700/40 dark:bg-zen-950/40">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-zen-100/75 via-transparent to-zen-50/60 dark:from-zen-700/30 dark:via-transparent dark:to-zen-900/40" />
-      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-zen-200/45 blur-3xl dark:bg-zen-700/30" />
+    <div className="calendar-shell relative overflow-visible bg-transparent p-0 ring-0 dark:bg-transparent sm:overflow-hidden sm:rounded-3xl sm:border sm:border-zen-200/70 sm:bg-surface/80 sm:p-4 sm:shadow-xl sm:ring-1 sm:ring-black/5 sm:backdrop-blur-sm dark:sm:border-zen-700/40 dark:sm:bg-zen-950/40">
+      <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-br from-zen-100/75 via-transparent to-zen-50/60 dark:from-zen-700/30 dark:via-transparent dark:to-zen-900/40 sm:block" />
+      <div className="pointer-events-none absolute -right-24 -top-24 hidden h-72 w-72 rounded-full bg-zen-200/45 blur-3xl dark:bg-zen-700/30 sm:block" />
       <DragAndDropCalendar
         date={date}
         view={view}
