@@ -20,6 +20,21 @@ export interface ZenReminder extends Record<string, unknown> {
   updated_at?: string;
 }
 
+export interface CalendarEvent extends Record<string, unknown> {
+  id: string;
+  user_id?: string;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  import_source?: string | null;
+  import_uid?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Task extends Record<string, unknown> {
   id: string;
   title: string;

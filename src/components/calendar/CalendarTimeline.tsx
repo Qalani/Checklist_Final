@@ -12,12 +12,13 @@ import {
 import withDragAndDrop, { type EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop';
 import { format, parse, startOfWeek, getDay, isSameDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
-import { CalendarCheck, Bell, StickyNote, Users } from 'lucide-react';
+import { CalendarCheck, Bell, CalendarDays, StickyNote, Users } from 'lucide-react';
 
 import type {
   CalendarEventRecord,
   CalendarNoteMetadata,
   CalendarTaskMetadata,
+  CalendarUserEventMetadata,
   CalendarZenReminderMetadata,
 } from '@/features/calendar/types';
 
@@ -85,6 +86,15 @@ function isZenReminderMetadata(metadata: unknown): metadata is CalendarZenRemind
   );
 }
 
+function isUserEventMetadata(metadata: unknown): metadata is CalendarUserEventMetadata {
+  return Boolean(
+    metadata &&
+      typeof metadata === 'object' &&
+      'eventId' in (metadata as Record<string, unknown>) &&
+      'canEdit' in (metadata as Record<string, unknown>),
+  );
+}
+
 function normalizeRange(input: Date[] | { start: Date; end: Date }): { start: Date; end: Date } {
   if (Array.isArray(input)) {
     if (input.length === 0) {
@@ -105,13 +115,19 @@ function EventContent({ event }: { event: TimelineEvent }) {
   const isReminder = record.type === 'task_reminder';
   const isZenReminder = record.type === 'zen_reminder';
   const isNote = record.type === 'note';
+  const isCalendarEvent = record.type === 'event';
 
   const reminderMetadata = isZenReminderMetadata(metadata) ? (metadata as CalendarZenReminderMetadata) : null;
+  const eventMetadata = isUserEventMetadata(metadata) ? (metadata as CalendarUserEventMetadata) : null;
 
-  const Icon = isNote ? StickyNote : isReminder || isZenReminder ? Bell : CalendarCheck;
-  const categoryLabel =
-    taskMetadata?.category ?? (isReminder ? 'Reminder' : isZenReminder ? 'Zen Reminder' : isNote ? 'Note' : 'Task');
+  const Icon = isCalendarEvent ? CalendarDays : isNote ? StickyNote : isReminder || isZenReminder ? Bell : CalendarCheck;
+  const categoryLabel = isCalendarEvent
+    ? 'Event'
+    : taskMetadata?.category ?? (isReminder ? 'Reminder' : isZenReminder ? 'Zen Reminder' : isNote ? 'Note' : 'Task');
   const showShared = record.scope === 'shared';
+
+  const locationLabel = isCalendarEvent ? eventMetadata?.location ?? null : null;
+  const importLabel = isCalendarEvent ? eventMetadata?.importSource ?? null : null;
 
   return (
     <div className="flex flex-col gap-1 text-xs leading-tight text-white">
@@ -139,6 +155,14 @@ function EventContent({ event }: { event: TimelineEvent }) {
           <span className="font-semibold text-white">{event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         ) : null}
       </div>
+      {isCalendarEvent && locationLabel ? (
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-white/70">
+          {locationLabel}
+        </div>
+      ) : null}
+      {isCalendarEvent && importLabel ? (
+        <div className="text-[10px] text-white/60">Imported from {importLabel}</div>
+      ) : null}
       {isNote ? (
         (() => {
           const updatedAt = noteMetadata?.updatedAt ?? noteMetadata?.createdAt;
@@ -216,6 +240,10 @@ export function CalendarTimeline({
       backgroundColor = 'rgba(var(--color-warm-400), 0.92)';
       backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-400), 0.94), rgba(var(--color-warm-300), 0.82))';
       border = 'rgba(var(--color-warm-300), 0.6)';
+    } else if (record.type === 'event') {
+      backgroundColor = 'rgba(79, 70, 229, 0.94)';
+      backgroundImage = 'linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(129, 140, 248, 0.8))';
+      border = 'rgba(165, 180, 252, 0.7)';
     }
 
     if (record.scope === 'shared') {
@@ -240,14 +268,21 @@ export function CalendarTimeline({
 
   const draggableAccessor = useCallback((event: TimelineEvent) => {
     const record = event.resource;
-    if (record.type !== 'task_due') {
-      return false;
+    if (record.type === 'task_due') {
+      const metadata = record.metadata;
+      if (!isTaskMetadata(metadata)) {
+        return false;
+      }
+      return Boolean(metadata.canEdit);
     }
-    const metadata = record.metadata;
-    if (!isTaskMetadata(metadata)) {
-      return false;
+    if (record.type === 'event') {
+      const metadata = record.metadata;
+      if (!isUserEventMetadata(metadata)) {
+        return false;
+      }
+      return Boolean(metadata.canEdit);
     }
-    return Boolean(metadata.canEdit);
+    return false;
   }, []);
 
   const handleRangeChange = useCallback(

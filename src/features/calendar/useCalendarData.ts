@@ -103,10 +103,23 @@ export function useCalendarData(userId: string | null, options: UseCalendarOptio
       })
       .subscribe();
 
+    const calendarEventsChannel = supabase
+      .channel(`calendar:user-events:${userId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'calendar_events',
+        filter: `user_id=eq.${userId}`,
+      }, () => {
+        void mutate();
+      })
+      .subscribe();
+
     return () => {
       void tasksChannel.unsubscribe();
       void notesChannel.unsubscribe();
       void collaboratorsChannel.unsubscribe();
+      void calendarEventsChannel.unsubscribe();
     };
   }, [mutate, shouldFetch, userId]);
 
