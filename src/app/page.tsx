@@ -5,7 +5,7 @@ import { Suspense, useMemo } from 'react';
 import type { ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, CalendarDays, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
+import { ArrowRight, Bell, CalendarDays, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
 
 import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
@@ -16,6 +16,7 @@ import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
 import { useNotes } from '@/features/notes/useNotes';
 import { useFriends } from '@/features/friends/useFriends';
+import { useZenReminders } from '@/features/reminders/useZenReminders';
 
 function LoadingScreen() {
   return (
@@ -39,7 +40,7 @@ export default function HomePage() {
 }
 
 interface FeatureDefinition {
-  key: 'tasks' | 'lists' | 'notes' | 'friends' | 'calendar';
+  key: 'tasks' | 'lists' | 'notes' | 'friends' | 'calendar' | 'reminders';
   title: string;
   description: string;
   href: string;
@@ -65,6 +66,7 @@ function HomePageContent() {
   const { lists, status: listsStatus, syncing: listsSyncing } = useLists(targetUserId);
   const { notes, status: notesStatus, syncing: notesSyncing } = useNotes(targetUserId);
   const { friends, status: friendsStatus, syncing: friendsSyncing } = useFriends(targetUserId);
+  const { reminders, status: remindersStatus, syncing: remindersSyncing } = useZenReminders(targetUserId);
 
   const userEmail = useMemo(() => {
     if (demoMode) {
@@ -77,6 +79,7 @@ function HomePageContent() {
   const listsLoading = listsStatus === 'loading' || listsSyncing;
   const notesLoading = notesStatus === 'loading' || notesSyncing;
   const friendsLoading = friendsStatus === 'loading' || friendsSyncing;
+  const remindersLoading = remindersStatus === 'loading' || remindersSyncing;
 
   const openTasks = useMemo(() => {
     if (demoMode) {
@@ -108,6 +111,23 @@ function HomePageContent() {
   const totalLists = demoMode ? 6 : lists.length;
   const totalNotes = demoMode ? 12 : notes.length;
   const totalFriends = demoMode ? 3 : friends.length;
+  const totalReminders = demoMode ? 5 : reminders.length;
+
+  const upcomingReminder = useMemo(() => {
+    if (demoMode) {
+      const now = new Date();
+      const soon = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      return { title: 'Mindful breathing break', remind_at: soon.toISOString() };
+    }
+
+    const now = Date.now();
+    const upcoming = reminders
+      .map(reminder => ({ reminder, timestamp: new Date(reminder.remind_at).getTime() }))
+      .filter(entry => !Number.isNaN(entry.timestamp) && entry.timestamp >= now)
+      .sort((a, b) => a.timestamp - b.timestamp)[0];
+
+    return upcoming ? upcoming.reminder : null;
+  }, [demoMode, reminders]);
 
   const featureCards = useMemo<FeatureDefinition[]>(
     () => [
@@ -137,6 +157,34 @@ function HomePageContent() {
         badgeText: 'text-zen-600 dark:text-zen-900',
         footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
         footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
+      },
+      {
+        key: 'reminders',
+        title: 'Zen Reminders',
+        description: 'Schedule gentle nudges to pause, breathe, and reset throughout your day.',
+        href: '/reminders',
+        icon: Bell,
+        primary: remindersLoading
+          ? 'Syncing…'
+          : upcomingReminder
+            ? `Next: ${upcomingReminder.title}`
+            : 'No reminders scheduled',
+        secondary: remindersLoading
+          ? ''
+          : upcomingReminder?.remind_at
+            ? new Date(upcomingReminder.remind_at).toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : `${totalReminders} saved reminders`,
+        accentGradient: 'bg-gradient-to-br from-sage-500 to-zen-500',
+        accentText: 'text-white',
+        badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
+        badgeText: 'text-sage-700 dark:text-zen-900',
+        footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
+        footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
       },
       {
         key: 'tasks',
@@ -206,10 +254,13 @@ function HomePageContent() {
       nextDueTask,
       notesLoading,
       openTasks,
+      remindersLoading,
       tasksLoading,
       totalFriends,
       totalLists,
       totalNotes,
+      totalReminders,
+      upcomingReminder,
     ],
   );
 
@@ -319,24 +370,28 @@ function SignedOutLanding() {
               </p>
             </div>
 
-            <ul className="grid gap-3 text-left text-sm text-zen-600 dark:text-zen-200">
-              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
-                <CheckSquare className="h-4 w-4 text-zen-500" />
-                <span>Track mindful tasks and celebrate progress with calming visuals.</span>
-              </li>
-              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
-                <ListTodo className="h-4 w-4 text-sage-500" />
-                <span>Design living checklists that adapt to your rituals and workflows.</span>
-              </li>
-              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
-                <StickyNote className="h-4 w-4 text-warm-500" />
-                <span>Capture nuanced notes and reflections alongside your priorities.</span>
-              </li>
-              <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
-                <Users className="h-4 w-4 text-zen-500" />
-                <span>Invite trusted collaborators to stay in sync and accountable.</span>
-              </li>
-            </ul>
+          <ul className="grid gap-3 text-left text-sm text-zen-600 dark:text-zen-200">
+            <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <CheckSquare className="h-4 w-4 text-zen-500" />
+              <span>Track mindful tasks and celebrate progress with calming visuals.</span>
+            </li>
+            <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <ListTodo className="h-4 w-4 text-sage-500" />
+              <span>Design living checklists that adapt to your rituals and workflows.</span>
+            </li>
+            <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <StickyNote className="h-4 w-4 text-warm-500" />
+              <span>Capture nuanced notes and reflections alongside your priorities.</span>
+            </li>
+            <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <Bell className="h-4 w-4 text-sage-500" />
+              <span>Set Zen reminders to breathe, stretch, or recenter when it matters most.</span>
+            </li>
+            <li className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/70 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <Users className="h-4 w-4 text-zen-500" />
+              <span>Invite trusted collaborators to stay in sync and accountable.</span>
+            </li>
+          </ul>
 
             <div className="flex flex-col items-center gap-3 pt-2 sm:flex-row sm:justify-start">
               <Link

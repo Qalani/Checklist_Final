@@ -2,13 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { format } from 'date-fns';
-import {
-  CalendarPlus,
-  CheckSquare,
-  ListPlus,
-  Sparkles,
-  StickyNote,
-} from 'lucide-react';
+import { CalendarPlus, CheckSquare, ListPlus, Sparkles, StickyNote, Bell } from 'lucide-react';
 
 import type { Category, Task } from '@/types';
 
@@ -27,9 +21,12 @@ interface CalendarDayPlannerProps {
     input: { title?: string; content?: string; timestamp?: string },
   ) => Promise<PlannerActionResult>;
   onCreateCategory: (input: { name: string; color: string }) => Promise<PlannerCategoryResult>;
+  onCreateReminder: (
+    input: { title: string; description?: string; remindAt: string; timezone?: string | null },
+  ) => Promise<PlannerActionResult>;
 }
 
-type PlannerTab = 'task' | 'list' | 'note';
+type PlannerTab = 'task' | 'list' | 'note' | 'reminder';
 
 type TaskPriority = Task['priority'];
 
@@ -63,6 +60,7 @@ export function CalendarDayPlanner({
   onCreateList,
   onCreateNote,
   onCreateCategory,
+  onCreateReminder,
 }: CalendarDayPlannerProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>('task');
   const [taskTitle, setTaskTitle] = useState('');
@@ -91,7 +89,21 @@ export function CalendarDayPlanner({
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteSubmitting, setNoteSubmitting] = useState(false);
 
+  const [reminderTitle, setReminderTitle] = useState('');
+  const [reminderDescription, setReminderDescription] = useState('');
+  const [reminderTime, setReminderTime] = useState('10:00');
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [reminderSubmitting, setReminderSubmitting] = useState(false);
+
   const formattedDate = useMemo(() => format(date, 'EEEE, MMMM d, yyyy'), [date]);
+  const reminderTimezone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (error) {
+      console.error('Failed to resolve timezone for reminders', error);
+      return 'UTC';
+    }
+  }, []);
 
   useEffect(() => {
     if (categories.length === 0) {
@@ -259,6 +271,41 @@ export function CalendarDayPlanner({
     setNoteTime('08:00');
   };
 
+  const handleReminderSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (reminderSubmitting) {
+      return;
+    }
+
+    if (!reminderTitle.trim()) {
+      setReminderError('Give your reminder a short, memorable name.');
+      return;
+    }
+
+    setReminderError(null);
+    setReminderSubmitting(true);
+
+    const remindAt = combineDateWithTime(date, reminderTime, 10);
+
+    const result = await onCreateReminder({
+      title: reminderTitle.trim(),
+      description: reminderDescription.trim() ? reminderDescription.trim() : undefined,
+      remindAt,
+      timezone: reminderTimezone ?? 'UTC',
+    });
+
+    setReminderSubmitting(false);
+
+    if (!result.success) {
+      setReminderError(result.error ?? 'Unable to create reminder.');
+      return;
+    }
+
+    setReminderTitle('');
+    setReminderDescription('');
+    setReminderTime('10:00');
+  };
+
   const renderCategorySelector = () => {
     if (showCategoryCreator) {
       return (
@@ -382,7 +429,8 @@ export function CalendarDayPlanner({
             </div>
             <h2 className="text-2xl font-semibold tracking-tight text-zen-900 dark:text-zen-50">{formattedDate}</h2>
             <p className="text-sm leading-relaxed text-zen-600 dark:text-zen-300">
-              Quickly capture tasks, collaborative lists, or note ideas and we will anchor them to this date on your calendar.
+              Quickly capture tasks, Zen reminders, collaborative lists, or note ideas and we will anchor them to this date on
+              your calendar.
             </p>
           </div>
           <div className="space-y-5 lg:flex-1">
@@ -397,6 +445,17 @@ export function CalendarDayPlanner({
                 }`}
               >
                 <CheckSquare className="mr-2 h-4 w-4" /> Task
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('reminder')}
+                className={`${tabButtonClasses} ${
+                  activeTab === 'reminder'
+                    ? 'bg-sage-500 text-white shadow-soft'
+                    : 'border-zen-200 bg-white/80 text-zen-600 hover:bg-zen-100 dark:border-zen-700/40 dark:bg-zen-900/50 dark:text-zen-200 dark:hover:bg-zen-800/60'
+                }`}
+              >
+                <Bell className="mr-2 h-4 w-4" /> Reminder
               </button>
               <button
                 type="button"
@@ -485,6 +544,65 @@ export function CalendarDayPlanner({
                     </button>
                     <span className="text-xs text-zen-500 dark:text-zen-300">
                       Tasks will appear in the calendar once saved.
+                    </span>
+                  </div>
+                </form>
+              ) : null}
+
+              {activeTab === 'reminder' ? (
+                <form onSubmit={handleReminderSubmit} className="space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                      Reminder title
+                      <input
+                        type="text"
+                        value={reminderTitle}
+                        onChange={event => setReminderTitle(event.target.value)}
+                        className={`${inputClasses} mt-1`}
+                        placeholder="Pause, stretch, breathe..."
+                      />
+                    </label>
+                    <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                      Details (optional)
+                      <textarea
+                        value={reminderDescription}
+                        onChange={event => setReminderDescription(event.target.value)}
+                        className={`${textareaClasses} mt-1`}
+                        placeholder="Add gentle context or intentions for this reminder."
+                      />
+                    </label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                      Time
+                      <input
+                        type="time"
+                        value={reminderTime}
+                        onChange={event => setReminderTime(event.target.value)}
+                        className={`${inputClasses} mt-1`}
+                      />
+                    </label>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                      Timezone
+                      <div className="mt-2 rounded-2xl border border-zen-200/70 bg-white/70 px-3 py-2 text-[13px] font-semibold text-zen-600 shadow-inner dark:border-zen-700/40 dark:bg-zen-900/60 dark:text-zen-100">
+                        {reminderTimezone}
+                      </div>
+                    </div>
+                  </div>
+
+                  {reminderError ? (
+                    <p className="text-sm font-semibold text-warm-600 dark:text-warm-400">{reminderError}</p>
+                  ) : null}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-2 rounded-full bg-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-sage-600 disabled:cursor-not-allowed disabled:opacity-70"
+                      disabled={reminderSubmitting}
+                    >
+                      <Bell className="h-4 w-4" />
+                      {reminderSubmitting ? 'Scheduling...' : 'Schedule reminder'}
+                    </button>
+                    <span className="text-xs text-zen-500 dark:text-zen-300">
+                      Reminders appear on your calendar and in the Zen Reminders hub.
                     </span>
                   </div>
                 </form>

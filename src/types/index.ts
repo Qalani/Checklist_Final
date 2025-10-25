@@ -9,6 +9,17 @@ export interface ReminderRecurrence {
   end_at?: string | null;
 }
 
+export interface ZenReminder extends Record<string, unknown> {
+  id: string;
+  user_id?: string;
+  title: string;
+  description?: string | null;
+  remind_at: string;
+  timezone?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Task extends Record<string, unknown> {
   id: string;
   title: string;
