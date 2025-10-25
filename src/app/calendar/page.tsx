@@ -33,11 +33,17 @@ import { CalendarTimeline } from '@/components/calendar/CalendarTimeline';
 import { CalendarDayPlanner } from '@/components/calendar/CalendarDayPlanner';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useCalendarData } from '@/features/calendar/useCalendarData';
+import { useCalendarEvents } from '@/features/calendar/useCalendarEvents';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useLists } from '@/features/lists/useLists';
 import { useNotes } from '@/features/notes/useNotes';
 import { useZenReminders } from '@/features/reminders/useZenReminders';
-import type { CalendarEventRecord, CalendarScope, CalendarTaskMetadata } from '@/features/calendar/types';
+import type {
+  CalendarEventRecord,
+  CalendarScope,
+  CalendarTaskMetadata,
+  CalendarUserEventMetadata,
+} from '@/features/calendar/types';
 import type { Category, Task } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { getNextReminderOccurrence } from '@/utils/reminders';
@@ -78,6 +84,15 @@ function isTaskMetadata(metadata: unknown): metadata is CalendarTaskMetadata {
     metadata &&
       typeof metadata === 'object' &&
       'taskId' in (metadata as Record<string, unknown>) &&
+      'canEdit' in (metadata as Record<string, unknown>),
+  );
+}
+
+function isUserEventMetadata(metadata: unknown): metadata is CalendarUserEventMetadata {
+  return Boolean(
+    metadata &&
+      typeof metadata === 'object' &&
+      'eventId' in (metadata as Record<string, unknown>) &&
       'canEdit' in (metadata as Record<string, unknown>),
   );
 }
@@ -137,6 +152,7 @@ export default function CalendarPage() {
   const { createList } = useLists(user?.id ?? null);
   const { createNote } = useNotes(user?.id ?? null);
   const { createReminder } = useZenReminders(user?.id ?? null);
+  const { createEvent, updateEvent, importFromIcs } = useCalendarEvents(user?.id ?? null);
 
   const userEmail = useMemo(() => user?.email ?? user?.user_metadata?.email ?? null, [user]);
 
@@ -196,7 +212,59 @@ export default function CalendarPage() {
   }, [view]);
 
   const handleEventDrop = useCallback(
-    async ({ record, start }: { record: CalendarEventRecord; start: Date }) => {
+    async ({
+      record,
+      start,
+      end,
+      isAllDay,
+    }: {
+      record: CalendarEventRecord;
+      start: Date;
+      end: Date;
+      isAllDay: boolean;
+    }) => {
+      if (record.type === 'event') {
+        const metadata = record.metadata;
+        if (!isUserEventMetadata(metadata)) {
+          setStatus({ type: 'error', message: 'Unable to reschedule this event.' });
+          return;
+        }
+
+        if (!metadata.canEdit) {
+          setStatus({ type: 'error', message: 'You do not have permission to move this event.' });
+          return;
+        }
+
+        const nextStartIso = new Date(start).toISOString();
+        const potentialEnd = new Date(end);
+        const currentDuration = new Date(record.end).getTime() - new Date(record.start).getTime();
+        const minimumDuration = record.allDay ? 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
+        const fallbackDuration = Number.isFinite(currentDuration) && currentDuration > 0 ? currentDuration : minimumDuration;
+        const nextEndDate = Number.isNaN(potentialEnd.getTime())
+          ? new Date(start.getTime() + fallbackDuration)
+          : potentialEnd;
+        const nextEndIso = nextEndDate.toISOString();
+        const nextAllDay = typeof isAllDay === 'boolean' ? isAllDay : record.allDay;
+
+        setReschedulingId(record.entityId);
+        try {
+          await updateEvent(metadata.eventId, {
+            start: nextStartIso,
+            end: nextEndIso,
+            allDay: nextAllDay,
+          });
+          setStatus({ type: 'success', message: 'Event updated.' });
+          await refresh();
+        } catch (eventError) {
+          const message =
+            eventError instanceof Error ? eventError.message : 'Unable to reschedule this event.';
+          setStatus({ type: 'error', message });
+        } finally {
+          setReschedulingId(null);
+        }
+        return;
+      }
+
       if (record.type !== 'task_due') {
         return;
       }
@@ -252,7 +320,7 @@ export default function CalendarPage() {
         setReschedulingId(null);
       }
     },
-    [refresh],
+    [refresh, updateEvent],
   );
 
   const handleSelectDate = useCallback(
@@ -377,6 +445,59 @@ export default function CalendarPage() {
       return { success: true };
     },
     [createReminder, refresh],
+  );
+
+  const handlePlannerEventCreate = useCallback(
+    async (
+      input: { title: string; description?: string; location?: string; start: string; end: string; allDay: boolean },
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        await createEvent(input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to create event.';
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+
+      const startDate = new Date(input.start);
+      const label = Number.isNaN(startDate.getTime())
+        ? 'the selected time'
+        : format(startDate, input.allDay ? 'MMM d, yyyy' : "MMM d, yyyy 'at' HH:mm");
+      setStatus({ type: 'success', message: `Event scheduled for ${label}.` });
+
+      try {
+        await refresh();
+      } catch (error) {
+        console.error('Failed to refresh calendar after creating event', error);
+      }
+
+      return { success: true };
+    },
+    [createEvent, refresh],
+  );
+
+  const handlePlannerIcsImport = useCallback(
+    async (file: File): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const result = await importFromIcs(file);
+        const parts: string[] = [];
+        if (result.imported > 0) {
+          parts.push(`${result.imported} new`);
+        }
+        if (result.updated > 0) {
+          parts.push(`${result.updated} updated`);
+        }
+        const summary = parts.length > 0 ? `${parts.join(', ')} events` : 'No changes detected';
+        setStatus({ type: 'success', message: `Import complete. ${summary}.` });
+        await refresh();
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to import events.';
+        setStatus({ type: 'error', message });
+        return { success: false, error: message };
+      }
+    },
+    [importFromIcs, refresh],
   );
 
   const handlePlannerCategoryCreate = useCallback(
@@ -536,6 +657,8 @@ export default function CalendarPage() {
             onCreateNote={handlePlannerNoteCreate}
             onCreateCategory={handlePlannerCategoryCreate}
             onCreateReminder={handlePlannerReminderCreate}
+            onCreateEvent={handlePlannerEventCreate}
+            onImportEvents={handlePlannerIcsImport}
           />
         </main>
       </div>

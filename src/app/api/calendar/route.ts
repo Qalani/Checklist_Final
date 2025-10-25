@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
-import type { Task, Note, ZenReminder } from '@/types';
+import type { Task, Note, ZenReminder, CalendarEvent } from '@/types';
 import { getUpcomingReminderOccurrences, shouldScheduleReminder } from '@/utils/reminders';
 import type {
   CalendarEventRecord,
@@ -9,6 +9,7 @@ import type {
   CalendarResponsePayload,
   CalendarScope,
   CalendarTaskMetadata,
+  CalendarUserEventMetadata,
   CalendarZenReminderMetadata,
 } from '@/features/calendar/types';
 
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult] = await Promise.all([
+    const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult, calendarEventsResult] = await Promise.all([
       supabaseAdmin.from('tasks').select('*').eq('user_id', userId),
       supabaseAdmin
         .from('task_collaborators')
@@ -123,6 +124,7 @@ export async function GET(request: Request) {
         .eq('user_id', userId),
       supabaseAdmin.from('notes').select('*').eq('user_id', userId),
       supabaseAdmin.from('zen_reminders').select('*').eq('user_id', userId),
+      supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId),
     ]);
 
     if (ownedTasksResult.error) {
@@ -139,6 +141,10 @@ export async function GET(request: Request) {
 
     if (remindersResult.error) {
       throw remindersResult.error;
+    }
+
+    if (calendarEventsResult.error) {
+      throw calendarEventsResult.error;
     }
 
     const tasksById = new Map<string, Task & { access_role?: AccessRole }>();
@@ -255,6 +261,48 @@ export async function GET(request: Request) {
         });
       }
     });
+
+    const calendarEvents = (calendarEventsResult.data ?? []) as CalendarEvent[];
+
+    if (scopeParam !== 'shared') {
+      calendarEvents.forEach((calendarEvent) => {
+        const startDate = new Date(calendarEvent.start_time);
+        const endDateCandidate = new Date(calendarEvent.end_time);
+
+        if (Number.isNaN(startDate.getTime())) {
+          return;
+        }
+
+        let endDate = endDateCandidate;
+        if (Number.isNaN(endDateCandidate.getTime()) || endDateCandidate.getTime() <= startDate.getTime()) {
+          const duration = calendarEvent.all_day ? ONE_DAY_MS : THIRTY_MINUTES_MS;
+          endDate = new Date(startDate.getTime() + duration);
+        }
+
+        const metadata: CalendarUserEventMetadata = {
+          eventId: calendarEvent.id,
+          canEdit: true,
+          location: calendarEvent.location ?? null,
+          importSource: calendarEvent.import_source ?? null,
+          importUid: calendarEvent.import_uid ?? null,
+          createdAt: calendarEvent.created_at ?? null,
+          updatedAt: calendarEvent.updated_at ?? null,
+        };
+
+        events.push({
+          id: `event:${calendarEvent.id}:${calendarEvent.start_time}`,
+          entityId: calendarEvent.id,
+          type: 'event',
+          title: calendarEvent.title,
+          description: calendarEvent.description ?? null,
+          start: toIsoString(startDate),
+          end: toIsoString(endDate),
+          allDay: Boolean(calendarEvent.all_day),
+          scope: 'personal',
+          metadata,
+        });
+      });
+    }
 
     const notes = (notesResult.data ?? []) as Note[];
     notes.forEach((note) => {

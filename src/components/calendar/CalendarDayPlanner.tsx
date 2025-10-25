@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { format } from 'date-fns';
-import { CalendarPlus, CheckSquare, ListPlus, Sparkles, StickyNote, Bell } from 'lucide-react';
+import { CalendarPlus, CheckSquare, ListPlus, Sparkles, StickyNote, Bell, Upload } from 'lucide-react';
 
 import type { Category, Task } from '@/types';
 
@@ -24,9 +24,13 @@ interface CalendarDayPlannerProps {
   onCreateReminder: (
     input: { title: string; description?: string; remindAt: string; timezone?: string | null },
   ) => Promise<PlannerActionResult>;
+  onCreateEvent: (
+    input: { title: string; description?: string; location?: string; start: string; end: string; allDay: boolean },
+  ) => Promise<PlannerActionResult>;
+  onImportEvents: (file: File) => Promise<PlannerActionResult>;
 }
 
-type PlannerTab = 'task' | 'list' | 'note' | 'reminder';
+type PlannerTab = 'task' | 'event' | 'reminder' | 'list' | 'note';
 
 type TaskPriority = Task['priority'];
 
@@ -61,6 +65,8 @@ export function CalendarDayPlanner({
   onCreateNote,
   onCreateCategory,
   onCreateReminder,
+  onCreateEvent,
+  onImportEvents,
 }: CalendarDayPlannerProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>('task');
   const [taskTitle, setTaskTitle] = useState('');
@@ -94,6 +100,20 @@ export function CalendarDayPlanner({
   const [reminderTime, setReminderTime] = useState('10:00');
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [reminderSubmitting, setReminderSubmitting] = useState(false);
+
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
+  const [eventStartTime, setEventStartTime] = useState('09:00');
+  const [eventEndTime, setEventEndTime] = useState('10:00');
+  const [eventAllDay, setEventAllDay] = useState(false);
+  const [eventError, setEventError] = useState<string | null>(null);
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+
+  const [icsFile, setIcsFile] = useState<File | null>(null);
+  const [icsError, setIcsError] = useState<string | null>(null);
+  const [icsSubmitting, setIcsSubmitting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const formattedDate = useMemo(() => format(date, 'EEEE, MMMM d, yyyy'), [date]);
   const reminderTimezone = useMemo(() => {
@@ -306,6 +326,94 @@ export function CalendarDayPlanner({
     setReminderTime('10:00');
   };
 
+  const handleEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (eventSubmitting) {
+      return;
+    }
+
+    if (!eventTitle.trim()) {
+      setEventError('Give your event a clear, descriptive title.');
+      return;
+    }
+
+    setEventError(null);
+    setEventSubmitting(true);
+
+    const startIso = eventAllDay ? (() => {
+      const startOfDay = new Date(date.getTime());
+      startOfDay.setHours(0, 0, 0, 0);
+      return startOfDay.toISOString();
+    })() : combineDateWithTime(date, eventStartTime, 9);
+
+    const endIso = (() => {
+      if (eventAllDay) {
+        const startOfDay = new Date(date.getTime());
+        startOfDay.setHours(0, 0, 0, 0);
+        const nextDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        return nextDay.toISOString();
+      }
+      const startDate = new Date(startIso);
+      const rawEndIso = combineDateWithTime(date, eventEndTime, 10);
+      let endDate = new Date(rawEndIso);
+      if (Number.isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
+        endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      }
+      return endDate.toISOString();
+    })();
+
+    const result = await onCreateEvent({
+      title: eventTitle.trim(),
+      description: eventDescription.trim() ? eventDescription.trim() : undefined,
+      location: eventLocation.trim() ? eventLocation.trim() : undefined,
+      start: startIso,
+      end: endIso,
+      allDay: eventAllDay,
+    });
+
+    setEventSubmitting(false);
+
+    if (!result.success) {
+      setEventError(result.error ?? 'Unable to save event.');
+      return;
+    }
+
+    setEventTitle('');
+    setEventDescription('');
+    setEventLocation('');
+    setEventStartTime('09:00');
+    setEventEndTime('10:00');
+    setEventAllDay(false);
+  };
+
+  const handleIcsImport = async () => {
+    if (icsSubmitting) {
+      return;
+    }
+
+    if (!icsFile) {
+      setIcsError('Select a .ics file to import.');
+      return;
+    }
+
+    setIcsError(null);
+    setIcsSubmitting(true);
+
+    const result = await onImportEvents(icsFile);
+
+    setIcsSubmitting(false);
+
+    if (!result.success) {
+      setIcsError(result.error ?? 'Unable to import events.');
+      return;
+    }
+
+    setIcsFile(null);
+    if (importInputRef.current) {
+      importInputRef.current.value = '';
+    }
+  };
+
   const renderCategorySelector = () => {
     if (showCategoryCreator) {
       return (
@@ -429,8 +537,8 @@ export function CalendarDayPlanner({
             </div>
             <h2 className="text-2xl font-semibold tracking-tight text-zen-900 dark:text-zen-50">{formattedDate}</h2>
             <p className="text-sm leading-relaxed text-zen-600 dark:text-zen-300">
-              Quickly capture tasks, Zen reminders, collaborative lists, or note ideas and we will anchor them to this date on
-              your calendar.
+              Quickly capture events, tasks, Zen reminders, collaborative lists, or note ideas and we will anchor them to this
+              date on your calendar. You can also import .ics files when you want to merge outside schedules.
             </p>
           </div>
           <div className="space-y-5 lg:flex-1">
@@ -445,6 +553,17 @@ export function CalendarDayPlanner({
                 }`}
               >
                 <CheckSquare className="mr-2 h-4 w-4" /> Task
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('event')}
+                className={`${tabButtonClasses} ${
+                  activeTab === 'event'
+                    ? 'bg-indigo-500 text-white shadow-soft'
+                    : 'border-zen-200 bg-white/80 text-zen-600 hover:bg-zen-100 dark:border-zen-700/40 dark:bg-zen-900/50 dark:text-zen-200 dark:hover:bg-zen-800/60'
+                }`}
+              >
+                <CalendarPlus className="mr-2 h-4 w-4" /> Event
               </button>
               <button
                 type="button"
@@ -547,6 +666,128 @@ export function CalendarDayPlanner({
                     </span>
                   </div>
                 </form>
+              ) : null}
+
+              {activeTab === 'event' ? (
+                <div className="space-y-5">
+                  <form onSubmit={handleEventSubmit} className="space-y-5">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                        Event title
+                        <input
+                          type="text"
+                          value={eventTitle}
+                          onChange={event => setEventTitle(event.target.value)}
+                          className={`${inputClasses} mt-1`}
+                          placeholder="Lunch with Sam, Sprint review, Yoga class..."
+                        />
+                      </label>
+                      <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                        Description (optional)
+                        <textarea
+                          value={eventDescription}
+                          onChange={event => setEventDescription(event.target.value)}
+                          className={`${textareaClasses} mt-1`}
+                          placeholder="Add context, agenda items, or preparation notes."
+                        />
+                      </label>
+                      <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                        Location (optional)
+                        <input
+                          type="text"
+                          value={eventLocation}
+                          onChange={event => setEventLocation(event.target.value)}
+                          className={`${inputClasses} mt-1`}
+                          placeholder="Conference room, video link, favourite cafe..."
+                        />
+                      </label>
+                      <div className="sm:col-span-2 inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={eventAllDay}
+                            onChange={event => setEventAllDay(event.target.checked)}
+                            className="h-4 w-4 rounded border-zen-300 text-zen-500 focus:ring-zen-400 dark:border-zen-600 dark:bg-zen-900"
+                          />
+                          All day event
+                        </label>
+                      </div>
+                      {!eventAllDay ? (
+                        <>
+                          <label className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                            Start time
+                            <input
+                              type="time"
+                              value={eventStartTime}
+                              onChange={input => setEventStartTime(input.target.value)}
+                              className={`${inputClasses} mt-1`}
+                            />
+                          </label>
+                          <label className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
+                            End time
+                            <input
+                              type="time"
+                              value={eventEndTime}
+                              onChange={input => setEventEndTime(input.target.value)}
+                              className={`${inputClasses} mt-1`}
+                            />
+                          </label>
+                        </>
+                      ) : null}
+                    </div>
+                    {eventError ? (
+                      <p className="text-sm font-semibold text-warm-600 dark:text-warm-400">{eventError}</p>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="submit"
+                        className="inline-flex items-center gap-2 rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-70"
+                        disabled={eventSubmitting}
+                      >
+                        <CalendarPlus className="h-4 w-4" />
+                        {eventSubmitting ? 'Saving...' : 'Add event'}
+                      </button>
+                      <span className="text-xs text-zen-500 dark:text-zen-300">
+                        Events appear on your calendar instantly.
+                      </span>
+                    </div>
+                  </form>
+
+                  <div className="space-y-3 rounded-2xl border border-dashed border-zen-200/70 bg-white/70 p-4 shadow-inner dark:border-zen-700/40 dark:bg-zen-900/50">
+                    <div className="text-sm font-semibold text-zen-700 dark:text-zen-100">Import .ics calendar</div>
+                    <p className="text-xs leading-relaxed text-zen-500 dark:text-zen-300">
+                      Bring events from other calendars. We will merge matching entries so you will not see duplicates.
+                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <input
+                        ref={importInputRef}
+                        type="file"
+                        accept=".ics,text/calendar"
+                        onChange={event => {
+                          const file = event.target.files?.[0] ?? null;
+                          setIcsFile(file);
+                          setIcsError(null);
+                        }}
+                        className={`${inputClasses} cursor-pointer`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleIcsImport}
+                        className="inline-flex items-center gap-2 rounded-full bg-zen-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-zen-600 disabled:cursor-not-allowed disabled:opacity-70"
+                        disabled={icsSubmitting}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {icsSubmitting ? 'Importing...' : 'Import events'}
+                      </button>
+                    </div>
+                    {icsFile ? (
+                      <p className="text-xs text-zen-500 dark:text-zen-300">Selected: {icsFile.name}</p>
+                    ) : null}
+                    {icsError ? (
+                      <p className="text-xs font-semibold text-warm-600 dark:text-warm-400">{icsError}</p>
+                    ) : null}
+                  </div>
+                </div>
               ) : null}
 
               {activeTab === 'reminder' ? (
