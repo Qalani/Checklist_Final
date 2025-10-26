@@ -120,7 +120,7 @@ function SortableTaskItem({
   const [burstKey, setBurstKey] = useState(0);
 
   useEffect(() => {
-    let timeout: ReturnType<typeof window.setTimeout> | undefined;
+    let timeout: number | undefined;
 
     if (task.completed) {
       const newParticles = Array.from({ length: 8 }).map<ParticleSpec>((_, index) => {
