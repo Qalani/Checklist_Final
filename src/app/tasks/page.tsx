@@ -8,7 +8,6 @@ import {
   Plus,
   Clock,
   Sparkles,
-  Bell,
   Share2,
   UserPlus,
   UserMinus,
@@ -26,6 +25,7 @@ import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ZenPageHeader from '@/components/ZenPageHeader';
 import AccountSummary from '@/components/AccountSummary';
+import SettingsMenu from '@/components/SettingsMenu';
 import { useChecklist } from '@/features/checklist/useChecklist';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useRouter } from 'next/navigation';
@@ -621,28 +621,14 @@ export default function HomePage() {
                 <Plus className="h-4 w-4" />
                 New Task
               </button>
-              {notificationPermission === 'default' ? (
-                <button
-                  onClick={() => {
-                    void requestNotificationPermission();
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-3 py-2 text-sm font-medium text-zen-600 transition-all hover:border-zen-300 hover:bg-zen-50 sm:w-auto"
-                >
-                  <Bell className="h-4 w-4" />
-                  Enable notifications
-                </button>
-              ) : null}
-              {notificationPermission === 'denied' ? (
-                <div className="w-full rounded-xl border border-zen-200 bg-surface/60 px-3 py-2 text-center text-xs text-zen-500 sm:w-auto">
-                  Notifications disabled in browser settings
-                </div>
-              ) : null}
-              {notificationPermission === 'granted' ? (
-                <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/75 px-3 py-2 text-sm text-zen-600 sm:w-auto">
-                  <Bell className="h-4 w-4" />
-                  Notifications on
-                </div>
-              ) : null}
+              <SettingsMenu
+                userEmail={user.email}
+                onSignOut={signOut}
+                notificationPermission={notificationPermission}
+                onRequestNotificationPermission={() => {
+                  void requestNotificationPermission();
+                }}
+              />
               <div className="hidden h-8 w-px bg-zen-200 xl:block" />
               <AccountSummary email={user.email} syncing={syncing} onSignOut={signOut} />
             </>

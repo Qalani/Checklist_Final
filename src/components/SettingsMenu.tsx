@@ -9,6 +9,8 @@ import ThemeSwitcher from './ThemeSwitcher';
 interface SettingsMenuProps {
   userEmail?: string | null;
   onSignOut: () => void;
+  notificationPermission?: NotificationPermission | 'unsupported' | 'pending';
+  onRequestNotificationPermission?: () => void;
 }
 
 type PreferenceKey = 'inAppNotifications' | 'emailDigests';
@@ -23,7 +25,12 @@ const DEFAULT_PREFERENCES: StoredPreferences = {
   emailDigests: false,
 };
 
-export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps) {
+export default function SettingsMenu({
+  userEmail,
+  onSignOut,
+  notificationPermission,
+  onRequestNotificationPermission,
+}: SettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const [preferences, setPreferences] = useState<StoredPreferences>(() => {
     if (typeof window === 'undefined') {
@@ -143,6 +150,43 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
     }));
   };
 
+  const hasNotificationPermissionControls =
+    typeof notificationPermission !== 'undefined' && notificationPermission !== null;
+
+  const renderNotificationPermissionStatus = () => {
+    if (!notificationPermission) {
+      return <span className="text-xs font-medium text-zen-500 dark:text-zen-300">Unavailable</span>;
+    }
+
+    if (notificationPermission === 'pending') {
+      return <span className="text-xs font-medium text-zen-500 dark:text-zen-300">Checking…</span>;
+    }
+
+    if (notificationPermission === 'default') {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            onRequestNotificationPermission?.();
+          }}
+          className="rounded-full border border-zen-200 bg-zen-50 px-3 py-1 text-xs font-semibold text-zen-600 transition hover:border-zen-300 hover:bg-zen-100 dark:border-zen-700 dark:bg-zen-900/40 dark:text-zen-200 dark:hover:bg-zen-900"
+        >
+          Enable alerts
+        </button>
+      );
+    }
+
+    if (notificationPermission === 'granted') {
+      return <span className="rounded-full bg-sage-100 px-2.5 py-1 text-xs font-semibold text-sage-700 dark:bg-sage-500/20 dark:text-sage-100">Active</span>;
+    }
+
+    if (notificationPermission === 'denied') {
+      return <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-200">Blocked</span>;
+    }
+
+    return <span className="text-xs font-medium text-zen-500 dark:text-zen-300">Unavailable</span>;
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -209,6 +253,27 @@ export default function SettingsMenu({ userEmail, onSignOut }: SettingsMenuProps
                       onChange={() => togglePreference('emailDigests')}
                     />
                   </label>
+                  {hasNotificationPermissionControls ? (
+                    <div className="rounded-2xl border border-zen-200/70 bg-surface/80 p-3 text-sm text-zen-600 dark:border-zen-700/60 dark:text-zen-200">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-zen-800 dark:text-zen-100">Browser notifications</p>
+                          <p className="text-xs text-zen-500 dark:text-zen-300">Stay informed when Zen Workspace is in the background.</p>
+                        </div>
+                        {renderNotificationPermissionStatus()}
+                      </div>
+                      {notificationPermission === 'denied' ? (
+                        <p className="mt-2 text-xs text-zen-500 dark:text-zen-300">
+                          Notifications are blocked in your browser settings. Enable them to receive reminders.
+                        </p>
+                      ) : null}
+                      {notificationPermission === 'unsupported' ? (
+                        <p className="mt-2 text-xs text-zen-500 dark:text-zen-300">
+                          Your browser does not support notifications.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </section>
 
                 <section className="space-y-3">
