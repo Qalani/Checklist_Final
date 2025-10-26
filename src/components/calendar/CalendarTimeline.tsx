@@ -11,9 +11,11 @@ import {
   Calendar,
   dateFnsLocalizer,
   type CalendarProps,
+  type DateHeaderProps,
   type Event,
-  type View,
+  type HeaderProps,
   type SlotInfo,
+  type View,
 } from 'react-big-calendar';
 import withDragAndDrop, { type EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop';
 import { format, parse, startOfWeek, getDay, isSameDay } from 'date-fns';
@@ -66,6 +68,55 @@ const localizer = dateFnsLocalizer({
 const DragAndDropCalendar = withDragAndDrop<TimelineEvent>(
   Calendar as ComponentType<CalendarProps<TimelineEvent, object>>,
 );
+
+function CalendarHeaderCell({ date, localizer }: HeaderProps) {
+  const isToday = localizer.isSameDate(date, new Date());
+  const weekdayLabel = localizer.format(date, 'weekdayFormat');
+  const dayOfMonthLabel = localizer.format(date, 'dateFormat');
+
+  return (
+    <span
+      role="columnheader"
+      aria-sort="none"
+      className="calendar-header-cell"
+      data-today={isToday ? 'true' : undefined}
+    >
+      <span className="calendar-header-cell-day">{weekdayLabel}</span>
+      <span className="calendar-header-cell-date">{dayOfMonthLabel}</span>
+    </span>
+  );
+}
+
+function CalendarMonthDateHeader({ date, drilldownView, onDrillDown }: DateHeaderProps) {
+  const isToday = localizer.isSameDate(date, new Date());
+  const dayOfMonthLabel = format(date, 'd', { locale: enUS });
+  const accessibleLabel = format(date, 'EEEE MMMM d', { locale: enUS });
+
+  const content = (
+    <span className="calendar-month-date" data-today={isToday ? 'true' : undefined}>
+      <span className="calendar-month-date-number">{dayOfMonthLabel}</span>
+    </span>
+  );
+
+  if (!drilldownView) {
+    return (
+      <span aria-label={accessibleLabel} className="calendar-month-date-wrapper">
+        {content}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={accessibleLabel}
+      className="rbc-button-link calendar-month-date-button"
+      onClick={onDrillDown}
+    >
+      {content}
+    </button>
+  );
+}
 
 interface RgbColor {
   r: number;
@@ -496,7 +547,12 @@ export function CalendarTimeline({
         popup
         longPressThreshold={150}
         className="calendar-timeline relative z-10"
-        components={{ event: EventContent, dateCellWrapper: DateCellWrapper }}
+        components={{
+          event: EventContent,
+          dateCellWrapper: DateCellWrapper,
+          header: CalendarHeaderCell,
+          month: { dateHeader: CalendarMonthDateHeader },
+        }}
         eventPropGetter={eventPropGetter}
         dayPropGetter={dayPropGetter}
         slotPropGetter={slotPropGetter}

@@ -384,11 +384,90 @@
   background-color: rgba(var(--color-zen-500), 0.25);
 }
 
+.calendar-timeline .calendar-header-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.calendar-timeline .calendar-header-cell-day {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+.calendar-timeline .calendar-header-cell-date {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: inherit;
+}
+
+@media (max-width: 640px) {
+  .calendar-timeline .calendar-header-cell {
+    flex-direction: column;
+    gap: 0.15rem;
+    text-align: center;
+  }
+
+  .calendar-timeline .calendar-header-cell-day {
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+  }
+
+  .calendar-timeline .calendar-header-cell-date {
+    font-size: 0.95rem;
+  }
+}
+
+.calendar-timeline .calendar-month-date,
+.calendar-timeline .calendar-month-date-wrapper,
+.calendar-timeline .calendar-month-date-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-timeline .calendar-month-date {
+  min-width: 2rem;
+  min-height: 2rem;
+  border-radius: 9999px;
+}
+
+.calendar-timeline .calendar-month-date-number {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .calendar-timeline .rbc-header.rbc-today .rbc-button-link,
 .calendar-timeline .rbc-date-cell.rbc-now .rbc-button-link {
-  background-image: linear-gradient(135deg, rgba(var(--color-zen-500), 0.96), rgba(var(--color-zen-400), 0.82));
-  color: #ffffff;
-  box-shadow: 0 15px 35px rgba(var(--color-zen-500), 0.35);
+  position: relative;
+  background: transparent;
+  color: rgba(var(--color-zen-800), 0.95);
+  box-shadow: none;
+}
+
+.calendar-timeline .rbc-header.rbc-today .rbc-button-link::after,
+.calendar-timeline .rbc-date-cell.rbc-now .rbc-button-link::after {
+  content: '';
+  position: absolute;
+  inset: 0.2rem;
+  border-radius: 9999px;
+  border: 2px solid rgba(var(--color-zen-900), 0.85);
+  pointer-events: none;
+}
+
+[data-theme$='dark'] .calendar-timeline .rbc-header.rbc-today .rbc-button-link,
+[data-theme$='dark'] .calendar-timeline .rbc-date-cell.rbc-now .rbc-button-link {
+  color: rgba(var(--color-zen-50), 0.95);
+}
+
+[data-theme$='dark'] .calendar-timeline .rbc-header.rbc-today .rbc-button-link::after,
+[data-theme$='dark'] .calendar-timeline .rbc-date-cell.rbc-now .rbc-button-link::after {
+  border-color: rgba(var(--color-zen-100), 0.65);
 }
 
 .calendar-timeline .rbc-date-cell {
