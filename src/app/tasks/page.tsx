@@ -76,6 +76,7 @@ export default function HomePage() {
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<
@@ -160,6 +161,7 @@ export default function HomePage() {
     if (!user) {
       setShowTaskForm(false);
       setEditingTask(null);
+      setInlineEditingTaskId(null);
       setFilterPriority(null);
       setFilterCategory(null);
     }
@@ -174,6 +176,7 @@ export default function HomePage() {
 
       setShowTaskForm(false);
       setEditingTask(null);
+      setInlineEditingTaskId(null);
     },
     [saveTask],
   );
@@ -614,6 +617,7 @@ export default function HomePage() {
               <button
                 onClick={() => {
                   setEditingTask(null);
+                  setInlineEditingTaskId(null);
                   setShowTaskForm(true);
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-zen-600 px-4 py-2 font-medium text-white shadow-medium transition-all hover:bg-zen-700 hover:shadow-lift sm:w-auto"
@@ -731,7 +735,8 @@ export default function HomePage() {
                         categories={categories}
                         onEdit={(task) => {
                           setEditingTask(task);
-                          setShowTaskForm(true);
+                          setInlineEditingTaskId(task.id);
+                          setShowTaskForm(false);
                         }}
                         onDelete={(id) => {
                           void deleteTask(id);
@@ -745,6 +750,13 @@ export default function HomePage() {
                         onManageAccess={(task) => {
                           void handleOpenShareTask(task);
                         }}
+                        editingTaskId={inlineEditingTaskId}
+                        onCancelEdit={() => {
+                          setInlineEditingTaskId(null);
+                          setEditingTask(null);
+                        }}
+                        onSaveEdit={(task, updates) => handleTaskSave(updates, task)}
+                        onCreateCategory={handleCategoryCreate}
                       />
                     </motion.div>
                   </AnimatePresence>

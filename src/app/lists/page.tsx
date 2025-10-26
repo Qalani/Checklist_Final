@@ -108,6 +108,7 @@ export default function ListsPage() {
   } = useLists(user?.id ?? null);
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM);
   const [editingList, setEditingList] = useState<List | null>(null);
+  const [inlineEditingListId, setInlineEditingListId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -158,13 +159,13 @@ export default function ListsPage() {
   }, [authChecked, router, user]);
 
   useEffect(() => {
-    if (!showForm) {
+    if (!showForm && inlineEditingListId === null) {
       setFormState(INITIAL_FORM);
       setEditingList(null);
       setFormError(null);
       setEditingItemsListId(null);
     }
-  }, [showForm]);
+  }, [inlineEditingListId, showForm]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -271,8 +272,10 @@ export default function ListsPage() {
 
   const handleOpenCreate = () => {
     setEditingList(null);
+    setInlineEditingListId(null);
     setFormState(INITIAL_FORM);
     setEditingItemsListId(null);
+    setFormError(null);
     setShowForm(true);
   };
 
@@ -284,12 +287,14 @@ export default function ListsPage() {
     }
 
     setEditingList(list);
+    setInlineEditingListId(list.id);
     setEditingItemsListId(list.id);
     setFormState({
       name: list.name,
       description: list.description ?? '',
     });
-    setShowForm(true);
+    setFormError(null);
+    setShowForm(false);
   };
 
   const handleSubmit = async () => {
@@ -306,19 +311,41 @@ export default function ListsPage() {
       description: formState.description.trim(),
     };
 
-    const result = editingList
-      ? await updateList(editingList.id, payload)
-      : await createList(payload);
+    if (editingList) {
+      const result = await updateList(editingList.id, payload);
+      if (result && 'error' in result && result.error) {
+        setFormError(result.error);
+        setSubmitting(false);
+        return;
+      }
 
-    if (result && 'error' in result && result.error) {
-      setFormError(result.error);
+      setInlineEditingListId(null);
+      setEditingList(null);
+      setFormState(INITIAL_FORM);
+      setEditingItemsListId(null);
     } else {
+      const result = await createList(payload);
+      if (result && 'error' in result && result.error) {
+        setFormError(result.error);
+        setSubmitting(false);
+        return;
+      }
+
       setShowForm(false);
       setFormState(INITIAL_FORM);
       setEditingItemsListId(null);
     }
 
     setSubmitting(false);
+  };
+
+  const handleCancelInlineEdit = () => {
+    setInlineEditingListId(null);
+    setEditingList(null);
+    setFormState(INITIAL_FORM);
+    setFormError(null);
+    setSubmitting(false);
+    setEditingItemsListId(null);
   };
 
   const handleDelete = async (list: List) => {
@@ -765,6 +792,27 @@ export default function ListsPage() {
                   const canEditList = role === 'owner' || role === 'editor';
                   const canDeleteList = role === 'owner';
                   const isEditingList = editingItemsListId === list.id;
+                  const isInlineEditing = inlineEditingListId === list.id;
+                  const cardClassName = `rounded-3xl border shadow-soft p-6 flex flex-col gap-4 ${
+                    isInlineEditing ? 'bg-surface border-sage-200 ring-1 ring-sage-100' : 'bg-surface/80 border-zen-200'
+                  }`;
+                  const metadata = (
+                    <div className="flex items-center gap-2 text-xs text-zen-400">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sage-50 text-sage-600 border border-sage-100">
+                        <Users className="w-3 h-3" />
+                        {ROLE_LABELS[role]}
+                      </span>
+                      <span>
+                        {list.created_at
+                          ? new Date(list.created_at).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : 'Recently created'}
+                      </span>
+                    </div>
+                  );
 
                   return (
                     <motion.div
@@ -772,12 +820,44 @@ export default function ListsPage() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="rounded-3xl bg-surface/80 border border-zen-200 shadow-soft p-6 flex flex-col gap-4"
+                      className={cardClassName}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
-                          {list.description && <MarkdownDisplay text={list.description} />}
+                      {isInlineEditing ? (
+                        <form
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void handleSubmit();
+                          }}
+                          className="flex flex-col gap-4"
+                        >
+                          <div className="grid gap-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-zen-700">List name</label>
+                              <input
+                                type="text"
+                                value={formState.name}
+                                onChange={event => setFormState(prev => ({ ...prev, name: event.target.value }))}
+                                placeholder="Sunday reset, Travel checklist, Reading list..."
+                                className="w-full rounded-xl border border-sage-300 bg-surface px-4 py-2.5 text-sm text-zen-900 shadow-soft focus:border-sage-500 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-zen-700">Description</label>
+                              <RichTextTextarea
+                                value={formState.description}
+                                onChange={value => setFormState(prev => ({ ...prev, description: value }))}
+                                placeholder="Add a gentle reminder of what this list helps you with."
+                                rows={4}
+                              />
+                            </div>
+                          </div>
+
+                          {formError && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                              {formError}
+                            </div>
+                          )}
+
                           <ListItemsBoard
                             items={Array.isArray(list.items) ? list.items : []}
                             canEdit={canEditList}
@@ -789,56 +869,82 @@ export default function ListsPage() {
                             onReorder={canEditList ? orderedIds => handleReorderListItems(list.id, orderedIds) : undefined}
                             error={itemActionErrors[list.id] ?? null}
                           />
-                          <div className="flex items-center gap-2 text-xs text-zen-400">
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sage-50 text-sage-600 border border-sage-100">
-                              <Users className="w-3 h-3" />
-                              {ROLE_LABELS[role]}
-                            </span>
-                            <span>
-                              {list.created_at
-                                ? new Date(list.created_at).toLocaleString(undefined, {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  })
-                                : 'Recently created'}
-                            </span>
+
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            {metadata}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleCancelInlineEdit}
+                                className="px-4 py-2 rounded-xl border border-zen-200 text-sm font-medium text-zen-600 hover:text-zen-800 hover:border-zen-300 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={submitting}
+                                className="px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                              >
+                                {submitting ? 'Saving…' : 'Save changes'}
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {list.access_role && (
-                            <button
-                              type="button"
-                              onClick={() => void handleOpenShare(list)}
-                              className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
-                              title={role === 'owner' ? 'Share list' : 'View collaborators'}
-                            >
-                              <Share2 className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(list)}
-                            className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={!canEditList}
-                            title={canEditList ? 'Edit list' : 'You do not have permission to edit this list'}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(list)}
-                            className="p-2 rounded-xl border border-red-200 text-red-500 hover:text-red-600 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={!canDeleteList}
-                            title={canDeleteList ? 'Delete list' : 'Only owners can delete this list'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-xs text-zen-400">
-                        ID: {list.id.slice(0, 8)}…
-                      </div>
+
+                          <div className="text-xs text-zen-400">ID: {list.id.slice(0, 8)}…</div>
+                        </form>
+                      ) : (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-2">
+                              <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
+                              {list.description && <MarkdownDisplay text={list.description} />}
+                              <ListItemsBoard
+                                items={Array.isArray(list.items) ? list.items : []}
+                                canEdit={canEditList}
+                                editing={isEditingList}
+                                onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}
+                                onToggleItem={canEditList ? (itemId, completed) => handleToggleListItem(list.id, itemId, completed) : undefined}
+                                onContentCommit={canEditList ? (itemId, content) => handleUpdateListItemContent(list.id, itemId, content) : undefined}
+                                onDeleteItem={canEditList ? itemId => handleDeleteListItem(list.id, itemId) : undefined}
+                                onReorder={canEditList ? orderedIds => handleReorderListItems(list.id, orderedIds) : undefined}
+                                error={itemActionErrors[list.id] ?? null}
+                              />
+                              {metadata}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {list.access_role && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleOpenShare(list)}
+                                  className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
+                                  title={role === 'owner' ? 'Share list' : 'View collaborators'}
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(list)}
+                                className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!canEditList}
+                                title={canEditList ? 'Edit list' : 'You do not have permission to edit this list'}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(list)}
+                                className="p-2 rounded-xl border border-red-200 text-red-500 hover:text-red-600 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!canDeleteList}
+                                title={canDeleteList ? 'Delete list' : 'Only owners can delete this list'}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-xs text-zen-400">ID: {list.id.slice(0, 8)}…</div>
+                        </>
+                      )}
                     </motion.div>
                   );
                 })

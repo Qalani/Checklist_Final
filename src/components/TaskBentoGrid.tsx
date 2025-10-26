@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import type { ReactNode } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -29,6 +30,7 @@ import {
 } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
+import TaskForm from './TaskForm';
 import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
 
 interface TaskBentoGridProps {
@@ -39,6 +41,10 @@ interface TaskBentoGridProps {
   onToggle: (id: string, completed: boolean) => void;
   onReorder: (tasks: Task[]) => void;
   onManageAccess?: (task: Task) => void;
+  editingTaskId?: string | null;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (task: Task, updates: Partial<Task>) => Promise<{ error?: string } | void>;
+  onCreateCategory?: (input: { name: string; color: string }) => Promise<Category>;
 }
 
 const ROLE_LABELS: Record<'owner' | 'editor' | 'viewer', string> = {
@@ -65,13 +71,24 @@ function formatReminder(minutes: number) {
   return `${minutes} minutes before`;
 }
 
-function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManageAccess }: {
+function SortableTaskCard({
+  task,
+  category,
+  onEdit,
+  onDelete,
+  onToggle,
+  onManageAccess,
+  isEditing = false,
+  editingContent,
+}: {
   task: Task;
   category?: Category;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
   onManageAccess?: () => void;
+  isEditing?: boolean;
+  editingContent?: ReactNode;
 }) {
   const {
     attributes,
@@ -151,6 +168,18 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
   const editButtonTitle = canEdit ? 'Edit task' : 'You do not have permission to edit this task';
   const deleteButtonTitle = canDelete ? 'Delete task' : 'Only owners can delete this task';
 
+  const cardClassName = `
+    relative transition-all ${
+      isEditing
+        ? 'rounded-2xl border-2 bg-surface border-zen-200 shadow-soft'
+        : `p-5 rounded-2xl border-2 cursor-pointer ${
+            task.completed
+              ? 'bg-zen-50/50 border-zen-200 opacity-60'
+              : 'bg-surface border-zen-100 hover:border-sage-300 shadow-soft hover:shadow-medium'
+          }`
+    }
+  `;
+
   return (
     <div ref={setNodeRef} style={style} className="group relative">
       <motion.div
@@ -158,177 +187,177 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
-        className={`
-          relative p-5 rounded-2xl border-2 transition-all cursor-pointer
-          ${task.completed 
-            ? 'bg-zen-50/50 border-zen-200 opacity-60' 
-            : 'bg-surface border-zen-100 hover:border-sage-300 shadow-soft hover:shadow-medium'
-          }
-        `}
+        className={cardClassName}
       >
-        {/* Drag Handle */}
-        <div
-          {...attributes}
-          {...listeners}
-          className="absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-        >
-          <GripVertical className="w-4 h-4 text-zen-400" />
-        </div>
-
-        {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <button
-              onClick={onToggle}
-              className="flex-shrink-0 mt-0.5 text-sage-600 hover:text-sage-700 transition-colors"
-              aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
+        {isEditing ? (
+          editingContent ?? null
+        ) : (
+          <>
+            {/* Drag Handle */}
+            <div
+              {...attributes}
+              {...listeners}
+              className="absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
             >
-              {task.completed ? (
-                <CheckCircle2 className="w-6 h-6" />
-              ) : (
-                <Circle className="w-6 h-6" />
-              )}
-            </button>
+              <GripVertical className="w-4 h-4 text-zen-400" />
+            </div>
 
-            <div className="flex-1 min-w-0">
-              <h3
-                className={`font-semibold text-zen-900 mb-1 break-words ${task.completed ? 'line-through' : ''}`}
+            {/* Header */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <button
+                  onClick={onToggle}
+                  className="flex-shrink-0 mt-0.5 text-sage-600 hover:text-sage-700 transition-colors"
+                  aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
+                >
+                  {task.completed ? (
+                    <CheckCircle2 className="w-6 h-6" />
+                  ) : (
+                    <Circle className="w-6 h-6" />
+                  )}
+                </button>
+
+                <div className="flex-1 min-w-0">
+                  <h3
+                    className={`font-semibold text-zen-900 mb-1 break-words ${task.completed ? 'line-through' : ''}`}
+                  >
+                    {task.title}
+                  </h3>
+                  {task.description && (
+                    <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
+                {task.access_role && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
+                      isOwner
+                        ? 'border-sage-200 bg-sage-50 text-sage-600'
+                        : 'border-zen-200 bg-zen-50 text-zen-600'
+                    }`}
+                  >
+                    <Shield className="w-3 h-3" />
+                    {ROLE_LABELS[accessRole]}
+                  </span>
+                )}
+                {canManageAccess && (
+                  <button
+                    type="button"
+                    onClick={() => onManageAccess?.()}
+                    className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
+                    title={shareButtonTitle}
+                    aria-label={shareButtonTitle}
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canEdit) {
+                      return;
+                    }
+                    onEdit();
+                  }}
+                  className={`p-2 rounded-xl border transition-colors ${
+                    canEdit
+                      ? 'border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300'
+                      : 'border-zen-100 text-zen-300 cursor-not-allowed opacity-60'
+                  }`}
+                  disabled={!canEdit}
+                  title={editButtonTitle}
+                  aria-label={editButtonTitle}
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canDelete) {
+                      return;
+                    }
+                    if (confirm('Delete this task?')) {
+                      onDelete();
+                    }
+                  }}
+                  className={`p-2 rounded-xl border transition-colors ${
+                    canDelete
+                      ? 'border-red-200 text-red-500 hover:text-red-600 hover:border-red-300'
+                      : 'border-zen-100 text-zen-300 cursor-not-allowed opacity-60'
+                  }`}
+                  disabled={!canDelete}
+                  title={deleteButtonTitle}
+                  aria-label={deleteButtonTitle}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {category && (
+                <span
+                  className="px-2 py-1 rounded-lg text-xs font-medium shrink-0"
+                  style={{
+                    backgroundColor: `${category.color}15`,
+                    color: category.color,
+                  }}
+                >
+                  {category.name}
+                </span>
+              )}
+
+              <span
+                className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0 ${priorityColors[task.priority]}`}
               >
-                {task.title}
-              </h3>
-              {task.description && (
-                <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
+                <Flag className="w-3 h-3" />
+                {task.priority}
+              </span>
+
+              {task.created_at && (
+                <span className="px-2 py-1 rounded-lg text-xs text-zen-500 bg-zen-50 flex items-center gap-1 ml-auto shrink-0">
+                  <Clock className="w-3 h-3" />
+                  {new Date(task.created_at).toLocaleDateString()}
+                </span>
+              )}
+
+              {dueBadge && (
+                <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0 ${dueBadge.tone}`}>
+                  <Clock className="w-3 h-3" />
+                  {dueBadge.text}
+                </span>
+              )}
+
+              {reminderLabel && (
+                <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1 shrink-0">
+                  <BellRing className="w-3 h-3" />
+                  {reminderLabel}
+                </span>
+              )}
+              {recurrenceLabel && (
+                <span className="px-2 py-1 rounded-lg text-xs font-medium bg-zen-50 text-zen-700 flex items-center gap-1 shrink-0">
+                  <RefreshCcw className="w-3 h-3" />
+                  {recurrenceLabel}
+                </span>
+              )}
+              {nextReminderLabel && (
+                <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700/90 flex items-center gap-1 shrink-0">
+                  <BellRing className="w-3 h-3" />
+                  Next: {nextReminderLabel}
+                </span>
+              )}
+              {snoozedLabel && (
+                <span className="px-2 py-1 rounded-lg text-xs font-medium bg-warm-50 text-warm-700 flex items-center gap-1 shrink-0">
+                  <AlarmClock className="w-3 h-3" />
+                  Snoozed until {snoozedLabel}
+                </span>
               )}
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
-            {task.access_role && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
-                  isOwner
-                    ? 'border-sage-200 bg-sage-50 text-sage-600'
-                    : 'border-zen-200 bg-zen-50 text-zen-600'
-                }`}
-              >
-                <Shield className="w-3 h-3" />
-                {ROLE_LABELS[accessRole]}
-              </span>
-            )}
-            {canManageAccess && (
-              <button
-                type="button"
-                onClick={() => onManageAccess?.()}
-                className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
-                title={shareButtonTitle}
-                aria-label={shareButtonTitle}
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                if (!canEdit) {
-                  return;
-                }
-                onEdit();
-              }}
-              className={`p-2 rounded-xl border transition-colors ${
-                canEdit
-                  ? 'border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300'
-                  : 'border-zen-100 text-zen-300 cursor-not-allowed opacity-60'
-              }`}
-              disabled={!canEdit}
-              title={editButtonTitle}
-              aria-label={editButtonTitle}
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!canDelete) {
-                  return;
-                }
-                if (confirm('Delete this task?')) {
-                  onDelete();
-                }
-              }}
-              className={`p-2 rounded-xl border transition-colors ${
-                canDelete
-                  ? 'border-red-200 text-red-500 hover:text-red-600 hover:border-red-300'
-                  : 'border-zen-100 text-zen-300 cursor-not-allowed opacity-60'
-              }`}
-              disabled={!canDelete}
-              title={deleteButtonTitle}
-              aria-label={deleteButtonTitle}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {category && (
-            <span
-              className="px-2 py-1 rounded-lg text-xs font-medium shrink-0"
-              style={{
-                backgroundColor: `${category.color}15`,
-                color: category.color,
-              }}
-            >
-              {category.name}
-            </span>
-          )}
-
-          <span
-            className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0 ${priorityColors[task.priority]}`}
-          >
-            <Flag className="w-3 h-3" />
-            {task.priority}
-          </span>
-
-          {task.created_at && (
-            <span className="px-2 py-1 rounded-lg text-xs text-zen-500 bg-zen-50 flex items-center gap-1 ml-auto shrink-0">
-              <Clock className="w-3 h-3" />
-              {new Date(task.created_at).toLocaleDateString()}
-            </span>
-          )}
-
-          {dueBadge && (
-            <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0 ${dueBadge.tone}`}>
-              <Clock className="w-3 h-3" />
-              {dueBadge.text}
-            </span>
-          )}
-
-          {reminderLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1 shrink-0">
-              <BellRing className="w-3 h-3" />
-              {reminderLabel}
-            </span>
-          )}
-          {recurrenceLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-zen-50 text-zen-700 flex items-center gap-1 shrink-0">
-              <RefreshCcw className="w-3 h-3" />
-              {recurrenceLabel}
-            </span>
-          )}
-          {nextReminderLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700/90 flex items-center gap-1 shrink-0">
-              <BellRing className="w-3 h-3" />
-              Next: {nextReminderLabel}
-            </span>
-          )}
-          {snoozedLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-warm-50 text-warm-700 flex items-center gap-1 shrink-0">
-              <AlarmClock className="w-3 h-3" />
-              Snoozed until {snoozedLabel}
-            </span>
-          )}
-        </div>
+          </>
+        )}
       </motion.div>
     </div>
   );
@@ -342,6 +371,10 @@ export default function TaskBentoGrid({
   onToggle,
   onReorder,
   onManageAccess,
+  editingTaskId = null,
+  onCancelEdit,
+  onSaveEdit,
+  onCreateCategory,
 }: TaskBentoGridProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -394,17 +427,36 @@ export default function TaskBentoGrid({
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tasks.map(task => (
-            <SortableTaskCard
-              key={task.id}
-              task={task}
-              category={categories.find(c => c.name === task.category)}
-              onEdit={() => onEdit(task)}
-              onDelete={() => onDelete(task.id)}
-              onToggle={() => onToggle(task.id, !task.completed)}
-              onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
-            />
-          ))}
+          {tasks.map(task => {
+            const isEditing = editingTaskId === task.id;
+            const editingContent =
+              isEditing && onSaveEdit && onCancelEdit && onCreateCategory
+                ? (
+                    <TaskForm
+                      task={task}
+                      categories={categories}
+                      onCreateCategory={onCreateCategory}
+                      onClose={onCancelEdit}
+                      onSave={(updates) => onSaveEdit(task, updates)}
+                      mode="inline"
+                    />
+                  )
+                : null;
+
+            return (
+              <SortableTaskCard
+                key={task.id}
+                task={task}
+                category={categories.find(c => c.name === task.category)}
+                onEdit={() => onEdit(task)}
+                onDelete={() => onDelete(task.id)}
+                onToggle={() => onToggle(task.id, !task.completed)}
+                onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
+                isEditing={isEditing}
+                editingContent={editingContent}
+              />
+            );
+          })}
         </div>
       </SortableContext>
     </DndContext>
