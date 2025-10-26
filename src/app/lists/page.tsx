@@ -894,53 +894,55 @@ export default function ListsPage() {
                         </form>
                       ) : (
                         <>
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2 w-full lg:min-w-0 lg:flex-1">
-                              <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
-                              {list.description && <MarkdownDisplay text={list.description} />}
-                              <ListItemsBoard
-                                items={Array.isArray(list.items) ? list.items : []}
-                                canEdit={canEditList}
-                                editing={isEditingList}
-                                onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}
-                                onToggleItem={canEditList ? (itemId, completed) => handleToggleListItem(list.id, itemId, completed) : undefined}
-                                onContentCommit={canEditList ? (itemId, content) => handleUpdateListItemContent(list.id, itemId, content) : undefined}
-                                onDeleteItem={canEditList ? itemId => handleDeleteListItem(list.id, itemId) : undefined}
-                                onReorder={canEditList ? orderedIds => handleReorderListItems(list.id, orderedIds) : undefined}
-                                error={itemActionErrors[list.id] ?? null}
-                              />
-                              {metadata}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end lg:flex-shrink-0">
-                              {list.access_role && (
+                          <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="space-y-2 sm:flex-1 sm:min-w-0">
+                                <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
+                                {list.description && <MarkdownDisplay text={list.description} />}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end sm:self-start">
+                                {list.access_role && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleOpenShare(list)}
+                                    className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
+                                    title={role === 'owner' ? 'Share list' : 'View collaborators'}
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={() => void handleOpenShare(list)}
-                                  className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors"
-                                  title={role === 'owner' ? 'Share list' : 'View collaborators'}
+                                  onClick={() => handleOpenEdit(list)}
+                                  className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  disabled={!canEditList}
+                                  title={canEditList ? 'Edit list' : 'You do not have permission to edit this list'}
                                 >
-                                  <Share2 className="w-4 h-4" />
+                                  <Pencil className="w-4 h-4" />
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEdit(list)}
-                                className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={!canEditList}
-                                title={canEditList ? 'Edit list' : 'You do not have permission to edit this list'}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(list)}
-                                className="p-2 rounded-xl border border-red-200 text-red-500 hover:text-red-600 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={!canDeleteList}
-                                title={canDeleteList ? 'Delete list' : 'Only owners can delete this list'}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(list)}
+                                  className="p-2 rounded-xl border border-red-200 text-red-500 hover:text-red-600 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  disabled={!canDeleteList}
+                                  title={canDeleteList ? 'Delete list' : 'Only owners can delete this list'}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
+                            <ListItemsBoard
+                              items={Array.isArray(list.items) ? list.items : []}
+                              canEdit={canEditList}
+                              editing={isEditingList}
+                              onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}
+                              onToggleItem={canEditList ? (itemId, completed) => handleToggleListItem(list.id, itemId, completed) : undefined}
+                              onContentCommit={canEditList ? (itemId, content) => handleUpdateListItemContent(list.id, itemId, content) : undefined}
+                              onDeleteItem={canEditList ? itemId => handleDeleteListItem(list.id, itemId) : undefined}
+                              onReorder={canEditList ? orderedIds => handleReorderListItems(list.id, orderedIds) : undefined}
+                              error={itemActionErrors[list.id] ?? null}
+                            />
+                            {metadata}
                           </div>
                           <div className="text-xs text-zen-400">ID: {list.id.slice(0, 8)}…</div>
                         </>
