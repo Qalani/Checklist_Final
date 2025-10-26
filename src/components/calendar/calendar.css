@@ -7,10 +7,18 @@
   background: transparent;
   font-family: inherit;
   --calendar-grid-color: rgba(var(--color-zen-400), 0.32);
+  --calendar-event-foreground: rgba(var(--color-zen-900), 0.94);
+  --calendar-event-muted: rgba(var(--color-zen-700), 0.78);
+  --calendar-event-subtle: rgba(var(--color-zen-700), 0.65);
+  --calendar-event-border-contrast: rgba(255, 255, 255, 0.35);
 }
 
 [data-theme$='dark'] .calendar-timeline {
   --calendar-grid-color: rgba(var(--color-zen-200), 0.35);
+  --calendar-event-foreground: rgba(var(--color-zen-50), 0.96);
+  --calendar-event-muted: rgba(var(--color-zen-100), 0.82);
+  --calendar-event-subtle: rgba(var(--color-zen-100), 0.7);
+  --calendar-event-border-contrast: rgba(15, 23, 42, 0.25);
 }
 
 .calendar-timeline .rbc-calendar {
@@ -421,6 +429,26 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  color: var(--calendar-event-foreground);
+}
+
+.calendar-timeline .calendar-event-content {
+  color: var(--calendar-event-foreground);
+}
+
+.calendar-timeline .calendar-event-icon,
+.calendar-timeline .calendar-event-icon-muted,
+.calendar-timeline .calendar-event-meta,
+.calendar-timeline .calendar-event-tag {
+  color: var(--calendar-event-muted);
+}
+
+.calendar-timeline .calendar-event-time {
+  color: var(--calendar-event-foreground);
+}
+
+.calendar-timeline .calendar-event-subtle {
+  color: var(--calendar-event-subtle);
 }
 
 .calendar-timeline .rbc-event:hover {
