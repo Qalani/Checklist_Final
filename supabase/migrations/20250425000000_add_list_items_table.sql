@@ -38,21 +38,11 @@ create policy "List members can view items"
   for select
   using (public.is_list_member(list_id));
 
-create policy "List editors can insert items"
+create policy "List editors can manage items"
   on public.list_items
-  for insert
-  with check (public.is_list_member(list_id, array['owner','editor']));
-
-create policy "List editors can update items"
-  on public.list_items
-  for update
+  for all
   using (public.is_list_member(list_id, array['owner','editor']))
   with check (public.is_list_member(list_id, array['owner','editor']));
-
-create policy "List editors can delete items"
-  on public.list_items
-  for delete
-  using (public.is_list_member(list_id, array['owner','editor']));
 
 -- Function to reorder list items in a single statement
 
