@@ -894,8 +894,8 @@ export default function ListsPage() {
                         </form>
                       ) : (
                         <>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-2">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="space-y-2 lg:min-w-0">
                               <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
                               {list.description && <MarkdownDisplay text={list.description} />}
                               <ListItemsBoard
@@ -911,7 +911,7 @@ export default function ListsPage() {
                               />
                               {metadata}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end lg:flex-shrink-0">
                               {list.access_role && (
                                 <button
                                   type="button"
