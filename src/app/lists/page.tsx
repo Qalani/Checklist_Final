@@ -125,6 +125,7 @@ export default function ListsPage() {
   const [shareOrigin, setShareOrigin] = useState('');
   const shareCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [itemActionErrors, setItemActionErrors] = useState<Record<string, string | null>>({});
+  const [editingItemsListId, setEditingItemsListId] = useState<string | null>(null);
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -161,6 +162,7 @@ export default function ListsPage() {
       setFormState(INITIAL_FORM);
       setEditingList(null);
       setFormError(null);
+      setEditingItemsListId(null);
     }
   }, [showForm]);
 
@@ -270,6 +272,7 @@ export default function ListsPage() {
   const handleOpenCreate = () => {
     setEditingList(null);
     setFormState(INITIAL_FORM);
+    setEditingItemsListId(null);
     setShowForm(true);
   };
 
@@ -281,6 +284,7 @@ export default function ListsPage() {
     }
 
     setEditingList(list);
+    setEditingItemsListId(list.id);
     setFormState({
       name: list.name,
       description: list.description ?? '',
@@ -311,6 +315,7 @@ export default function ListsPage() {
     } else {
       setShowForm(false);
       setFormState(INITIAL_FORM);
+      setEditingItemsListId(null);
     }
 
     setSubmitting(false);
@@ -759,6 +764,7 @@ export default function ListsPage() {
                   const role = resolveRole(list);
                   const canEditList = role === 'owner' || role === 'editor';
                   const canDeleteList = role === 'owner';
+                  const isEditingList = editingItemsListId === list.id;
 
                   return (
                     <motion.div
@@ -775,6 +781,7 @@ export default function ListsPage() {
                           <ListItemsBoard
                             items={Array.isArray(list.items) ? list.items : []}
                             canEdit={canEditList}
+                            editing={isEditingList}
                             onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}
                             onToggleItem={canEditList ? (itemId, completed) => handleToggleListItem(list.id, itemId, completed) : undefined}
                             onContentCommit={canEditList ? (itemId, content) => handleUpdateListItemContent(list.id, itemId, content) : undefined}

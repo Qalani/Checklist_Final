@@ -25,6 +25,7 @@ import type { ListItem } from '@/types';
 interface ListItemsBoardProps {
   items: ListItem[];
   canEdit: boolean;
+  editing?: boolean;
   onAddItem?: () => Promise<string | null>;
   onToggleItem?: (itemId: string, completed: boolean) => Promise<void> | void;
   onContentCommit?: (itemId: string, content: string) => Promise<void> | void;
@@ -36,6 +37,7 @@ interface ListItemsBoardProps {
 interface SortableListItemProps {
   item: ListItem;
   canEdit: boolean;
+  editing: boolean;
   onToggle?: (completed: boolean) => Promise<void> | void;
   onContentCommit?: (content: string) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
@@ -46,6 +48,7 @@ interface SortableListItemProps {
 function SortableListItem({
   item,
   canEdit,
+  editing,
   onToggle,
   onContentCommit,
   onDelete,
@@ -61,7 +64,7 @@ function SortableListItem({
     isDragging,
   } = useSortable({
     id: item.id,
-    disabled: !canEdit,
+    disabled: !canEdit || !editing,
   });
 
   const style = useMemo(
@@ -88,7 +91,7 @@ function SortableListItem({
   }, [autoFocus, onFocusComplete]);
 
   const handleBlur = () => {
-    if (!canEdit || !onContentCommit) {
+    if (!canEdit || !editing || !onContentCommit) {
       return;
     }
 
@@ -98,7 +101,7 @@ function SortableListItem({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!canEdit) {
+    if (!canEdit || !editing) {
       return;
     }
 
@@ -118,7 +121,7 @@ function SortableListItem({
         isDragging ? 'shadow-lg ring-2 ring-sage-200' : 'shadow-soft'
       }`}
     >
-      {canEdit && (
+      {canEdit && editing && (
         <button
           type="button"
           className="flex-shrink-0 text-zen-400 hover:text-zen-600"
@@ -146,7 +149,7 @@ function SortableListItem({
         {item.completed ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
       </button>
       <div className="flex-1">
-        {canEdit && onContentCommit ? (
+        {canEdit && editing && onContentCommit ? (
           <textarea
             ref={textareaRef}
             value={value}
@@ -163,7 +166,7 @@ function SortableListItem({
           </p>
         )}
       </div>
-      {canEdit && onDelete && (
+      {canEdit && editing && onDelete && (
         <button
           type="button"
           onClick={() => void onDelete()}
@@ -180,6 +183,7 @@ function SortableListItem({
 export default function ListItemsBoard({
   items,
   canEdit,
+  editing = false,
   onAddItem,
   onToggleItem,
   onContentCommit,
@@ -202,7 +206,7 @@ export default function ListItemsBoard({
   }, [items]);
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!canEdit || !onReorder) {
+    if (!canEdit || !editing || !onReorder) {
       return;
     }
 
@@ -223,7 +227,7 @@ export default function ListItemsBoard({
   };
 
   const handleAddItem = async () => {
-    if (!canEdit || !onAddItem || creating) {
+    if (!canEdit || !editing || !onAddItem || creating) {
       return;
     }
 
@@ -245,7 +249,12 @@ export default function ListItemsBoard({
           <div className="space-y-3">
             {orderedItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-zen-200 bg-surface/60 p-4 text-sm text-zen-500">
-                No items yet. {canEdit ? 'Add your first item to begin organising this list.' : 'The creator has not added items yet.'}
+                No items yet.{' '}
+                {canEdit
+                  ? editing
+                    ? 'Add your first item to begin organising this list.'
+                    : 'Switch to edit mode to start adding checklist details.'
+                  : 'The creator has not added items yet.'}
               </div>
             ) : (
               orderedItems.map(item => (
@@ -253,6 +262,7 @@ export default function ListItemsBoard({
                   key={item.id}
                   item={item}
                   canEdit={canEdit}
+                  editing={editing}
                   onToggle={onToggleItem ? completed => onToggleItem(item.id, completed) : undefined}
                   onContentCommit={onContentCommit ? content => onContentCommit(item.id, content) : undefined}
                   onDelete={onDeleteItem ? () => onDeleteItem(item.id) : undefined}
@@ -265,7 +275,7 @@ export default function ListItemsBoard({
         </SortableContext>
       </DndContext>
 
-      {canEdit && (
+      {canEdit && editing && (
         <div className="flex items-center justify-between">
           <button
             type="button"
