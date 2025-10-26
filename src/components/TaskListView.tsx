@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   DndContext,
   DragEndEvent,
@@ -59,6 +59,16 @@ const priorityColors: Record<Task['priority'], string> = {
   high: 'text-red-600',
 };
 
+interface ParticleSpec {
+  id: string;
+  x: number;
+  y: number;
+  delay: number;
+  duration: number;
+  size: number;
+  hue: number;
+}
+
 function formatReminder(minutes: number) {
   if (minutes < 60) {
     return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
@@ -105,6 +115,44 @@ function SortableTaskItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const [particleBurst, setParticleBurst] = useState<ParticleSpec[]>([]);
+  const [burstKey, setBurstKey] = useState(0);
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof window.setTimeout> | undefined;
+
+    if (task.completed) {
+      const newParticles = Array.from({ length: 8 }).map<ParticleSpec>((_, index) => {
+        const distance = 16 + Math.random() * 28;
+        const verticalSpread = (Math.random() - 0.5) * 32;
+        return {
+          id: `${task.id}-particle-${index}-${Date.now()}`,
+          x: distance,
+          y: verticalSpread,
+          delay: Math.random() * 0.08,
+          duration: 0.6 + Math.random() * 0.3,
+          size: 4 + Math.random() * 4,
+          hue: 130 + Math.random() * 80,
+        };
+      });
+
+      setParticleBurst(newParticles);
+      setBurstKey((key) => key + 1);
+
+      timeout = window.setTimeout(() => {
+        setParticleBurst([]);
+      }, 900);
+    } else {
+      setParticleBurst([]);
+    }
+
+    return () => {
+      if (timeout) {
+        window.clearTimeout(timeout);
+      }
+    };
+  }, [task.completed, task.id]);
 
   const dueDate = task.due_date ? new Date(task.due_date) : null;
   let dueBadge: { text: string; tone: string } | null = null;
@@ -191,8 +239,58 @@ function SortableTaskItem({
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <h3 className={`font-medium text-zen-900 break-words ${task.completed ? 'line-through' : ''}`}>
-                {task.title}
+              <h3 className="font-medium break-words relative">
+                <span
+                  className={`relative inline-block pr-6 transition-colors duration-300 ${
+                    task.completed ? 'text-zen-500' : 'text-zen-900'
+                  }`}
+                >
+                  {task.title}
+                  <motion.span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 rounded-full bg-gradient-to-r from-zen-400 via-sage-400 to-warm-400 shadow-sm"
+                    initial={false}
+                    animate={{ scaleX: task.completed ? 1 : 0, opacity: task.completed ? 1 : 0 }}
+                    transition={{ duration: 0.45, ease: [0.33, 1, 0.68, 1] }}
+                    style={{ transformOrigin: 'left center' }}
+                  />
+                  <AnimatePresence>
+                    {particleBurst.length > 0 && (
+                      <motion.span
+                        key={burstKey}
+                        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        {particleBurst.map((particle) => (
+                          <motion.span
+                            key={particle.id}
+                            className="pointer-events-none absolute rounded-full shadow-md"
+                            initial={{ opacity: 1, x: 0, y: 0, scale: 0.6 }}
+                            animate={{
+                              opacity: 0,
+                              x: particle.x,
+                              y: particle.y,
+                              scale: 0,
+                            }}
+                            transition={{
+                              duration: particle.duration,
+                              ease: 'easeOut',
+                              delay: particle.delay,
+                            }}
+                            style={{
+                              width: `${particle.size}px`,
+                              height: `${particle.size}px`,
+                              backgroundColor: `hsl(${particle.hue}, 70%, 78%)`,
+                              boxShadow: '0 0 8px rgba(255, 255, 255, 0.6)',
+                            }}
+                          />
+                        ))}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </span>
               </h3>
 
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
