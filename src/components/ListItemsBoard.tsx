@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -67,10 +67,11 @@ function SortableListItem({
     disabled: !canEdit || !editing,
   });
 
-  const style = useMemo(
+  const style = useMemo<CSSProperties>(
     () => ({
       transform: CSS.Transform.toString(transform),
       transition,
+      width: '100%',
     }),
     [transform, transition],
   );
@@ -117,7 +118,7 @@ function SortableListItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative flex items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4 transition-all ${
+      className={`relative flex w-full items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4 transition-all ${
         isDragging ? 'shadow-lg ring-2 ring-sage-200' : 'shadow-soft'
       }`}
     >
@@ -148,7 +149,7 @@ function SortableListItem({
       >
         {item.completed ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
       </button>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         {canEdit && editing && onContentCommit ? (
           <textarea
             ref={textareaRef}
@@ -157,11 +158,11 @@ function SortableListItem({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             rows={1}
-            className={`w-full resize-none bg-transparent text-sm leading-relaxed outline-none ${completedClasses}`}
+            className={`w-full resize-none bg-transparent text-sm leading-relaxed break-words outline-none ${completedClasses}`}
             placeholder="Describe this list item"
           />
         ) : (
-          <p className={`text-sm leading-relaxed ${completedClasses}`}>
+          <p className={`text-sm leading-relaxed break-words ${completedClasses}`}>
             {item.content ? item.content : <span className="text-zen-400">No details yet</span>}
           </p>
         )}
