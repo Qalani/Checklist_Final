@@ -1,6 +1,12 @@
 'use client';
 
-import { useCallback, useMemo, type ComponentType, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  type ComponentType,
+  type ReactNode,
+  type CSSProperties,
+} from 'react';
 import {
   Calendar,
   dateFnsLocalizer,
@@ -60,6 +66,120 @@ const localizer = dateFnsLocalizer({
 const DragAndDropCalendar = withDragAndDrop<TimelineEvent>(
   Calendar as ComponentType<CalendarProps<TimelineEvent, object>>,
 );
+
+interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
+const FALLBACK_COLOR_BY_TYPE: Record<CalendarEventRecord['type'], string> = {
+  task_due: '#2563eb',
+  task_reminder: '#f97316',
+  note: '#8b5cf6',
+  zen_reminder: '#0ea5e9',
+  event: '#6366f1',
+};
+
+const WHITE: RgbColor = { r: 255, g: 255, b: 255 };
+const BLACK: RgbColor = { r: 15, g: 23, b: 42 };
+
+function clampChannel(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function parseHexColor(input?: string | null): RgbColor | null {
+  if (!input) {
+    return null;
+  }
+
+  const value = input.trim();
+  if (!value.startsWith('#')) {
+    return null;
+  }
+
+  const hex = value.slice(1);
+  if (hex.length === 3) {
+    const [r, g, b] = hex.split('');
+    return {
+      r: parseInt(r + r, 16),
+      g: parseInt(g + g, 16),
+      b: parseInt(b + b, 16),
+    } satisfies RgbColor;
+  }
+
+  if (hex.length === 6) {
+    return {
+      r: parseInt(hex.slice(0, 2), 16),
+      g: parseInt(hex.slice(2, 4), 16),
+      b: parseInt(hex.slice(4, 6), 16),
+    } satisfies RgbColor;
+  }
+
+  return null;
+}
+
+function mixColor(color: RgbColor, target: RgbColor, amount: number): RgbColor {
+  return {
+    r: clampChannel(color.r + (target.r - color.r) * amount),
+    g: clampChannel(color.g + (target.g - color.g) * amount),
+    b: clampChannel(color.b + (target.b - color.b) * amount),
+  } satisfies RgbColor;
+}
+
+function toRgba(color: RgbColor, alpha = 1): string {
+  return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
+}
+
+function relativeLuminance(color: RgbColor): number {
+  const channel = (value: number) => {
+    const normalized = value / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+  };
+
+  return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
+}
+
+function computeEventPalette(record: CalendarEventRecord): CSSProperties {
+  const metadata = record.metadata;
+  const taskMetadata = isTaskMetadata(metadata) ? (metadata as CalendarTaskMetadata) : null;
+
+  const baseHex = taskMetadata?.categoryColor ?? FALLBACK_COLOR_BY_TYPE[record.type];
+  const parsedBase = parseHexColor(baseHex) ?? parseHexColor(FALLBACK_COLOR_BY_TYPE[record.type]) ?? {
+    r: 79,
+    g: 70,
+    b: 229,
+  };
+
+  const luminance = relativeLuminance(parsedBase);
+  const foreground = luminance > 0.55 ? '#0f172a' : '#f8fafc';
+  const muted = luminance > 0.55
+    ? toRgba(mixColor(parsedBase, BLACK, 0.45), 0.88)
+    : toRgba(mixColor(parsedBase, WHITE, 0.65), 0.92);
+  const subtle = luminance > 0.55
+    ? toRgba(mixColor(parsedBase, BLACK, 0.35), 0.8)
+    : toRgba(mixColor(parsedBase, WHITE, 0.78), 0.88);
+  const outline = luminance > 0.55 ? 'rgba(15, 23, 42, 0.28)' : 'rgba(255, 255, 255, 0.35)';
+
+  const background = toRgba(mixColor(parsedBase, WHITE, 0.12), 0.92);
+  const border = toRgba(mixColor(parsedBase, BLACK, 0.2), 0.75);
+
+  return {
+    backgroundColor: background,
+    border: `1px solid ${border}`,
+    borderRadius: '18px',
+    boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
+    color: foreground,
+    padding: '10px 12px',
+    backdropFilter: 'blur(6px)',
+    '--calendar-event-foreground': foreground,
+    '--calendar-event-muted': muted,
+    '--calendar-event-subtle': subtle,
+    '--calendar-event-border-contrast': outline,
+  } as CSSProperties & Record<string, string>;
+}
 
 function isTaskMetadata(metadata: unknown): metadata is CalendarTaskMetadata {
   return Boolean(
@@ -225,46 +345,10 @@ export function CalendarTimeline({
 
   const eventPropGetter = useCallback((event: TimelineEvent) => {
     const record = event.resource;
-
-    let backgroundColor = 'rgba(var(--color-zen-500), 0.92)';
-    let backgroundImage = 'linear-gradient(135deg, rgba(var(--color-zen-500), 0.95), rgba(var(--color-zen-400), 0.86))';
-    let border = 'rgba(var(--color-zen-400), 0.55)';
-
-    if (record.type === 'task_reminder') {
-      backgroundColor = 'rgba(var(--color-warm-500), 0.94)';
-      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-500), 0.96), rgba(var(--color-warm-400), 0.84))';
-      border = 'rgba(var(--color-warm-400), 0.6)';
-    } else if (record.type === 'zen_reminder') {
-      backgroundColor = 'rgba(var(--color-sage-500), 0.94)';
-      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-sage-500), 0.95), rgba(var(--color-zen-400), 0.82))';
-      border = 'rgba(var(--color-sage-400), 0.6)';
-    } else if (record.type === 'note') {
-      backgroundColor = 'rgba(var(--color-warm-400), 0.92)';
-      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-warm-400), 0.94), rgba(var(--color-warm-300), 0.82))';
-      border = 'rgba(var(--color-warm-300), 0.6)';
-    } else if (record.type === 'event') {
-      backgroundColor = 'rgba(79, 70, 229, 0.94)';
-      backgroundImage = 'linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(129, 140, 248, 0.8))';
-      border = 'rgba(165, 180, 252, 0.7)';
-    }
-
-    if (record.scope === 'shared') {
-      backgroundColor = 'rgba(var(--color-sage-500), 0.94)';
-      backgroundImage = 'linear-gradient(135deg, rgba(var(--color-sage-500), 0.96), rgba(var(--color-sage-400), 0.84))';
-      border = 'rgba(var(--color-sage-400), 0.65)';
-    }
+    const style = computeEventPalette(record);
 
     return {
-      style: {
-        backgroundColor,
-        backgroundImage,
-        border: `1px solid ${border}`,
-        borderRadius: '18px',
-        color: 'var(--calendar-event-foreground)',
-        boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
-        padding: '10px 12px',
-        backdropFilter: 'blur(6px)',
-      },
+      style,
     };
   }, []);
 

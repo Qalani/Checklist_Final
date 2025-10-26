@@ -6,7 +6,7 @@
 .calendar-timeline {
   background: transparent;
   font-family: inherit;
-  --calendar-grid-color: rgba(var(--color-zen-400), 0.32);
+  --calendar-grid-color: rgba(226, 232, 240, 0.65);
   --calendar-event-foreground: rgba(var(--color-zen-900), 0.94);
   --calendar-event-muted: rgba(var(--color-zen-700), 0.78);
   --calendar-event-subtle: rgba(var(--color-zen-700), 0.65);
@@ -14,7 +14,7 @@
 }
 
 [data-theme$='dark'] .calendar-timeline {
-  --calendar-grid-color: rgba(var(--color-zen-200), 0.35);
+  --calendar-grid-color: rgba(71, 85, 105, 0.55);
   --calendar-event-foreground: rgba(var(--color-zen-50), 0.96);
   --calendar-event-muted: rgba(var(--color-zen-100), 0.82);
   --calendar-event-subtle: rgba(var(--color-zen-100), 0.7);
@@ -419,6 +419,10 @@
 }
 
 .calendar-timeline .rbc-event {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 44px;
   transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.25s ease;
   overflow: visible !important;
   position: relative;
