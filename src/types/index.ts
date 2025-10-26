@@ -75,6 +75,16 @@ export interface Category extends Record<string, unknown> {
   created_at?: string;
 }
 
+export interface ListItem extends Record<string, unknown> {
+  id: string;
+  list_id: string;
+  content: string;
+  completed: boolean;
+  position: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface List {
   id: string;
   name: string;
@@ -86,6 +96,7 @@ export interface List {
   members?: ListMember[];
   public_share_token?: string | null;
   public_share_enabled?: boolean;
+  items?: ListItem[];
 }
 
 export interface ListMember {
@@ -126,6 +137,16 @@ export interface Note extends Record<string, unknown> {
   content: string;
   summary?: string | null;
   word_count?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ListItem extends Record<string, unknown> {
+  id: string;
+  list_id: string;
+  content: string;
+  completed: boolean;
+  position: number;
   created_at?: string;
   updated_at?: string;
 }

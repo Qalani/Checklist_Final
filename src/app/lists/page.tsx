@@ -33,6 +33,7 @@ import { useRouter } from 'next/navigation';
 import ZenPageHeader from '@/components/ZenPageHeader';
 import AccountSummary from '@/components/AccountSummary';
 import { useFriends } from '@/features/friends/useFriends';
+import ListItemsBoard from '@/components/ListItemsBoard';
 
 type FormState = {
   name: string;
@@ -92,6 +93,10 @@ export default function ListsPage() {
     createList,
     updateList,
     deleteList,
+    createListItem,
+    updateListItem,
+    deleteListItem,
+    reorderListItems,
     refresh,
     loadMembers,
     inviteMember,
@@ -119,6 +124,7 @@ export default function ListsPage() {
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const [shareOrigin, setShareOrigin] = useState('');
   const shareCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [itemActionErrors, setItemActionErrors] = useState<Record<string, string | null>>({});
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -183,6 +189,72 @@ export default function ListsPage() {
   }, [lists, sharingList]);
 
   const resolveRole = (list: List): MemberRole => list.access_role ?? 'owner';
+
+  const isErrorResult = (result: unknown): result is { error: string } => {
+    return Boolean(result && typeof result === 'object' && 'error' in (result as Record<string, unknown>));
+  };
+
+  const setListItemError = (listId: string, message: string | null) => {
+    setItemActionErrors(prev => {
+      if (prev[listId] === message) {
+        return prev;
+      }
+      return { ...prev, [listId]: message };
+    });
+  };
+
+  const handleCreateListItem = async (listId: string) => {
+    const result = await createListItem(listId, '');
+    if (!result || isErrorResult(result)) {
+      setListItemError(listId, result?.error ?? 'Unable to add list item.');
+      return null;
+    }
+    setListItemError(listId, null);
+    return result.item.id;
+  };
+
+  const handleUpdateListItemContent = async (listId: string, itemId: string, content: string) => {
+    const trimmed = content.trim();
+    const list = lists.find(current => current.id === listId);
+    const currentContent = list?.items?.find(item => item.id === itemId)?.content ?? '';
+    if (currentContent === trimmed) {
+      setListItemError(listId, null);
+      return;
+    }
+    const result = await updateListItem(itemId, { content: trimmed });
+    if (!result || isErrorResult(result)) {
+      setListItemError(listId, result?.error ?? 'Unable to update list item.');
+      return;
+    }
+    setListItemError(listId, null);
+  };
+
+  const handleToggleListItem = async (listId: string, itemId: string, completed: boolean) => {
+    const result = await updateListItem(itemId, { completed });
+    if (!result || isErrorResult(result)) {
+      setListItemError(listId, result?.error ?? 'Unable to update list item.');
+      return;
+    }
+    setListItemError(listId, null);
+  };
+
+  const handleDeleteListItem = async (listId: string, itemId: string) => {
+    const result = await deleteListItem(itemId);
+    if (result && isErrorResult(result)) {
+      setListItemError(listId, result.error);
+      return;
+    }
+    setListItemError(listId, null);
+  };
+
+  const handleReorderListItems = async (listId: string, orderedIds: string[]) => {
+    const result = await reorderListItems(listId, orderedIds);
+    if (result && isErrorResult(result)) {
+      setListItemError(listId, result.error);
+      return;
+    }
+    setListItemError(listId, null);
+  };
 
   const sortedLists = useMemo(() => {
     return [...lists].sort((a, b) => {
@@ -700,6 +772,16 @@ export default function ListsPage() {
                         <div className="space-y-2">
                           <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
                           {list.description && <MarkdownDisplay text={list.description} />}
+                          <ListItemsBoard
+                            items={Array.isArray(list.items) ? list.items : []}
+                            canEdit={canEditList}
+                            onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}
+                            onToggleItem={canEditList ? (itemId, completed) => handleToggleListItem(list.id, itemId, completed) : undefined}
+                            onContentCommit={canEditList ? (itemId, content) => handleUpdateListItemContent(list.id, itemId, content) : undefined}
+                            onDeleteItem={canEditList ? itemId => handleDeleteListItem(list.id, itemId) : undefined}
+                            onReorder={canEditList ? orderedIds => handleReorderListItems(list.id, orderedIds) : undefined}
+                            error={itemActionErrors[list.id] ?? null}
+                          />
                           <div className="flex items-center gap-2 text-xs text-zen-400">
                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sage-50 text-sage-600 border border-sage-100">
                               <Users className="w-3 h-3" />
