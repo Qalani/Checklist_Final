@@ -176,7 +176,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
         </div>
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <button
               onClick={onToggle}
@@ -191,7 +191,9 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
             </button>
 
             <div className="flex-1 min-w-0">
-              <h3 className={`font-semibold text-zen-900 mb-1 ${task.completed ? 'line-through' : ''}`}>
+              <h3
+                className={`font-semibold text-zen-900 mb-1 break-words ${task.completed ? 'line-through' : ''}`}
+              >
                 {task.title}
               </h3>
               {task.description && (
@@ -200,7 +202,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
             {task.access_role && (
               <span
                 className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
@@ -271,7 +273,7 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
         <div className="flex items-center gap-2 flex-wrap">
           {category && (
             <span
-              className="px-2 py-1 rounded-lg text-xs font-medium"
+              className="px-2 py-1 rounded-lg text-xs font-medium shrink-0"
               style={{
                 backgroundColor: `${category.color}15`,
                 color: category.color,
@@ -281,45 +283,47 @@ function SortableTaskCard({ task, category, onEdit, onDelete, onToggle, onManage
             </span>
           )}
 
-          <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${priorityColors[task.priority]}`}>
+          <span
+            className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0 ${priorityColors[task.priority]}`}
+          >
             <Flag className="w-3 h-3" />
             {task.priority}
           </span>
 
           {task.created_at && (
-            <span className="px-2 py-1 rounded-lg text-xs text-zen-500 bg-zen-50 flex items-center gap-1 ml-auto">
+            <span className="px-2 py-1 rounded-lg text-xs text-zen-500 bg-zen-50 flex items-center gap-1 ml-auto shrink-0">
               <Clock className="w-3 h-3" />
               {new Date(task.created_at).toLocaleDateString()}
             </span>
           )}
 
           {dueBadge && (
-            <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${dueBadge.tone}`}>
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shrink-0 ${dueBadge.tone}`}>
               <Clock className="w-3 h-3" />
               {dueBadge.text}
             </span>
           )}
 
           {reminderLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1">
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1 shrink-0">
               <BellRing className="w-3 h-3" />
               {reminderLabel}
             </span>
           )}
           {recurrenceLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-zen-50 text-zen-700 flex items-center gap-1">
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-zen-50 text-zen-700 flex items-center gap-1 shrink-0">
               <RefreshCcw className="w-3 h-3" />
               {recurrenceLabel}
             </span>
           )}
           {nextReminderLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700/90 flex items-center gap-1">
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700/90 flex items-center gap-1 shrink-0">
               <BellRing className="w-3 h-3" />
               Next: {nextReminderLabel}
             </span>
           )}
           {snoozedLabel && (
-            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-warm-50 text-warm-700 flex items-center gap-1">
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-warm-50 text-warm-700 flex items-center gap-1 shrink-0">
               <AlarmClock className="w-3 h-3" />
               Snoozed until {snoozedLabel}
             </span>

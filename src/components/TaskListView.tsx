@@ -190,12 +190,12 @@ function SortableTaskItem({
           </button>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className={`font-medium text-zen-900 ${task.completed ? 'line-through' : ''}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h3 className={`font-medium text-zen-900 break-words ${task.completed ? 'line-through' : ''}`}>
                 {task.title}
               </h3>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 {task.access_role && (
                   <span
                     className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium ${
@@ -227,7 +227,7 @@ function SortableTaskItem({
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {category && (
                 <span
-                  className="px-2 py-0.5 rounded-lg text-xs font-medium"
+                  className="px-2 py-0.5 rounded-lg text-xs font-medium shrink-0"
                   style={{
                     backgroundColor: `${category.color}15`,
                     color: category.color,
@@ -238,39 +238,39 @@ function SortableTaskItem({
               )}
 
               {task.created_at && (
-                <span className="text-xs text-zen-500 flex items-center gap-1">
+                <span className="text-xs text-zen-500 flex items-center gap-1 shrink-0">
                   <Clock className="w-3 h-3" />
                   {new Date(task.created_at).toLocaleDateString()}
                 </span>
               )}
 
               {dueBadge && (
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-lg flex items-center gap-1 ${dueBadge.tone}`}>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-lg flex items-center gap-1 shrink-0 ${dueBadge.tone}`}>
                   <Clock className="w-3 h-3" />
                   {dueBadge.text}
                 </span>
               )}
 
               {reminderLabel && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700 flex items-center gap-1">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700 flex items-center gap-1 shrink-0">
                   <BellRing className="w-3 h-3" />
                   {reminderLabel}
                 </span>
               )}
               {recurrenceLabel && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-zen-50 text-zen-700 flex items-center gap-1">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-zen-50 text-zen-700 flex items-center gap-1 shrink-0">
                   <RefreshCcw className="w-3 h-3" />
                   {recurrenceLabel}
                 </span>
               )}
               {nextReminderLabel && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700/90 flex items-center gap-1">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-sage-50 text-sage-700/90 flex items-center gap-1 shrink-0">
                   <BellRing className="w-3 h-3" />
                   Next: {nextReminderLabel}
                 </span>
               )}
               {snoozedLabel && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-warm-50 text-warm-700 flex items-center gap-1">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-warm-50 text-warm-700 flex items-center gap-1 shrink-0">
                   <AlarmClock className="w-3 h-3" />
                   Snoozed until {snoozedLabel}
                 </span>
