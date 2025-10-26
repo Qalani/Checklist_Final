@@ -29,6 +29,8 @@ alter table public.list_items enable row level security;
 
 drop policy if exists "List members can view items" on public.list_items;
 drop policy if exists "List editors can manage items" on public.list_items;
+drop policy if exists "List editors can insert items" on public.list_items;
+drop policy if exists "List editors can update items" on public.list_items;
 drop policy if exists "List editors can delete items" on public.list_items;
 
 create policy "List members can view items"
@@ -36,9 +38,14 @@ create policy "List members can view items"
   for select
   using (public.is_list_member(list_id));
 
-create policy "List editors can manage items"
+create policy "List editors can insert items"
   on public.list_items
-  for insert, update
+  for insert
+  with check (public.is_list_member(list_id, array['owner','editor']));
+
+create policy "List editors can update items"
+  on public.list_items
+  for update
   using (public.is_list_member(list_id, array['owner','editor']))
   with check (public.is_list_member(list_id, array['owner','editor']));
 
