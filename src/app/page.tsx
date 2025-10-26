@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useMemo } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
@@ -67,6 +67,9 @@ function HomePageContent() {
   const { notes, status: notesStatus, syncing: notesSyncing } = useNotes(targetUserId);
   const { friends, status: friendsStatus, syncing: friendsSyncing } = useFriends(targetUserId);
   const { reminders, status: remindersStatus, syncing: remindersSyncing } = useZenReminders(targetUserId);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | 'unsupported' | 'pending'
+  >('pending');
 
   const userEmail = useMemo(() => {
     if (demoMode) {
@@ -74,6 +77,47 @@ function HomePageContent() {
     }
     return user?.email ?? user?.user_metadata?.email ?? null;
   }, [demoMode, user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    const NotificationAPI = window.Notification;
+
+    if (!NotificationAPI) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    setNotificationPermission(NotificationAPI.permission);
+  }, []);
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    const NotificationAPI = window.Notification;
+
+    if (!NotificationAPI) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    try {
+      const permission = await NotificationAPI.requestPermission();
+      setNotificationPermission(permission);
+    } catch (error) {
+      console.error('Failed to request notification permission', error);
+    }
+  }, []);
 
   const tasksLoading = checklistStatus === 'loading' || checklistSyncing;
   const listsLoading = listsStatus === 'loading' || listsSyncing;
@@ -289,7 +333,14 @@ function HomePageContent() {
           </div>
           <div className="flex items-center gap-3">
             {userEmail ? <span className="hidden text-sm text-zen-500 dark:text-zen-200 sm:inline">{userEmail}</span> : null}
-            <SettingsMenu userEmail={userEmail} onSignOut={signOut} />
+            <SettingsMenu
+              userEmail={userEmail}
+              onSignOut={signOut}
+              notificationPermission={notificationPermission}
+              onRequestNotificationPermission={() => {
+                void requestNotificationPermission();
+              }}
+            />
           </div>
         </header>
 

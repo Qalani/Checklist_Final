@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CalendarClock, LayoutGrid, Sparkles } from 'lucide-react';
 
@@ -67,6 +67,9 @@ function ZenInsightsPageContent() {
   const targetUserId = demoMode ? null : user?.id ?? null;
   const { layout, isLoading, isSaving, error, moveWidget, toggleWidget, resetLayout } = useDashboardLayout(targetUserId);
   const { tasks, status: checklistStatus, syncing: checklistSyncing } = useChecklist(targetUserId);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | 'unsupported' | 'pending'
+  >('pending');
 
   const userEmail = useMemo(() => {
     if (demoMode) {
@@ -74,6 +77,47 @@ function ZenInsightsPageContent() {
     }
     return user?.email ?? user?.user_metadata?.email ?? null;
   }, [demoMode, user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    const NotificationAPI = window.Notification;
+
+    if (!NotificationAPI) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    setNotificationPermission(NotificationAPI.permission);
+  }, []);
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    const NotificationAPI = window.Notification;
+
+    if (!NotificationAPI) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    try {
+      const permission = await NotificationAPI.requestPermission();
+      setNotificationPermission(permission);
+    } catch (error) {
+      console.error('Failed to request notification permission', error);
+    }
+  }, []);
 
   const isTasksLoading = checklistStatus === 'loading' || checklistSyncing;
 
@@ -180,6 +224,10 @@ function ZenInsightsPageContent() {
                   if (!demoMode) {
                     void signOut();
                   }
+                }}
+                notificationPermission={notificationPermission}
+                onRequestNotificationPermission={() => {
+                  void requestNotificationPermission();
                 }}
               />
             </div>
