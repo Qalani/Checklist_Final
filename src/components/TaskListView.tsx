@@ -59,6 +59,13 @@ const priorityColors: Record<Task['priority'], string> = {
   high: 'text-red-600',
 };
 
+const strikeVariants = {
+  active: { scaleX: 0, opacity: 0 },
+  completed: { scaleX: 1, opacity: 1 },
+} as const;
+
+const strikeTransition = { duration: 0.45, ease: [0.33, 1, 0.68, 1] } as const;
+
 interface ParticleSpec {
   id: string;
   x: number;
@@ -249,9 +256,10 @@ function SortableTaskItem({
                   <motion.span
                     aria-hidden="true"
                     className="pointer-events-none absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 rounded-full bg-gradient-to-r from-zen-400 via-sage-400 to-warm-400 shadow-sm"
-                    initial={false}
-                    animate={{ scaleX: task.completed ? 1 : 0, opacity: task.completed ? 1 : 0 }}
-                    transition={{ duration: 0.45, ease: [0.33, 1, 0.68, 1] }}
+                    variants={strikeVariants}
+                    initial={task.completed ? 'completed' : 'active'}
+                    animate={task.completed ? 'completed' : 'active'}
+                    transition={strikeTransition}
                     style={{ transformOrigin: 'left center' }}
                   />
                   <AnimatePresence>
