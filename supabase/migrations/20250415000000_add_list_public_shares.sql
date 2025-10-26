@@ -131,7 +131,8 @@ returns table (
   name text,
   description text,
   created_at timestamptz,
-  owner_email text
+  owner_email text,
+  items jsonb
 )
 language sql
 security definer
@@ -142,7 +143,25 @@ as $$
     l.name,
     l.description,
     l.created_at,
-    u.email as owner_email
+    u.email as owner_email,
+    coalesce(
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'id', i.id,
+            'content', i.content,
+            'completed', i.completed,
+            'position', i.position,
+            'created_at', i.created_at,
+            'updated_at', i.updated_at
+          )
+          order by i.position, i.created_at
+        )
+        from public.list_items i
+        where i.list_id = l.id
+      ),
+      '[]'::jsonb
+    ) as items
   from public.list_public_shares s
   join public.lists l on l.id = s.list_id
   left join auth.users u on u.id = l.user_id

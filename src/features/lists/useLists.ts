@@ -1,6 +1,6 @@
 import { MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { List, ListMember } from '@/types';
+import type { List, ListItem, ListMember } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type ListsStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -35,6 +35,13 @@ export interface UseListsResult extends ListsState {
   ) => Promise<void | ErrorResult>;
   updateList: (id: string, input: { name: string; description?: string }) => Promise<void | ErrorResult>;
   deleteList: (id: string) => Promise<void | ErrorResult>;
+  createListItem: (listId: string, content?: string) => Promise<{ item: ListItem } | ErrorResult>;
+  updateListItem: (
+    itemId: string,
+    updates: { content?: string; completed?: boolean },
+  ) => Promise<{ item: ListItem } | ErrorResult>;
+  deleteListItem: (itemId: string) => Promise<void | ErrorResult>;
+  reorderListItems: (listId: string, orderedIds: string[]) => Promise<void | ErrorResult>;
   loadMembers: (listId: string) => Promise<LoadMembersSuccess | ErrorResult>;
   inviteMember: (listId: string, email: string, role: ListMemberRole) => Promise<{ member: ListMember } | ErrorResult>;
   updateMemberRole: (memberId: string, role: ListMemberRole) => Promise<{ member: ListMember } | ErrorResult>;
@@ -71,6 +78,28 @@ interface ListMembershipRow {
   } | null;
 }
 
+interface ListItemRow {
+  id: string;
+  list_id: string;
+  content: string;
+  completed: boolean;
+  position: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+function mapListItem(row: ListItemRow): ListItem {
+  return {
+    id: row.id,
+    list_id: row.list_id,
+    content: row.content,
+    completed: row.completed,
+    position: row.position,
+    created_at: row.created_at ?? undefined,
+    updated_at: row.updated_at ?? undefined,
+  } satisfies ListItem;
+}
+
 export async function fetchLists(userId: string): Promise<List[]> {
   const { data, error } = await supabase
     .from('list_members')
@@ -98,7 +127,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
 
   const records = data ?? [];
 
-  return records
+  const lists = records
     .filter(record => record.list !== null)
     .map(record => {
       const list = record.list!;
@@ -113,8 +142,38 @@ export async function fetchLists(userId: string): Promise<List[]> {
         access_role: record.role,
         public_share_token: shareRecord?.token ?? null,
         public_share_enabled: Boolean(shareRecord?.token),
+        items: [],
       } satisfies List;
     });
+
+  const listIds = lists.map(list => list.id).filter(Boolean);
+  if (listIds.length === 0) {
+    return lists;
+  }
+
+  const { data: itemsData, error: itemsError } = await supabase
+    .from('list_items')
+    .select('id, list_id, content, completed, position, created_at, updated_at')
+    .in('list_id', listIds)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: true })
+    .returns<ListItemRow[]>();
+
+  if (itemsError) {
+    throw new Error(itemsError.message || 'Failed to load list items.');
+  }
+
+  const itemsByList = new Map<string, ListItem[]>();
+  for (const row of itemsData ?? []) {
+    const existing = itemsByList.get(row.list_id) ?? [];
+    existing.push(mapListItem(row));
+    itemsByList.set(row.list_id, existing);
+  }
+
+  return lists.map(list => ({
+    ...list,
+    items: itemsByList.get(list.id) ?? [],
+  }));
 }
 
 export function useLists(userId: string | null): UseListsResult {
@@ -123,6 +182,7 @@ export function useLists(userId: string | null): UseListsResult {
   const currentUserIdRef = useRef<string | null>(null);
   const membershipChannelRef = useRef<RealtimeChannel | null>(null);
   const listsChannelRef = useRef<RealtimeChannel | null>(null);
+  const itemsChannelRef = useRef<RealtimeChannel | null>(null);
   const listsRef = useRef<List[]>(INITIAL_STATE.lists);
 
   useEffect(() => {
@@ -142,6 +202,7 @@ export function useLists(userId: string | null): UseListsResult {
     currentUserIdRef.current = null;
     cleanupChannel(membershipChannelRef);
     cleanupChannel(listsChannelRef);
+    cleanupChannel(itemsChannelRef);
   }, [cleanupChannel]);
 
   const runRefresh = useCallback(
@@ -274,6 +335,92 @@ export function useLists(userId: string | null): UseListsResult {
     };
   }, [cleanupChannel, runRefresh, state.lists, userId]);
 
+  useEffect(() => {
+    cleanupChannel(itemsChannelRef);
+
+    if (!userId || !state.lists.length) {
+      return;
+    }
+
+    const ids = state.lists.map(list => list.id).filter(Boolean);
+    if (!ids.length) {
+      return;
+    }
+
+    const filter = `list_id=in.(${ids.map(id => `'${id}'`).join(',')})`;
+
+    const channel = supabase
+      .channel(`list-items:${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'list_items', filter }, payload => {
+        const row = (payload.new ?? payload.old) as ListItemRow | null;
+        if (!row) {
+          return;
+        }
+
+        setState(prev => {
+          const updatedLists = prev.lists.map(list => {
+            if (list.id !== row.list_id) {
+              return list;
+            }
+
+            const currentItems = Array.isArray(list.items) ? [...list.items] : [];
+
+            if (payload.eventType === 'DELETE') {
+              return {
+                ...list,
+                items: currentItems.filter(item => item.id !== row.id),
+              };
+            }
+
+            const mapped = mapListItem(payload.new as ListItemRow);
+            const existingIndex = currentItems.findIndex(item => item.id === mapped.id);
+
+            if (existingIndex >= 0) {
+              currentItems[existingIndex] = mapped;
+            } else {
+              currentItems.push(mapped);
+            }
+
+            currentItems.sort((a, b) => {
+              if (a.position === b.position) {
+                return (a.created_at ?? '').localeCompare(b.created_at ?? '');
+              }
+              return a.position - b.position;
+            });
+
+            return {
+              ...list,
+              items: currentItems,
+            };
+          });
+
+          return {
+            ...prev,
+            lists: updatedLists,
+          };
+        });
+      });
+
+    itemsChannelRef.current = channel;
+
+    channel.subscribe(status => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error('Supabase realtime channel error for list items');
+      }
+
+      if (status === 'CLOSED' && itemsChannelRef.current === channel) {
+        itemsChannelRef.current = null;
+      }
+    });
+
+    return () => {
+      if (itemsChannelRef.current === channel) {
+        itemsChannelRef.current = null;
+      }
+      void channel.unsubscribe();
+    };
+  }, [cleanupChannel, state.lists, userId]);
+
   const createList = useCallback<UseListsResult['createList']>(
     async (input) => {
       if (!userId) {
@@ -317,22 +464,22 @@ export function useLists(userId: string | null): UseListsResult {
         }
 
         if (data) {
+          const newList: List = {
+            id: data.id,
+            name: data.name,
+            description: data.description,
+            created_at: data.created_at ?? undefined,
+            user_id: data.user_id,
+            owner_id: data.user_id,
+            access_role: 'owner',
+            public_share_token: null,
+            public_share_enabled: false,
+            items: [],
+          };
+
           setState(prev => ({
             ...prev,
-            lists: [
-              ...prev.lists,
-              {
-                id: data.id,
-                name: data.name,
-                description: data.description,
-                created_at: data.created_at ?? undefined,
-                user_id: data.user_id,
-                owner_id: data.user_id,
-                access_role: 'owner',
-                public_share_token: null,
-                public_share_enabled: false,
-              },
-            ],
+            lists: [...prev.lists, newList],
             status: prev.status === 'idle' ? 'ready' : prev.status,
           }));
         }
@@ -383,6 +530,7 @@ export function useLists(userId: string | null): UseListsResult {
                     name: data.name,
                     description: data.description,
                     created_at: data.created_at ?? list.created_at,
+                    items: Array.isArray(list.items) ? [...list.items] : [],
                   }
                 : list,
             ),
@@ -426,6 +574,250 @@ export function useLists(userId: string | null): UseListsResult {
         }));
       } catch (error) {
         return { error: extractErrorMessage(error, 'Unable to delete list.') };
+      }
+    },
+    [userId],
+  );
+
+  const createListItem = useCallback<UseListsResult['createListItem']>(
+    async (listId, content = '') => {
+      if (!userId) {
+        return { error: 'You must be signed in to add list items.' };
+      }
+
+      const targetList = listsRef.current.find(list => list.id === listId);
+      if (!targetList) {
+        return { error: 'List not found.' };
+      }
+
+      const role = targetList.access_role ?? 'owner';
+      if (!['owner', 'editor'].includes(role)) {
+        return { error: 'You do not have permission to add items to this list.' };
+      }
+
+      const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
+      const nextPosition = existingItems.reduce((max, item) => Math.max(max, item.position ?? 0), -1) + 1;
+
+      try {
+        const { data, error } = await supabase
+          .from('list_items')
+          .insert({
+            list_id: listId,
+            content,
+            position: nextPosition,
+          })
+          .select('id, list_id, content, completed, position, created_at, updated_at')
+          .single();
+
+        if (error) {
+          throw new Error(error.message || 'Unable to add list item.');
+        }
+
+        const row = data as ListItemRow | null;
+        if (!row) {
+          throw new Error('List item was not returned after creation.');
+        }
+
+        const item = mapListItem(row);
+
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === listId
+              ? {
+                  ...list,
+                  items: [...(list.items ?? []), item].sort((a, b) => a.position - b.position),
+                }
+              : list,
+          ),
+        }));
+
+        return { item };
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to add list item.') };
+      }
+    },
+    [userId],
+  );
+
+  const updateListItem = useCallback<UseListsResult['updateListItem']>(
+    async (itemId, updates) => {
+      if (!userId) {
+        return { error: 'You must be signed in to update list items.' };
+      }
+
+      const targetList = listsRef.current.find(list => Array.isArray(list.items) && list.items.some(item => item.id === itemId));
+      if (!targetList) {
+        return { error: 'List item not found.' };
+      }
+
+      const role = targetList.access_role ?? 'owner';
+      if (!['owner', 'editor'].includes(role)) {
+        return { error: 'You do not have permission to update this list item.' };
+      }
+
+      const payload: Partial<ListItemRow> = {};
+      if (typeof updates.content === 'string') {
+        payload.content = updates.content;
+      }
+      if (typeof updates.completed === 'boolean') {
+        payload.completed = updates.completed;
+      }
+
+      if (!Object.keys(payload).length) {
+        const existing = targetList.items?.find(item => item.id === itemId);
+        if (existing) {
+          return { item: existing };
+        }
+        return { error: 'Nothing to update.' };
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('list_items')
+          .update(payload)
+          .eq('id', itemId)
+          .select('id, list_id, content, completed, position, created_at, updated_at')
+          .single();
+
+        if (error) {
+          throw new Error(error.message || 'Unable to update list item.');
+        }
+
+        const row = data as ListItemRow | null;
+        if (!row) {
+          throw new Error('List item was not returned after update.');
+        }
+
+        const item = mapListItem(row);
+
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === item.list_id
+              ? {
+                  ...list,
+                  items: (list.items ?? []).map(existing => (existing.id === item.id ? item : existing)),
+                }
+              : list,
+          ),
+        }));
+
+        return { item };
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to update list item.') };
+      }
+    },
+    [userId],
+  );
+
+  const deleteListItem = useCallback<UseListsResult['deleteListItem']>(
+    async (itemId) => {
+      if (!userId) {
+        return { error: 'You must be signed in to delete list items.' };
+      }
+
+      const targetList = listsRef.current.find(list => Array.isArray(list.items) && list.items.some(item => item.id === itemId));
+      if (!targetList) {
+        return { error: 'List item not found.' };
+      }
+
+      const role = targetList.access_role ?? 'owner';
+      if (!['owner', 'editor'].includes(role)) {
+        return { error: 'You do not have permission to delete this list item.' };
+      }
+
+      try {
+        const { error } = await supabase
+          .from('list_items')
+          .delete()
+          .eq('id', itemId);
+
+        if (error) {
+          throw new Error(error.message || 'Unable to delete list item.');
+        }
+
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === targetList.id
+              ? {
+                  ...list,
+                  items: (list.items ?? []).filter(item => item.id !== itemId),
+                }
+              : list,
+          ),
+        }));
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to delete list item.') };
+      }
+    },
+    [userId],
+  );
+
+  const reorderListItems = useCallback<UseListsResult['reorderListItems']>(
+    async (listId, orderedIds) => {
+      if (!userId) {
+        return { error: 'You must be signed in to reorder list items.' };
+      }
+
+      const targetList = listsRef.current.find(list => list.id === listId);
+      if (!targetList) {
+        return { error: 'List not found.' };
+      }
+
+      const role = targetList.access_role ?? 'owner';
+      if (!['owner', 'editor'].includes(role)) {
+        return { error: 'You do not have permission to reorder this list.' };
+      }
+
+      const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
+      const orderMap = new Map(existingItems.map(item => [item.id, item] as const));
+      const nextItems: ListItem[] = [];
+
+      for (let index = 0; index < orderedIds.length; index += 1) {
+        const id = orderedIds[index];
+        const item = orderMap.get(id);
+        if (!item) {
+          return { error: 'List items changed. Refresh and try again.' };
+        }
+        nextItems.push({ ...item, position: index });
+      }
+
+      setState(prev => ({
+        ...prev,
+        lists: prev.lists.map(list =>
+          list.id === listId
+            ? {
+                ...list,
+                items: nextItems,
+              }
+            : list,
+        ),
+      }));
+
+      try {
+        const { error } = await supabase.rpc('reorder_list_items', {
+          target_list_id: listId,
+          ordered_ids: orderedIds,
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Unable to reorder list items.');
+        }
+      } catch (error) {
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === listId
+              ? {
+                  ...list,
+                  items: existingItems,
+                }
+              : list,
+          ),
+        }));
+        return { error: extractErrorMessage(error, 'Unable to reorder list items.') };
       }
     },
     [userId],
@@ -667,6 +1059,10 @@ export function useLists(userId: string | null): UseListsResult {
     createList,
     updateList,
     deleteList,
+    createListItem,
+    updateListItem,
+    deleteListItem,
+    reorderListItems,
     loadMembers,
     inviteMember,
     updateMemberRole,

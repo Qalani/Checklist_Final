@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import MarkdownDisplay from '@/components/MarkdownDisplay';
 import Link from 'next/link';
-import { List as ListIcon, CalendarDays, Mail, ArrowLeft, ArrowUpRight } from 'lucide-react';
+import { List as ListIcon, CalendarDays, Mail, ArrowLeft, ArrowUpRight, CheckSquare, Square } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -21,12 +21,20 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+type PublicListItem = {
+  id: string;
+  content: string;
+  completed: boolean;
+  position: number;
+};
+
 type PublicListRecord = {
   id: string;
   name: string;
   description: string | null;
   created_at: string | null;
   owner_email: string | null;
+  items: PublicListItem[];
 };
 
 const fetchPublicList = cache(async (token: string): Promise<PublicListRecord | null> => {
@@ -50,12 +58,30 @@ const fetchPublicList = cache(async (token: string): Promise<PublicListRecord | 
 
   const record = rows[0] as PublicListRecord;
 
+  const rawItems = Array.isArray(record.items) ? (record.items as Record<string, unknown>[]) : [];
+  const items: PublicListItem[] = rawItems
+    .map(item => {
+      const id = typeof item.id === 'string' ? item.id : '';
+      if (!id) {
+        return null;
+      }
+      return {
+        id,
+        content: typeof item.content === 'string' ? item.content : '',
+        completed: Boolean(item.completed),
+        position: typeof item.position === 'number' ? item.position : 0,
+      } satisfies PublicListItem;
+    })
+    .filter((item): item is PublicListItem => item !== null)
+    .sort((a, b) => a.position - b.position);
+
   return {
     id: record.id,
     name: record.name,
     description: record.description,
     created_at: record.created_at,
     owner_email: record.owner_email,
+    items,
   };
 });
 
@@ -147,6 +173,31 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
                   ) : (
                     <p className="text-sm text-zen-500">The owner has not added a description yet.</p>
                   )}
+                  <div className="mt-6 space-y-3">
+                    {list.items.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-zen-200 bg-surface/60 p-4 text-sm text-zen-500">
+                        No list items have been shared yet.
+                      </div>
+                    ) : (
+                      list.items.map(item => (
+                        <div
+                          key={item.id}
+                          className="flex items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4"
+                        >
+                          <div className={`mt-0.5 flex-shrink-0 ${item.completed ? 'text-sage-600' : 'text-sage-400'}`}>
+                            {item.completed ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                          </div>
+                          <p
+                            className={`flex-1 text-sm leading-relaxed ${
+                              item.completed ? 'line-through text-zen-400' : 'text-zen-700'
+                            }`}
+                          >
+                            {item.content ? item.content : <span className="text-zen-300">No details provided.</span>}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-8 flex flex-wrap items-center gap-4 border-t border-zen-100 pt-4 text-xs text-zen-500">
