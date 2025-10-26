@@ -130,15 +130,15 @@ function EventContent({ event }: { event: TimelineEvent }) {
   const importLabel = isCalendarEvent ? eventMetadata?.importSource ?? null : null;
 
   return (
-    <div className="flex flex-col gap-1 text-xs leading-tight text-white">
+    <div className="calendar-event-content flex flex-col gap-1 text-xs leading-tight">
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1 text-[13px] font-semibold leading-tight">
-          <Icon className="h-4 w-4 text-white/80" />
-          <span className="calendar-event-title text-white">{record.title}</span>
+          <Icon className="calendar-event-icon h-4 w-4" />
+          <span className="calendar-event-title">{record.title}</span>
         </span>
-        {showShared ? <Users className="h-3.5 w-3.5 text-white/75" /> : null}
+        {showShared ? <Users className="calendar-event-icon-muted h-3.5 w-3.5" /> : null}
       </div>
-      <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-white/80">
+      <div className="calendar-event-meta flex items-center justify-between gap-2 text-[11px] font-medium">
         <span className="inline-flex items-center gap-1 truncate">
           {categoryLabel}
           {taskMetadata?.categoryColor ? (
@@ -146,22 +146,24 @@ function EventContent({ event }: { event: TimelineEvent }) {
               className="ml-1 inline-flex h-2 w-2 rounded-full"
               style={{
                 backgroundColor: taskMetadata.categoryColor,
-                boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.35)',
+                boxShadow: '0 0 0 2px var(--calendar-event-border-contrast)',
               }}
             />
           ) : null}
         </span>
         {!event.allDay && event.start ? (
-          <span className="font-semibold text-white">{event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="calendar-event-time font-semibold">
+            {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         ) : null}
       </div>
       {isCalendarEvent && locationLabel ? (
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-white/70">
+        <div className="calendar-event-tag text-[10px] font-semibold uppercase tracking-wide">
           {locationLabel}
         </div>
       ) : null}
       {isCalendarEvent && importLabel ? (
-        <div className="text-[10px] text-white/60">Imported from {importLabel}</div>
+        <div className="calendar-event-subtle text-[10px]">Imported from {importLabel}</div>
       ) : null}
       {isNote ? (
         (() => {
@@ -170,7 +172,7 @@ function EventContent({ event }: { event: TimelineEvent }) {
             return null;
           }
           return (
-            <p className="text-[10px] text-white/70">
+            <p className="calendar-event-subtle text-[10px]">
               Updated {new Date(updatedAt).toLocaleString([], { month: 'short', day: 'numeric' })}
             </p>
           );
@@ -182,7 +184,7 @@ function EventContent({ event }: { event: TimelineEvent }) {
             return null;
           }
           return (
-            <p className="text-[10px] text-white/70">
+            <p className="calendar-event-subtle text-[10px]">
               {reminderMetadata.timezone}
             </p>
           );
@@ -258,7 +260,7 @@ export function CalendarTimeline({
         backgroundImage,
         border: `1px solid ${border}`,
         borderRadius: '18px',
-        color: 'white',
+        color: 'var(--calendar-event-foreground)',
         boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
         padding: '10px 12px',
         backdropFilter: 'blur(6px)',
