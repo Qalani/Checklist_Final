@@ -895,7 +895,7 @@ export default function ListsPage() {
                       ) : (
                         <>
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2 lg:min-w-0">
+                            <div className="space-y-2 w-full lg:min-w-0 lg:flex-1">
                               <h3 className="text-xl font-semibold text-zen-900">{list.name}</h3>
                               {list.description && <MarkdownDisplay text={list.description} />}
                               <ListItemsBoard

@@ -244,10 +244,10 @@ export default function ListItemsBoard({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full">
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
+          <div className="space-y-3 w-full">
             {orderedItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-zen-200 bg-surface/60 p-4 text-sm text-zen-500">
                 No items yet.{' '}
