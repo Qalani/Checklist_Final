@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -45,6 +45,46 @@ interface SortableListItemProps {
   onFocusComplete?: () => void;
 }
 
+const LINK_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+
+function linkifyText(content: string): ReactNode[] {
+  LINK_PATTERN.lastIndex = 0;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = LINK_PATTERN.exec(content)) !== null) {
+    const [rawMatch] = match;
+    const matchIndex = match.index ?? 0;
+
+    if (matchIndex > lastIndex) {
+      nodes.push(content.slice(lastIndex, matchIndex));
+    }
+
+    const href = rawMatch.startsWith('http') ? rawMatch : `https://${rawMatch}`;
+
+    nodes.push(
+      <a
+        key={`link-${matchIndex}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-sage-600 underline break-words"
+      >
+        {rawMatch}
+      </a>,
+    );
+
+    lastIndex = matchIndex + rawMatch.length;
+  }
+
+  if (lastIndex < content.length) {
+    nodes.push(content.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : [content];
+}
+
 function SortableListItem({
   item,
   canEdit,
@@ -78,6 +118,7 @@ function SortableListItem({
 
   const [value, setValue] = useState(item.content);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const renderedContent = useMemo(() => linkifyText(item.content), [item.content]);
 
   useEffect(() => {
     setValue(item.content);
@@ -163,7 +204,11 @@ function SortableListItem({
           />
         ) : (
           <p className={`text-sm leading-relaxed break-words ${completedClasses}`}>
-            {item.content ? item.content : <span className="text-zen-400">No details yet</span>}
+            {item.content ? (
+              renderedContent
+            ) : (
+              <span className="text-zen-400">No details yet</span>
+            )}
           </p>
         )}
       </div>
