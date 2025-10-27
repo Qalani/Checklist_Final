@@ -46,6 +46,7 @@ interface SortableListItemProps {
 }
 
 const LINK_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+const TRAILING_PUNCTUATION_PATTERN = /[)\],.!?:;'"“”]+$/;
 
 function linkifyText(content: string): ReactNode[] {
   LINK_PATTERN.lastIndex = 0;
@@ -61,7 +62,49 @@ function linkifyText(content: string): ReactNode[] {
       nodes.push(content.slice(lastIndex, matchIndex));
     }
 
-    const href = rawMatch.startsWith('http') ? rawMatch : `https://${rawMatch}`;
+    let displayText = rawMatch;
+    let trailingText = '';
+
+    const trailingMatch = rawMatch.match(TRAILING_PUNCTUATION_PATTERN);
+    if (trailingMatch) {
+      displayText = rawMatch.slice(0, -trailingMatch[0].length);
+      trailingText = trailingMatch[0];
+
+      const restoreClosing = (char: string, open: RegExp, close: RegExp) => {
+        const openCount = (displayText.match(open) ?? []).length;
+        const closeCount = (displayText.match(close) ?? []).length;
+        if (openCount > closeCount) {
+          displayText += char;
+          return false;
+        }
+        return true;
+      };
+
+      let remaining = '';
+      for (const char of trailingText) {
+        if (
+          (char === ')' && !restoreClosing(char, /\(/g, /\)/g)) ||
+          (char === ']' && !restoreClosing(char, /\[/g, /\]/g)) ||
+          (char === '}' && !restoreClosing(char, /\{/g, /\}/g)) ||
+          (char === '”' && !restoreClosing(char, /“/g, /”/g)) ||
+          (char === '"' && !restoreClosing(char, /"/g, /"/g)) ||
+          (char === '\'' && !restoreClosing(char, /'/g, /'/g))
+        ) {
+          continue;
+        }
+
+        remaining += char;
+      }
+
+      trailingText = remaining;
+
+      if (!displayText) {
+        displayText = rawMatch;
+        trailingText = '';
+      }
+    }
+
+    const href = displayText.startsWith('http') ? displayText : `https://${displayText}`;
 
     nodes.push(
       <a
@@ -71,9 +114,13 @@ function linkifyText(content: string): ReactNode[] {
         rel="noopener noreferrer"
         className="text-sage-600 underline break-words"
       >
-        {rawMatch}
+        {displayText}
       </a>,
     );
+
+    if (trailingText) {
+      nodes.push(trailingText);
+    }
 
     lastIndex = matchIndex + rawMatch.length;
   }
