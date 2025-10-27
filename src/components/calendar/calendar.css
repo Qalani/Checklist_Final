@@ -82,7 +82,7 @@
 
 .calendar-timeline .rbc-toolbar button.rbc-active {
   background-image: linear-gradient(135deg, rgba(var(--color-zen-500), 0.92), rgba(var(--color-zen-400), 0.82));
-  color: #ffffff;
+  color: rgba(var(--color-zen-900), 0.96);
   box-shadow: 0 14px 32px rgba(var(--color-zen-500), 0.3);
 }
 
@@ -93,6 +93,10 @@
 
 [data-theme$='dark'] .calendar-timeline .rbc-toolbar button:hover {
   background: rgba(var(--color-zen-500), 0.28);
+  color: rgba(var(--color-zen-50), 0.98);
+}
+
+[data-theme$='dark'] .calendar-timeline .rbc-toolbar button.rbc-active {
   color: rgba(var(--color-zen-50), 0.98);
 }
 
