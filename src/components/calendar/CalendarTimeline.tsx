@@ -87,6 +87,22 @@ function CalendarHeaderCell({ date, localizer }: HeaderProps) {
   );
 }
 
+function CalendarMonthHeaderCell({ date, localizer }: HeaderProps) {
+  const isToday = localizer.isSameDate(date, new Date());
+  const weekdayLabel = localizer.format(date, 'weekdayFormat');
+
+  return (
+    <span
+      role="columnheader"
+      aria-sort="none"
+      className="calendar-header-cell"
+      data-today={isToday ? 'true' : undefined}
+    >
+      <span className="calendar-header-cell-day">{weekdayLabel}</span>
+    </span>
+  );
+}
+
 function CalendarMonthDateHeader({ date, drilldownView, onDrillDown }: DateHeaderProps) {
   const isToday = localizer.isSameDate(date, new Date());
   const dayOfMonthLabel = format(date, 'd', { locale: enUS });
@@ -551,7 +567,7 @@ export function CalendarTimeline({
           event: EventContent,
           dateCellWrapper: DateCellWrapper,
           header: CalendarHeaderCell,
-          month: { dateHeader: CalendarMonthDateHeader },
+          month: { header: CalendarMonthHeaderCell, dateHeader: CalendarMonthDateHeader },
         }}
         eventPropGetter={eventPropGetter}
         dayPropGetter={dayPropGetter}
