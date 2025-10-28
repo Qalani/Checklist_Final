@@ -209,7 +209,7 @@ function relativeLuminance(color: RgbColor): number {
   return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
 }
 
-function computeEventPalette(record: CalendarEventRecord): CSSProperties {
+function computeEventPalette(record: CalendarEventRecord, view: CalendarView): CSSProperties {
   const metadata = record.metadata;
   const taskMetadata = isTaskMetadata(metadata) ? (metadata as CalendarTaskMetadata) : null;
 
@@ -220,26 +220,36 @@ function computeEventPalette(record: CalendarEventRecord): CSSProperties {
     b: 229,
   };
 
-  const luminance = relativeLuminance(parsedBase);
-  const foreground = luminance > 0.55 ? '#0f172a' : '#f8fafc';
-  const muted = luminance > 0.55
-    ? toRgba(mixColor(parsedBase, BLACK, 0.45), 0.88)
-    : toRgba(mixColor(parsedBase, WHITE, 0.65), 0.92);
-  const subtle = luminance > 0.55
-    ? toRgba(mixColor(parsedBase, BLACK, 0.35), 0.8)
-    : toRgba(mixColor(parsedBase, WHITE, 0.78), 0.88);
-  const outline = luminance > 0.55 ? 'rgba(15, 23, 42, 0.28)' : 'rgba(255, 255, 255, 0.35)';
+  const backgroundMix = view === 'month' ? mixColor(parsedBase, WHITE, 0.18) : mixColor(parsedBase, WHITE, 0.12);
+  const backgroundLuminance = relativeLuminance(backgroundMix);
+  const hasLightBackground = backgroundLuminance > 0.62;
 
-  const background = toRgba(mixColor(parsedBase, WHITE, 0.12), 0.92);
-  const border = toRgba(mixColor(parsedBase, BLACK, 0.2), 0.75);
+  const foreground = hasLightBackground ? '#0f172a' : '#f8fafc';
+  const muted = hasLightBackground
+    ? toRgba(mixColor(backgroundMix, BLACK, 0.55), 0.88)
+    : toRgba(mixColor(backgroundMix, WHITE, 0.62), 0.92);
+  const subtle = hasLightBackground
+    ? toRgba(mixColor(backgroundMix, BLACK, 0.45), 0.82)
+    : toRgba(mixColor(backgroundMix, WHITE, 0.75), 0.88);
+  const outline = hasLightBackground ? 'rgba(15, 23, 42, 0.26)' : 'rgba(255, 255, 255, 0.35)';
+
+  const background = toRgba(backgroundMix, hasLightBackground ? 0.98 : 0.92);
+  const border = toRgba(
+    hasLightBackground ? mixColor(backgroundMix, BLACK, 0.32) : mixColor(backgroundMix, BLACK, 0.2),
+    hasLightBackground ? 0.4 : 0.72,
+  );
+
+  const padding = view === 'month' ? '6px 8px' : '10px 12px';
+  const borderRadius = view === 'month' ? '14px' : '18px';
+  const boxShadow = view === 'month' ? '0 12px 28px rgba(15, 23, 42, 0.14)' : '0 18px 45px rgba(15, 23, 42, 0.18)';
 
   return {
     backgroundColor: background,
     border: `1px solid ${border}`,
-    borderRadius: '18px',
-    boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
+    borderRadius,
+    boxShadow,
     color: foreground,
-    padding: '10px 12px',
+    padding,
     backdropFilter: 'blur(6px)',
     '--calendar-event-foreground': foreground,
     '--calendar-event-muted': muted,
@@ -412,12 +422,12 @@ export function CalendarTimeline({
 
   const eventPropGetter = useCallback((event: TimelineEvent) => {
     const record = event.resource;
-    const style = computeEventPalette(record);
+    const style = computeEventPalette(record, view);
 
     return {
       style,
     };
-  }, []);
+  }, [view]);
 
   const draggableAccessor = useCallback((event: TimelineEvent) => {
     const record = event.resource;

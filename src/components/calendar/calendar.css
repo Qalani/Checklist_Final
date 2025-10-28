@@ -511,6 +511,11 @@
   position: relative;
 }
 
+.calendar-timeline .rbc-month-view .rbc-event {
+  min-height: 0;
+  margin-bottom: 0.35rem;
+}
+
 .calendar-timeline .calendar-event-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -536,6 +541,18 @@
 
 .calendar-timeline .calendar-event-subtle {
   color: var(--calendar-event-subtle);
+}
+
+.calendar-timeline .rbc-month-view .calendar-event-content {
+  gap: 0.35rem;
+}
+
+.calendar-timeline .rbc-month-view .calendar-event-meta {
+  font-size: 0.65rem;
+}
+
+.calendar-timeline .rbc-month-view .calendar-event-time {
+  font-size: 0.75rem;
 }
 
 .calendar-timeline .rbc-event:hover {
