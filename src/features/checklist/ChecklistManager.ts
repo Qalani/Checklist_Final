@@ -511,11 +511,19 @@ export class ChecklistManager {
       throw new Error('Unable to save category. Please try again.');
     }
 
-    this.setSnapshot((prev) => ({
-      ...prev,
-      categories: sortCategories([...prev.categories, savedCategory]),
-      error: null,
-    }));
+    this.setSnapshot((prev) => {
+      const categories = prev.categories.some((category) => category.id === savedCategory.id)
+        ? prev.categories.map((category) =>
+            category.id === savedCategory.id ? { ...category, ...savedCategory } : category,
+          )
+        : [...prev.categories, savedCategory];
+
+      return {
+        ...prev,
+        categories: sortCategories(categories),
+        error: null,
+      };
+    });
 
     return savedCategory;
   }

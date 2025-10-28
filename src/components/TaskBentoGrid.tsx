@@ -217,15 +217,12 @@ function SortableTaskCard({
                   )}
                 </button>
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 space-y-1">
                   <h3
-                    className={`font-semibold text-zen-900 mb-1 break-words ${task.completed ? 'line-through' : ''}`}
+                    className={`font-semibold text-zen-900 break-words ${task.completed ? 'line-through' : ''}`}
                   >
                     {task.title}
                   </h3>
-                  {task.description && (
-                    <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
-                  )}
                 </div>
               </div>
 
@@ -295,6 +292,12 @@ function SortableTaskCard({
                 </button>
               </div>
             </div>
+
+            {task.description && (
+              <div className="mt-3">
+                <MarkdownDisplay text={task.description} className="[&>p]:mb-1 [&>p:last-child]:mb-0" />
+              </div>
+            )}
 
             {/* Footer */}
             <div className="flex items-center gap-2 flex-wrap">
