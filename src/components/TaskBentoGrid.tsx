@@ -180,7 +180,7 @@ function SortableTaskCard({
   `;
 
   return (
-    <div ref={setNodeRef} style={style} className="group relative break-inside-avoid break-inside-avoid-column mb-4">
+    <div ref={setNodeRef} style={style} className="group relative h-full">
       <motion.div
         layout
         initial={{ opacity: 0, scale: 0.9 }}
@@ -440,7 +440,7 @@ export default function TaskBentoGrid({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
-        <div className="columns-1 md:columns-2 xl:columns-3 gap-4 [column-fill:_balance]">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {tasks.map(task => {
             const isEditing = editingTaskId === task.id;
             const editingContent =
