@@ -35,6 +35,16 @@ import { supabase } from '@/lib/supabase';
 
 type CollaboratorRole = 'viewer' | 'editor';
 
+type TaskSortOption = 'custom' | 'due-asc' | 'due-desc' | 'priority' | 'title';
+
+const TASK_SORT_OPTIONS: Array<{ value: TaskSortOption; label: string; description: string }> = [
+  { value: 'custom', label: 'Custom order', description: 'Drag and drop to arrange tasks manually.' },
+  { value: 'due-asc', label: 'Due date · earliest', description: 'Shows the nearest due dates first.' },
+  { value: 'due-desc', label: 'Due date · latest', description: 'Shows tasks with the most distant due dates first.' },
+  { value: 'priority', label: 'Priority · high → low', description: 'Groups tasks by urgency from high to low.' },
+  { value: 'title', label: 'Title · A → Z', description: 'Sorts alphabetically by task title.' },
+];
+
 const COLLABORATOR_ROLES: CollaboratorRole[] = ['viewer', 'editor'];
 
 const ROLE_LABELS: Record<'owner' | CollaboratorRole, string> = {
@@ -79,6 +89,7 @@ export default function HomePage() {
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [taskSort, setTaskSort] = useState<TaskSortOption>('custom');
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'unsupported' | 'pending'
   >('pending');
@@ -547,37 +558,88 @@ export default function HomePage() {
     [showTaskCompletionNotification, tasks, toggleTask],
   );
 
-  if (!authChecked) {
-    return (
-      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
-        <ParallaxBackground />
-        <div className="relative z-10 flex min-h-screen items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
-        </div>
-      </div>
-    );
-  }
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (filterPriority && task.priority !== filterPriority) return false;
+      if (filterCategory && task.category !== filterCategory) return false;
+      return true;
+    });
+  }, [filterCategory, filterPriority, tasks]);
 
-  if (!user) {
-    return (
-      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
-        <ParallaxBackground />
-        <div className="relative z-10 flex min-h-screen items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
-        </div>
-      </div>
-    );
-  }
+  const activeTasks = useMemo(() => filteredTasks.filter(task => !task.completed), [filteredTasks]);
+  const completedTasks = useMemo(() => filteredTasks.filter(task => task.completed), [filteredTasks]);
+  const displayedTasks = useMemo(
+    () => (taskTab === 'active' ? activeTasks : completedTasks),
+    [activeTasks, completedTasks, taskTab],
+  );
 
-  const filteredTasks = tasks.filter(task => {
-    if (filterPriority && task.priority !== filterPriority) return false;
-    if (filterCategory && task.category !== filterCategory) return false;
-    return true;
-  });
+  const sortedDisplayedTasks = useMemo(() => {
+    if (taskSort === 'custom') {
+      return displayedTasks;
+    }
 
-  const activeTasks = filteredTasks.filter(task => !task.completed);
-  const completedTasks = filteredTasks.filter(task => task.completed);
-  const displayedTasks = taskTab === 'active' ? activeTasks : completedTasks;
+    const fallbackOrder = new Map(displayedTasks.map((task, index) => [task.id, index]));
+    const getDueTime = (task: Task) => {
+      if (!task.due_date) {
+        return null;
+      }
+      const dueTime = new Date(task.due_date).getTime();
+      return Number.isNaN(dueTime) ? null : dueTime;
+    };
+    const priorityWeights: Record<Task['priority'], number> = { high: 0, medium: 1, low: 2 };
+
+    const sorted = [...displayedTasks];
+
+    sorted.sort((a, b) => {
+      const fallback = (fallbackOrder.get(a.id) ?? 0) - (fallbackOrder.get(b.id) ?? 0);
+
+      if (taskSort === 'due-asc' || taskSort === 'due-desc') {
+        const dueA = getDueTime(a);
+        const dueB = getDueTime(b);
+
+        if (dueA == null && dueB == null) {
+          return fallback;
+        }
+        if (dueA == null) {
+          return taskSort === 'due-asc' ? 1 : -1;
+        }
+        if (dueB == null) {
+          return taskSort === 'due-asc' ? -1 : 1;
+        }
+
+        const diff = taskSort === 'due-asc' ? dueA - dueB : dueB - dueA;
+        return diff !== 0 ? diff : fallback;
+      }
+
+      if (taskSort === 'priority') {
+        const diff = (priorityWeights[a.priority] ?? 99) - (priorityWeights[b.priority] ?? 99);
+        if (diff !== 0) {
+          return diff;
+        }
+
+        const dueA = getDueTime(a);
+        const dueB = getDueTime(b);
+
+        if (dueA != null && dueB != null && dueA !== dueB) {
+          return dueA - dueB;
+        }
+
+        return fallback;
+      }
+
+      if (taskSort === 'title') {
+        const diff = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+        return diff !== 0 ? diff : fallback;
+      }
+
+      return fallback;
+    });
+
+    return sorted;
+  }, [displayedTasks, taskSort]);
+
+  const selectedTaskSortOption = TASK_SORT_OPTIONS.find(option => option.value === taskSort) ?? TASK_SORT_OPTIONS[0];
+  const sortStatusText = taskSort === 'custom' ? 'Drag and drop to reorder tasks.' : selectedTaskSortOption.description;
 
   const taskTabDetails = taskTab === 'active'
     ? {
@@ -601,6 +663,28 @@ export default function HomePage() {
   const TaskTabIcon = taskTabDetails.icon;
 
   const isLoading = status === 'loading';
+
+  if (!authChecked) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+        <ParallaxBackground />
+        <div className="relative z-10 flex min-h-screen items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+        <ParallaxBackground />
+        <div className="relative z-10 flex min-h-screen items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
@@ -715,9 +799,22 @@ export default function HomePage() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-zen-500">
-                    <span className="hidden sm:inline">Drag and drop to reorder tasks</span>
-                    <span className="sm:hidden">Drag to reorder</span>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <p className="text-sm text-zen-500">{sortStatusText}</p>
+                    <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zen-400 sm:text-[0.75rem]">
+                      <span>Sort</span>
+                      <select
+                        value={taskSort}
+                        onChange={event => setTaskSort(event.target.value as TaskSortOption)}
+                        className="rounded-lg border border-zen-200 bg-surface/90 px-3 py-1.5 text-sm font-medium text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none"
+                      >
+                        {TASK_SORT_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </div>
 
@@ -731,7 +828,7 @@ export default function HomePage() {
                       transition={{ duration: 0.2, ease: 'easeOut' }}
                     >
                       <TaskBentoGrid
-                        tasks={displayedTasks}
+                        tasks={sortedDisplayedTasks}
                         categories={categories}
                         onEdit={(task) => {
                           setEditingTask(task);
@@ -745,6 +842,9 @@ export default function HomePage() {
                           void handleToggleTask(id, completed);
                         }}
                         onReorder={(reorderedTasks) => {
+                          if (taskSort !== 'custom') {
+                            return;
+                          }
                           void reorderTasks(reorderedTasks);
                         }}
                         onManageAccess={(task) => {
@@ -757,6 +857,7 @@ export default function HomePage() {
                         }}
                         onSaveEdit={(task, updates) => handleTaskSave(updates, task)}
                         onCreateCategory={handleCategoryCreate}
+                        enableReorder={taskSort === 'custom'}
                       />
                     </motion.div>
                   </AnimatePresence>
