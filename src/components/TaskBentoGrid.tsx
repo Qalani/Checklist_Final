@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -72,26 +72,6 @@ function formatReminder(minutes: number) {
   return `${minutes} minutes before`;
 }
 
-const DEFAULT_ROW_SPAN = 1;
-
-function getRowMetrics(node: HTMLElement) {
-  if (typeof window === 'undefined') {
-    return { rowGap: 0, rowHeight: 0 };
-  }
-
-  const parent = node.parentElement;
-  if (!parent) {
-    return { rowGap: 0, rowHeight: 0 };
-  }
-
-  const { rowGap, gridAutoRows } = window.getComputedStyle(parent);
-
-  return {
-    rowGap: Number.parseFloat(rowGap) || 0,
-    rowHeight: Number.parseFloat(gridAutoRows) || 0,
-  };
-}
-
 function SortableTaskCard({
   task,
   category,
@@ -118,72 +98,10 @@ function SortableTaskCard({
     disabled: !enableReorder,
   });
 
-  const [rowSpan, setRowSpan] = useState(DEFAULT_ROW_SPAN);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-
-  const updateRowSpan = useCallback((node: HTMLElement | null) => {
-    if (!node || typeof window === 'undefined') {
-      return;
-    }
-
-    const { rowGap, rowHeight } = getRowMetrics(node);
-    if (rowHeight === 0) {
-      setRowSpan(DEFAULT_ROW_SPAN);
-      return;
-    }
-
-    const measuredHeight = node.getBoundingClientRect().height;
-    const gap = rowGap ?? 0;
-    const span = Math.max(
-      DEFAULT_ROW_SPAN,
-      Math.ceil((measuredHeight + gap) / (rowHeight + gap)),
-    );
-
-    setRowSpan(span);
-  }, []);
-
-  const setRefs = useCallback(
-    (node: HTMLElement | null) => {
-      setNodeRef(node);
-
-      resizeObserverRef.current?.disconnect();
-      resizeObserverRef.current = null;
-
-      if (node) {
-        updateRowSpan(node);
-      }
-
-      if (!node || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
-        return;
-      }
-
-      const observer = new ResizeObserver(entries => {
-        for (const entry of entries) {
-          if (entry.target instanceof HTMLElement) {
-            updateRowSpan(entry.target);
-          }
-        }
-      });
-
-      observer.observe(node);
-      resizeObserverRef.current = observer;
-    },
-    [setNodeRef, updateRowSpan],
-  );
-
-  useEffect(
-    () => () => {
-      resizeObserverRef.current?.disconnect();
-      resizeObserverRef.current = null;
-    },
-    [],
-  );
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    gridRowEnd: `span ${rowSpan}`,
   };
 
   const dueDate = task.due_date ? new Date(task.due_date) : null;
@@ -262,13 +180,13 @@ function SortableTaskCard({
   `;
 
   return (
-    <div ref={setRefs} style={style} className="group relative">
+    <div ref={setNodeRef} style={style} className="group relative break-inside-avoid break-inside-avoid-column mb-4">
       <motion.div
         layout
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
-        className={cardClassName}
+        className={`${cardClassName} h-full`}
       >
         {isEditing ? (
           editingContent ?? null
@@ -522,10 +440,7 @@ export default function TaskBentoGrid({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 gap-4 grid-flow-row-dense"
-          style={{ gridAutoRows: '8px' }}
-        >
+        <div className="columns-1 md:columns-2 xl:columns-3 gap-4 [column-fill:_balance]">
           {tasks.map(task => {
             const isEditing = editingTaskId === task.id;
             const editingContent =
