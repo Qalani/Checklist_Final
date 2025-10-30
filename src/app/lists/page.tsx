@@ -40,6 +40,31 @@ type FormState = {
   description: string;
 };
 
+type ListSortOption = 'created-oldest' | 'created-newest' | 'name-asc' | 'name-desc';
+
+const LIST_SORT_OPTIONS: Array<{ value: ListSortOption; label: string; description: string }> = [
+  {
+    value: 'created-oldest',
+    label: 'Created · oldest',
+    description: 'Oldest lists appear first.',
+  },
+  {
+    value: 'created-newest',
+    label: 'Created · newest',
+    description: 'Most recently created lists appear first.',
+  },
+  {
+    value: 'name-asc',
+    label: 'Name · A → Z',
+    description: 'Lists are shown alphabetically.',
+  },
+  {
+    value: 'name-desc',
+    label: 'Name · Z → A',
+    description: 'Lists are shown in reverse alphabetical order.',
+  },
+];
+
 const INITIAL_FORM: FormState = {
   name: '',
   description: '',
@@ -127,6 +152,7 @@ export default function ListsPage() {
   const shareCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [itemActionErrors, setItemActionErrors] = useState<Record<string, string | null>>({});
   const [editingItemsListId, setEditingItemsListId] = useState<string | null>(null);
+  const [listSort, setListSort] = useState<ListSortOption>('created-oldest');
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -260,15 +286,67 @@ export default function ListsPage() {
   };
 
   const sortedLists = useMemo(() => {
-    return [...lists].sort((a, b) => {
-      if (a.created_at && b.created_at) {
-        return a.created_at.localeCompare(b.created_at);
+    const fallbackOrder = new Map(lists.map((list, index) => [list.id, index]));
+    const getCreatedTime = (list: List) => {
+      if (!list.created_at) {
+        return null;
       }
-      if (a.created_at) return -1;
-      if (b.created_at) return 1;
-      return a.name.localeCompare(b.name);
+      const timestamp = new Date(list.created_at).getTime();
+      return Number.isNaN(timestamp) ? null : timestamp;
+    };
+
+    const sorted = [...lists];
+
+    sorted.sort((a, b) => {
+      const fallback = (fallbackOrder.get(a.id) ?? 0) - (fallbackOrder.get(b.id) ?? 0);
+
+      if (listSort === 'created-oldest' || listSort === 'created-newest') {
+        const createdA = getCreatedTime(a);
+        const createdB = getCreatedTime(b);
+
+        if (createdA == null && createdB == null) {
+          return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || fallback;
+        }
+        if (createdA == null) {
+          return listSort === 'created-oldest' ? 1 : -1;
+        }
+        if (createdB == null) {
+          return listSort === 'created-oldest' ? -1 : 1;
+        }
+
+        const diff = listSort === 'created-oldest' ? createdA - createdB : createdB - createdA;
+        if (diff !== 0) {
+          return diff;
+        }
+
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || fallback;
+      }
+
+      if (listSort === 'name-asc' || listSort === 'name-desc') {
+        const diff = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        if (diff !== 0) {
+          return listSort === 'name-asc' ? diff : -diff;
+        }
+
+        const createdA = getCreatedTime(a);
+        const createdB = getCreatedTime(b);
+
+        if (createdA != null && createdB != null && createdA !== createdB) {
+          return createdB - createdA;
+        }
+
+        return fallback;
+      }
+
+      return fallback;
     });
-  }, [lists]);
+
+    return sorted;
+  }, [listSort, lists]);
+
+  const selectedListSortOption =
+    LIST_SORT_OPTIONS.find(option => option.value === listSort) ?? LIST_SORT_OPTIONS[0];
+  const listSortStatusText = selectedListSortOption.description;
 
   const handleOpenCreate = () => {
     setEditingList(null);
@@ -759,6 +837,24 @@ export default function ListsPage() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-zen-500">{listSortStatusText}</p>
+              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zen-400 sm:text-[0.75rem]">
+                <span>Sort</span>
+                <select
+                  value={listSort}
+                  onChange={event => setListSort(event.target.value as ListSortOption)}
+                  className="rounded-lg border border-zen-200 bg-surface/90 px-3 py-1.5 text-sm font-medium text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none"
+                >
+                  {LIST_SORT_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {status === 'loading' && lists.length === 0 ? (

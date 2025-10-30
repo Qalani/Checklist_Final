@@ -45,6 +45,7 @@ interface TaskBentoGridProps {
   onCancelEdit?: () => void;
   onSaveEdit?: (task: Task, updates: Partial<Task>) => Promise<{ error?: string } | void>;
   onCreateCategory?: (input: { name: string; color: string }) => Promise<Category>;
+  enableReorder?: boolean;
 }
 
 const ROLE_LABELS: Record<'owner' | 'editor' | 'viewer', string> = {
@@ -80,6 +81,7 @@ function SortableTaskCard({
   onManageAccess,
   isEditing = false,
   editingContent,
+  enableReorder,
 }: {
   task: Task;
   category?: Category;
@@ -89,6 +91,7 @@ function SortableTaskCard({
   onManageAccess?: () => void;
   isEditing?: boolean;
   editingContent?: ReactNode;
+  enableReorder: boolean;
 }) {
   const {
     attributes,
@@ -97,7 +100,7 @@ function SortableTaskCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: !enableReorder });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -194,13 +197,15 @@ function SortableTaskCard({
         ) : (
           <>
             {/* Drag Handle */}
-            <div
-              {...attributes}
-              {...listeners}
-              className="absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-            >
-              <GripVertical className="w-4 h-4 text-zen-400" />
-            </div>
+            {enableReorder ? (
+              <div
+                {...attributes}
+                {...listeners}
+                className="absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+              >
+                <GripVertical className="w-4 h-4 text-zen-400" />
+              </div>
+            ) : null}
 
             {/* Header */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
@@ -378,6 +383,7 @@ export default function TaskBentoGrid({
   onCancelEdit,
   onSaveEdit,
   onCreateCategory,
+  enableReorder = true,
 }: TaskBentoGridProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -396,6 +402,10 @@ export default function TaskBentoGrid({
     }),
   );
   const handleDragEnd = (event: DragEndEvent) => {
+    if (!enableReorder) {
+      return;
+    }
+
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -427,7 +437,11 @@ export default function TaskBentoGrid({
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={enableReorder ? sensors : undefined}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tasks.map(task => {
@@ -457,6 +471,7 @@ export default function TaskBentoGrid({
                 onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
                 isEditing={isEditing}
                 editingContent={editingContent}
+                enableReorder={enableReorder}
               />
             );
           })}
