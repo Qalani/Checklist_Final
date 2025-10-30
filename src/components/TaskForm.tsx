@@ -38,6 +38,11 @@ const PRESET_COLORS = [
 ];
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const PRESET_REMINDER_MINUTES = ['5', '15', '30', '60', '120', '1440'] as const;
+
+function isPresetReminderValue(value: string): value is (typeof PRESET_REMINDER_MINUTES)[number] {
+  return PRESET_REMINDER_MINUTES.includes(value as (typeof PRESET_REMINDER_MINUTES)[number]);
+}
 
 function toLocalInputValue(value?: string | null): string {
   if (!value) {
@@ -103,10 +108,13 @@ export default function TaskForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dueDate, setDueDate] = useState(() => toLocalInputValue(task?.due_date ?? null));
-  const [reminderMinutes, setReminderMinutes] = useState(
+  const initialReminderValue =
     task?.reminder_minutes_before != null && !Number.isNaN(task.reminder_minutes_before)
       ? String(task.reminder_minutes_before)
-      : '',
+      : '';
+  const [reminderMinutes, setReminderMinutes] = useState(initialReminderValue);
+  const [useCustomReminder, setUseCustomReminder] = useState(
+    initialReminderValue !== '' && !isPresetReminderValue(initialReminderValue),
   );
   const existingRecurrence = task?.reminder_recurrence ?? null;
   const [reminderFrequency, setReminderFrequency] = useState<ReminderFrequency>(existingRecurrence?.frequency ?? 'once');
@@ -509,7 +517,14 @@ export default function TaskForm({
             <input
               type="datetime-local"
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                setDueDate(nextValue);
+                if (!nextValue) {
+                  setReminderMinutes('');
+                  setUseCustomReminder(false);
+                }
+              }}
               className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
             />
             {dueDate && (
@@ -518,6 +533,7 @@ export default function TaskForm({
                 onClick={() => {
                   setDueDate('');
                   setReminderMinutes('');
+                  setUseCustomReminder(false);
                 }}
                 className="px-3 py-2 rounded-xl bg-zen-100 text-sm font-medium text-zen-600 hover:bg-zen-200 transition-colors"
               >
@@ -532,8 +548,19 @@ export default function TaskForm({
             Reminder
           </label>
           <select
-            value={reminderMinutes}
-            onChange={(e) => setReminderMinutes(e.target.value)}
+            value={useCustomReminder ? 'custom' : reminderMinutes}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === 'custom') {
+                setUseCustomReminder(true);
+                if (isPresetReminderValue(reminderMinutes)) {
+                  setReminderMinutes('');
+                }
+                return;
+              }
+              setUseCustomReminder(false);
+              setReminderMinutes(value);
+            }}
             disabled={!dueDate}
             className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
@@ -544,7 +571,22 @@ export default function TaskForm({
             <option value="60">1 hour before</option>
             <option value="120">2 hours before</option>
             <option value="1440">1 day before</option>
+            <option value="custom">Custom...</option>
           </select>
+          {useCustomReminder && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(e.target.value.replace(/[^0-9]/g, ''))}
+                disabled={!dueDate}
+                placeholder="Minutes before due time"
+                className="w-40 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+              <span className="text-sm text-zen-500">minutes before</span>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-zen-200 bg-zen-50/60 p-4 space-y-4">

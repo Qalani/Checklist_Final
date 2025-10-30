@@ -301,28 +301,16 @@ function SortableTaskItem({
                 </span>
               </h3>
 
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                {task.access_role && (
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium ${
-                      isOwner
-                        ? 'border-sage-200 bg-sage-50 text-sage-600'
-                        : 'border-zen-200 bg-zen-50 text-zen-600'
-                    }`}
-                  >
-                    <Shield className="w-3 h-3" />
-                    {ROLE_LABELS[accessRole]}
-                  </span>
-                )}
-                <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />
-                <button
-                  onClick={onExpand}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-zen-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                >
-                  <MoreHorizontal className="w-4 h-4 text-zen-500" />
-                </button>
-              </div>
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />
+              <button
+                onClick={onExpand}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-zen-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              >
+                <MoreHorizontal className="w-4 h-4 text-zen-500" />
+              </button>
             </div>
+          </div>
 
             {task.description && (
               <div className="mt-1">
@@ -331,6 +319,19 @@ function SortableTaskItem({
             )}
 
             <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {task.access_role && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium shrink-0 ${
+                    isOwner
+                      ? 'border-sage-200 bg-sage-50 text-sage-600'
+                      : 'border-zen-200 bg-zen-50 text-zen-600'
+                  }`}
+                >
+                  <Shield className="w-3 h-3" />
+                  {ROLE_LABELS[accessRole]}
+                </span>
+              )}
+
               {category && (
                 <span
                   className="px-2 py-0.5 rounded-lg text-xs font-medium shrink-0"

@@ -232,18 +232,6 @@ function SortableTaskCard({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
-                {task.access_role && (
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
-                      isOwner
-                        ? 'border-sage-200 bg-sage-50 text-sage-600'
-                        : 'border-zen-200 bg-zen-50 text-zen-600'
-                    }`}
-                  >
-                    <Shield className="w-3 h-3" />
-                    {ROLE_LABELS[accessRole]}
-                  </span>
-                )}
                 {canManageAccess && (
                   <button
                     type="button"
@@ -306,6 +294,19 @@ function SortableTaskCard({
 
             {/* Footer */}
             <div className="flex items-center gap-2 flex-wrap">
+              {task.access_role && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium shrink-0 ${
+                    isOwner
+                      ? 'border-sage-200 bg-sage-50 text-sage-600'
+                      : 'border-zen-200 bg-zen-50 text-zen-600'
+                  }`}
+                >
+                  <Shield className="w-3 h-3" />
+                  {ROLE_LABELS[accessRole]}
+                </span>
+              )}
+
               {category && (
                 <span
                   className="px-2 py-1 rounded-lg text-xs font-medium shrink-0"
