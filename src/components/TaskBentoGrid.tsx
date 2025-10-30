@@ -522,7 +522,10 @@ export default function TaskBentoGrid({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-[8px] grid-flow-row-dense">
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 gap-4 grid-flow-row-dense"
+          style={{ gridAutoRows: '8px' }}
+        >
           {tasks.map(task => {
             const isEditing = editingTaskId === task.id;
             const editingContent =
