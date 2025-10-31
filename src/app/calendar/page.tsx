@@ -1,112 +1,90 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import {
-  addDays,
-  addMonths,
-  addWeeks,
-  format,
-  endOfMonth,
-  endOfWeek,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subDays,
-  subMonths,
-  subWeeks,
-} from 'date-fns';
-import {
-  Calendar as CalendarIcon,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  RefreshCcw,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { Calendar as CalendarIcon, Filter, RefreshCcw } from 'lucide-react';
 
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ZenPageHeader from '@/components/ZenPageHeader';
 import AccountSummary from '@/components/AccountSummary';
-import { CalendarTimeline } from '@/components/calendar/CalendarTimeline';
-import { CalendarDayPlanner } from '@/components/calendar/CalendarDayPlanner';
+import type { CalendarViewType, CalendarViewEvent, CalendarViewProps } from '@/components/calendar/FullCalendarView';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useCalendarData } from '@/features/calendar/useCalendarData';
-import { useCalendarEvents } from '@/features/calendar/useCalendarEvents';
-import { useChecklist } from '@/features/checklist/useChecklist';
-import { useLists } from '@/features/lists/useLists';
-import { useNotes } from '@/features/notes/useNotes';
-import { useZenReminders } from '@/features/reminders/useZenReminders';
 import type {
   CalendarEventRecord,
+  CalendarEventType,
   CalendarScope,
   CalendarTaskMetadata,
   CalendarUserEventMetadata,
 } from '@/features/calendar/types';
-import type { Category, Task } from '@/types';
-import { supabase } from '@/lib/supabase';
-import { getNextReminderOccurrence } from '@/utils/reminders';
 
-type CalendarView = 'month' | 'week' | 'day';
+const FullCalendarViewNoSSR = dynamic<CalendarViewProps>(async () => {
+  const mod = await import('@/components/calendar/FullCalendarView');
+  return mod.FullCalendarView;
+}, { ssr: false });
 
-type StatusMessage = { type: 'success' | 'error'; message: string } | null;
+type RangeState = { start: Date; end: Date };
 
-function computeRange(view: CalendarView, referenceDate: Date): { start: Date; end: Date } {
-  if (view === 'month') {
-    const start = startOfWeek(startOfMonth(referenceDate), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(referenceDate), { weekStartsOn: 1 });
-    return { start, end };
-  }
-  if (view === 'week') {
-    const start = startOfWeek(referenceDate, { weekStartsOn: 1 });
-    const end = endOfWeek(referenceDate, { weekStartsOn: 1 });
-    return { start, end };
-  }
-  const start = startOfDay(referenceDate);
-  const end = addDays(start, 1);
-  end.setMilliseconds(end.getMilliseconds() - 1);
-  return { start, end };
+type DatesChangePayload = {
+  range: RangeState;
+  view: CalendarViewType;
+  currentDate: Date;
+};
+
+const EVENT_COLORS: Record<CalendarEventType, { background: string; border: string; text: string }> = {
+  task_due: { background: 'rgba(14, 165, 233, 0.95)', border: 'rgba(14, 165, 233, 0.2)', text: '#ffffff' },
+  task_reminder: { background: 'rgba(59, 130, 246, 0.9)', border: 'rgba(37, 99, 235, 0.25)', text: '#ffffff' },
+  note: { background: 'rgba(249, 115, 22, 0.92)', border: 'rgba(249, 115, 22, 0.2)', text: '#ffffff' },
+  zen_reminder: { background: 'rgba(245, 158, 11, 0.95)', border: 'rgba(245, 158, 11, 0.25)', text: '#ffffff' },
+  event: { background: 'rgba(99, 102, 241, 0.95)', border: 'rgba(129, 140, 248, 0.25)', text: '#ffffff' },
+};
+
+function isTaskMetadata(metadata: CalendarEventRecord['metadata']): metadata is CalendarTaskMetadata {
+  return Boolean(metadata && typeof metadata === 'object' && 'taskId' in metadata);
 }
 
-function shiftDate(view: CalendarView, currentDate: Date, direction: 'prev' | 'next'): Date {
-  if (view === 'month') {
-    return direction === 'next' ? addMonths(currentDate, 1) : subMonths(currentDate, 1);
-  }
-  if (view === 'week') {
-    return direction === 'next' ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1);
-  }
-  return direction === 'next' ? addDays(currentDate, 1) : subDays(currentDate, 1);
+function isUserEventMetadata(metadata: CalendarEventRecord['metadata']): metadata is CalendarUserEventMetadata {
+  return Boolean(metadata && typeof metadata === 'object' && 'eventId' in metadata);
 }
 
-function isTaskMetadata(metadata: unknown): metadata is CalendarTaskMetadata {
-  return Boolean(
-    metadata &&
-      typeof metadata === 'object' &&
-      'taskId' in (metadata as Record<string, unknown>) &&
-      'canEdit' in (metadata as Record<string, unknown>),
-  );
+function mapEventToView(record: CalendarEventRecord): CalendarViewEvent {
+  const palette = EVENT_COLORS[record.type] ?? {
+    background: 'rgba(148, 163, 184, 0.9)',
+    border: 'rgba(148, 163, 184, 0.3)',
+    text: '#0f172a',
+  };
+  return {
+    ...record,
+    backgroundColor: palette.background,
+    borderColor: palette.border,
+    textColor: palette.text,
+  };
 }
 
-function isUserEventMetadata(metadata: unknown): metadata is CalendarUserEventMetadata {
-  return Boolean(
-    metadata &&
-      typeof metadata === 'object' &&
-      'eventId' in (metadata as Record<string, unknown>) &&
-      'canEdit' in (metadata as Record<string, unknown>),
-  );
+function formatEventTime(event: CalendarEventRecord) {
+  const start = new Date(event.start);
+  const end = new Date(event.end);
+  if (event.allDay) {
+    return format(start, 'EEEE, MMMM d, yyyy');
+  }
+  const sameDay = start.toDateString() === end.toDateString();
+  if (sameDay) {
+    return `${format(start, 'EEEE, MMMM d')} · ${format(start, 'p')} – ${format(end, 'p')}`;
+  }
+  return `${format(start, 'EEE, MMM d p')} → ${format(end, 'EEE, MMM d p')}`;
 }
 
 export default function CalendarPage() {
   const router = useRouter();
   const { user, authChecked, signOut } = useAuthSession();
-  const [view, setView] = useState<CalendarView>('month');
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
-  const [currentRange, setCurrentRange] = useState<{ start: Date; end: Date }>(() => computeRange('month', new Date()));
   const [scope, setScope] = useState<CalendarScope>('all');
-  const [status, setStatus] = useState<StatusMessage>(null);
-  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [view, setView] = useState<CalendarViewType>('dayGridMonth');
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  const [range, setRange] = useState<RangeState>(() => ({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) }));
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEventRecord | null>(null);
 
   useEffect(() => {
     if (!authChecked) {
@@ -117,551 +95,141 @@ export default function CalendarPage() {
     }
   }, [authChecked, router, user]);
 
-  useEffect(() => {
-    if (!status) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setStatus(null);
-    }, 4000);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [status]);
-
-  useEffect(() => {
-    setSelectedDate((previous) => {
-      const startTime = currentRange.start.getTime();
-      const endTime = currentRange.end.getTime();
-      const previousTime = previous.getTime();
-      if (previousTime < startTime || previousTime > endTime) {
-        return new Date(currentDate.getTime());
-      }
-      return previous;
-    });
-  }, [currentDate, currentRange.end, currentRange.start]);
-
-  const { events, isLoading, isValidating, error, refresh } = useCalendarData(user?.id ?? null, {
-    start: currentRange.start,
-    end: currentRange.end,
+  const { events = [], isLoading, isValidating, error, refresh } = useCalendarData(user?.id ?? null, {
+    start: range.start,
+    end: range.end,
     scope,
     pause: !authChecked,
   });
 
-  const { categories, saveTask, createCategory } = useChecklist(user?.id ?? null);
-  const { createList } = useLists(user?.id ?? null);
-  const { createNote } = useNotes(user?.id ?? null);
-  const { createReminder } = useZenReminders(user?.id ?? null);
-  const { createEvent, updateEvent, importFromIcs } = useCalendarEvents(user?.id ?? null);
+  const calendarEvents = useMemo(() => events.map((event) => mapEventToView(event)), [events]);
 
-  const userEmail = useMemo(() => user?.email ?? user?.user_metadata?.email ?? null, [user]);
-
-  const handleRangeChange = useCallback((range: { start: Date; end: Date }) => {
-    setCurrentRange(range);
+  const handleDatesChange = useCallback(({ range, view, currentDate }: DatesChangePayload) => {
+    setRange({ start: new Date(range.start), end: new Date(range.end) });
+    setView(view);
+    setCurrentDate(new Date(currentDate));
   }, []);
 
-  const handleViewChange = useCallback(
-    (nextView: CalendarView) => {
-      setView(nextView);
-      const recalculatedRange = computeRange(nextView, currentDate);
-      setCurrentRange(recalculatedRange);
-      setSelectedDate((previous) => {
-        const candidate = previous ?? new Date(currentDate.getTime());
-        const startTime = recalculatedRange.start.getTime();
-        const endTime = recalculatedRange.end.getTime();
-        const candidateTime = candidate.getTime();
-        if (candidateTime < startTime || candidateTime > endTime) {
-          return new Date(currentDate.getTime());
-        }
-        return candidate;
-      });
-    },
-    [currentDate],
-  );
+  const handleEventClick = useCallback((event: CalendarEventRecord) => {
+    setSelectedEvent(event);
+  }, []);
 
-  const handleNavigate = useCallback(
-    (nextDate: Date) => {
-      const normalized = new Date(nextDate.getTime());
-      setCurrentDate(normalized);
-      const recalculatedRange = computeRange(view, normalized);
-      setCurrentRange(recalculatedRange);
-      setSelectedDate(normalized);
-    },
-    [view],
-  );
+  const handleScopeChange = useCallback((nextScope: CalendarScope) => {
+    setScope(nextScope);
+    setSelectedEvent(null);
+  }, []);
 
-  const navigateBy = useCallback(
-    (direction: 'prev' | 'next') => {
-      setCurrentDate((previous) => {
-        const updated = shiftDate(view, previous, direction);
-        const normalized = new Date(updated.getTime());
-        const recalculatedRange = computeRange(view, normalized);
-        setCurrentRange(recalculatedRange);
-        setSelectedDate(normalized);
-        return normalized;
-      });
-    },
-    [view],
-  );
-
-  const jumpToToday = useCallback(() => {
-    const today = new Date();
-    setCurrentDate(today);
-    setCurrentRange(computeRange(view, today));
-    setSelectedDate(today);
-  }, [view]);
-
-  const handleEventDrop = useCallback(
-    async ({
-      record,
-      start,
-      end,
-      isAllDay,
-    }: {
-      record: CalendarEventRecord;
-      start: Date;
-      end: Date;
-      isAllDay: boolean;
-    }) => {
-      if (record.type === 'event') {
-        const metadata = record.metadata;
-        if (!isUserEventMetadata(metadata)) {
-          setStatus({ type: 'error', message: 'Unable to reschedule this event.' });
-          return;
-        }
-
-        if (!metadata.canEdit) {
-          setStatus({ type: 'error', message: 'You do not have permission to move this event.' });
-          return;
-        }
-
-        const nextStartIso = new Date(start).toISOString();
-        const potentialEnd = new Date(end);
-        const currentDuration = new Date(record.end).getTime() - new Date(record.start).getTime();
-        const minimumDuration = record.allDay ? 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
-        const fallbackDuration = Number.isFinite(currentDuration) && currentDuration > 0 ? currentDuration : minimumDuration;
-        const nextEndDate = Number.isNaN(potentialEnd.getTime())
-          ? new Date(start.getTime() + fallbackDuration)
-          : potentialEnd;
-        const nextEndIso = nextEndDate.toISOString();
-        const nextAllDay = typeof isAllDay === 'boolean' ? isAllDay : record.allDay;
-
-        setReschedulingId(record.entityId);
-        try {
-          await updateEvent(metadata.eventId, {
-            start: nextStartIso,
-            end: nextEndIso,
-            allDay: nextAllDay,
-          });
-          setStatus({ type: 'success', message: 'Event updated.' });
-          await refresh();
-        } catch (eventError) {
-          const message =
-            eventError instanceof Error ? eventError.message : 'Unable to reschedule this event.';
-          setStatus({ type: 'error', message });
-        } finally {
-          setReschedulingId(null);
-        }
-        return;
-      }
-
-      if (record.type !== 'task_due') {
-        return;
-      }
-
-      const metadata = record.metadata;
-      if (!isTaskMetadata(metadata)) {
-        setStatus({ type: 'error', message: 'Unable to reschedule this task.' });
-        return;
-      }
-
-      if (!metadata.canEdit) {
-        setStatus({ type: 'error', message: 'You do not have permission to reschedule this task.' });
-        return;
-      }
-
-      const dueIso = new Date(start).toISOString();
-      const updates: Record<string, unknown> = { due_date: dueIso };
-
-      if (metadata.reminder) {
-        const reminder = metadata.reminder;
-        const reminderLike = {
-          due_date: dueIso,
-          reminder_minutes_before: reminder.minutesBefore ?? null,
-          reminder_recurrence: reminder.recurrence ?? null,
-          reminder_next_trigger_at: reminder.nextTriggerAt ?? null,
-          reminder_snoozed_until: reminder.snoozedUntil ?? null,
-          reminder_timezone: reminder.timezone ?? null,
-        };
-        const nextReminder = getNextReminderOccurrence(reminderLike, { from: new Date() });
-        updates.reminder_next_trigger_at = nextReminder ? nextReminder.toISOString() : null;
-      } else {
-        updates.reminder_next_trigger_at = null;
-      }
-
-      setReschedulingId(record.entityId);
-      try {
-        const { error: updateError } = await supabase
-          .from('tasks')
-          .update(updates)
-          .eq('id', metadata.taskId);
-
-        if (updateError) {
-          throw new Error(updateError.message || 'Unable to reschedule this task.');
-        }
-
-        setStatus({ type: 'success', message: 'Task due date updated.' });
-        await refresh();
-      } catch (updateError) {
-        const message =
-          updateError instanceof Error ? updateError.message : 'Unable to reschedule this task.';
-        setStatus({ type: 'error', message });
-      } finally {
-        setReschedulingId(null);
-      }
-    },
-    [refresh, updateEvent],
-  );
-
-  const handleSelectDate = useCallback(
-    (nextDate: Date) => {
-      const normalized = new Date(nextDate.getTime());
-      setSelectedDate(normalized);
-      setCurrentDate(normalized);
-      setCurrentRange(computeRange(view, normalized));
-    },
-    [view],
-  );
-
-  const handlePlannerTaskCreate = useCallback(
-    async (taskInput: Partial<Task>): Promise<{ success: boolean; error?: string }> => {
-      const result = await saveTask(taskInput, null);
-      if (result && 'error' in result && result.error) {
-        const message = result.error;
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-
-      const dueDateSource = taskInput.due_date ? new Date(taskInput.due_date) : selectedDate;
-      const dueLabel = Number.isNaN(dueDateSource.getTime())
-        ? 'the selected day'
-        : format(dueDateSource, 'MMM d, yyyy');
-      setStatus({ type: 'success', message: `Task scheduled for ${dueLabel}.` });
-
-      try {
-        await refresh();
-      } catch (error) {
-        console.error('Failed to refresh calendar after creating task', error);
-      }
-
-      return { success: true };
-    },
-    [refresh, saveTask, selectedDate],
-  );
-
-  const handlePlannerListCreate = useCallback(
-    async (
-      input: { name: string; description?: string; createdAt?: string },
-    ): Promise<{ success: boolean; error?: string }> => {
-      const result = await createList(input);
-      if (result && 'error' in result && result.error) {
-        const message = result.error;
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-
-      const label = format(selectedDate, 'MMM d, yyyy');
-      setStatus({ type: 'success', message: `List created for ${label}.` });
-
-      return { success: true };
-    },
-    [createList, selectedDate],
-  );
-
-  const handlePlannerNoteCreate = useCallback(
-    async (
-      input: { title?: string; content?: string; timestamp?: string },
-    ): Promise<{ success: boolean; error?: string }> => {
-      const result = await createNote(input);
-      if (result && 'error' in result && result.error) {
-        const message = result.error;
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-
-      let noteDate = selectedDate;
-      if (result && 'note' in result && result.note) {
-        const stamp = result.note.updated_at ?? result.note.created_at;
-        if (stamp) {
-          const parsed = new Date(stamp);
-          if (!Number.isNaN(parsed.getTime())) {
-            noteDate = parsed;
-          }
-        }
-      } else if (input.timestamp) {
-        const parsed = new Date(input.timestamp);
-        if (!Number.isNaN(parsed.getTime())) {
-          noteDate = parsed;
-        }
-      }
-
-      const noteLabel = format(noteDate, 'MMM d, yyyy');
-      setStatus({ type: 'success', message: `Note saved for ${noteLabel}.` });
-
-      try {
-        await refresh();
-      } catch (error) {
-        console.error('Failed to refresh calendar after creating note', error);
-      }
-
-      return { success: true };
-    },
-    [createNote, refresh, selectedDate],
-  );
-
-  const handlePlannerReminderCreate = useCallback(
-    async (
-      input: { title: string; description?: string; remindAt: string; timezone?: string | null },
-    ): Promise<{ success: boolean; error?: string }> => {
-      const result = await createReminder(input);
-      if (result && 'error' in result && result.error) {
-        const message = result.error;
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-
-      const remindDate = new Date(input.remindAt);
-      const label = Number.isNaN(remindDate.getTime())
-        ? 'the selected time'
-        : format(remindDate, "MMM d, yyyy 'at' HH:mm");
-      setStatus({ type: 'success', message: `Zen reminder scheduled for ${label}.` });
-
-      try {
-        await refresh();
-      } catch (error) {
-        console.error('Failed to refresh calendar after creating reminder', error);
-      }
-
-      return { success: true };
-    },
-    [createReminder, refresh],
-  );
-
-  const handlePlannerEventCreate = useCallback(
-    async (
-      input: { title: string; description?: string; location?: string; start: string; end: string; allDay: boolean },
-    ): Promise<{ success: boolean; error?: string }> => {
-      try {
-        await createEvent(input);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unable to create event.';
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-
-      const startDate = new Date(input.start);
-      const label = Number.isNaN(startDate.getTime())
-        ? 'the selected time'
-        : format(startDate, input.allDay ? 'MMM d, yyyy' : "MMM d, yyyy 'at' HH:mm");
-      setStatus({ type: 'success', message: `Event scheduled for ${label}.` });
-
-      try {
-        await refresh();
-      } catch (error) {
-        console.error('Failed to refresh calendar after creating event', error);
-      }
-
-      return { success: true };
-    },
-    [createEvent, refresh],
-  );
-
-  const handlePlannerIcsImport = useCallback(
-    async (file: File): Promise<{ success: boolean; error?: string }> => {
-      try {
-        const result = await importFromIcs(file);
-        const parts: string[] = [];
-        if (result.imported > 0) {
-          parts.push(`${result.imported} new`);
-        }
-        if (result.updated > 0) {
-          parts.push(`${result.updated} updated`);
-        }
-        const summary = parts.length > 0 ? `${parts.join(', ')} events` : 'No changes detected';
-        setStatus({ type: 'success', message: `Import complete. ${summary}.` });
-        await refresh();
-        return { success: true };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unable to import events.';
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-    },
-    [importFromIcs, refresh],
-  );
-
-  const handlePlannerCategoryCreate = useCallback(
-    async (
-      input: { name: string; color: string },
-    ): Promise<{ success: boolean; error?: string; category?: Category }> => {
-      try {
-        const category = await createCategory(input);
-        return { success: true, category };
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unable to create category. Please try again.';
-        setStatus({ type: 'error', message });
-        return { success: false, error: message };
-      }
-    },
-    [createCategory],
-  );
-
-  const statusMessage = status ?? (error ? { type: 'error', message: error } : null);
-  const busy = isLoading || isValidating || reschedulingId !== null;
+  const currentLabel = useMemo(() => format(currentDate, view === 'dayGridMonth' ? 'MMMM yyyy' : 'PPPP'), [currentDate, view]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
+    <div className="relative min-h-screen bg-gradient-to-b from-zen-50 via-white to-zen-100 dark:from-zen-950 dark:via-zen-900 dark:to-zen-950">
       <ParallaxBackground />
-      <div className="relative z-10 flex min-h-screen flex-col">
-        <ZenPageHeader
-          title="Calendar"
-          subtitle="Merge tasks, reminders, and notes into a single flow. Drag to rebalance your schedule."
-          icon={CalendarIcon}
-          backHref="/"
-          backLabel="Overview"
-          actions={
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void refresh();
-                }}
-                className="inline-flex items-center gap-2 rounded-full border border-zen-200 bg-surface/80 px-3 py-1.5 text-xs font-semibold text-zen-600 transition-colors hover:border-zen-400 hover:text-zen-700 dark:border-zen-700/40 dark:text-zen-200"
-                disabled={busy}
+      <ThemeSwitcher />
+      <ZenPageHeader
+        title="Harmonic calendar"
+        subtitle="A grounded view of your commitments, rituals, and shared moments."
+        icon={CalendarIcon}
+        actions={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 rounded-full border border-zen-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-zen-600 shadow-soft backdrop-blur-sm dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200">
+              <Filter className="h-4 w-4" />
+              <select
+                className="bg-transparent text-sm font-semibold focus:outline-none"
+                value={scope}
+                onChange={(event) => handleScopeChange(event.target.value as CalendarScope)}
               >
-                <RefreshCcw className={`h-3.5 w-3.5 ${isValidating ? 'animate-spin' : ''}`} />
-                Sync
-              </button>
-              <ThemeSwitcher />
+                <option value="all">All spaces</option>
+                <option value="personal">Personal</option>
+                <option value="shared">Shared</option>
+              </select>
             </div>
-          }
-        />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <AccountSummary
-              email={userEmail}
-              statusText="Calendar workspace"
-              syncing={isValidating}
-              syncingLabel="Updating"
-              onSignOut={signOut}
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="inline-flex items-center gap-1 rounded-full border border-zen-200/80 bg-surface/70 p-1 shadow-soft dark:border-zen-700/40">
-                {(['month', 'week', 'day'] as CalendarView[]).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => handleViewChange(option)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                      view === option
-                        ? 'bg-zen-500 text-white shadow-soft'
-                        : 'text-zen-600 hover:bg-zen-100 dark:text-zen-200 dark:hover:bg-zen-800/40'
-                    }`}
-                  >
-                    {option === 'month' ? 'Month' : option === 'week' ? 'Week' : 'Day'}
-                  </button>
-                ))}
-              </div>
-              <div className="inline-flex items-center gap-1 rounded-full border border-zen-200/80 bg-surface/70 p-1 shadow-soft dark:border-zen-700/40">
-                <button
-                  type="button"
-                  onClick={() => navigateBy('prev')}
-                  className="rounded-full p-2 text-zen-600 transition-colors hover:bg-zen-100 dark:text-zen-200 dark:hover:bg-zen-800/40"
-                  aria-label="Previous"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={jumpToToday}
-                  className="inline-flex items-center gap-1 rounded-full bg-zen-500 px-3 py-1 text-xs font-semibold text-white shadow-soft transition-colors hover:bg-zen-600"
-                >
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigateBy('next')}
-                  className="rounded-full p-2 text-zen-600 transition-colors hover:bg-zen-100 dark:text-zen-200 dark:hover:bg-zen-800/40"
-                  aria-label="Next"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="inline-flex items-center gap-1 rounded-full border border-zen-200/80 bg-surface/70 p-1 shadow-soft dark:border-zen-700/40">
-                {(['all', 'personal', 'shared'] as CalendarScope[]).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setScope(option)}
-                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                      scope === option
-                        ? 'bg-sage-500 text-white shadow-soft'
-                        : 'text-zen-600 hover:bg-zen-100 dark:text-zen-200 dark:hover:bg-zen-800/40'
-                    }`}
-                  >
-                    <Filter className="h-3 w-3" />
-                    {option === 'all'
-                      ? 'All'
-                      : option === 'personal'
-                      ? 'Personal'
-                      : 'Shared'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {statusMessage ? (
-            <div
-              className={`mb-4 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm shadow-soft ${
-                statusMessage.type === 'success'
-                  ? 'border-sage-300/70 bg-sage-50 text-sage-700'
-                  : 'border-warm-300/70 bg-warm-50 text-warm-700'
-              }`}
+            <button
+              type="button"
+              onClick={() => refresh()}
+              className="inline-flex items-center gap-2 rounded-full border border-zen-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-zen-600 shadow-soft transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200 dark:hover:text-zen-50"
+              aria-label="Refresh calendar"
             >
-              {statusMessage.type === 'success' ? '✔️' : '⚠️'} {statusMessage.message}
-            </div>
-          ) : null}
+              <RefreshCcw className={`h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        }
+        footer={
+          <AccountSummary
+            email={user?.email ?? undefined}
+            syncing={isValidating}
+            onSignOut={signOut}
+          />
+        }
+      />
 
-          <div className="rounded-none border-0 bg-transparent p-0 shadow-none backdrop-blur-none dark:bg-transparent sm:rounded-3xl sm:border sm:border-zen-200/70 sm:bg-surface/85 sm:p-4 sm:shadow-large sm:backdrop-blur-xl dark:sm:border-zen-700/40">
-            <CalendarTimeline
-              date={currentDate}
+      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pb-16 pt-10 sm:px-6 lg:px-8">
+        <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-200/80">{currentLabel}</div>
+              {isLoading ? (
+                <span className="text-xs font-semibold uppercase tracking-wide text-zen-400 dark:text-zen-500">Loading…</span>
+              ) : null}
+              {error ? (
+                <span className="text-xs font-semibold text-red-500">{error ?? 'Unable to load calendar.'}</span>
+              ) : null}
+            </div>
+            <FullCalendarViewNoSSR
+              events={calendarEvents}
               view={view}
-              events={events}
-              isLoading={isLoading}
-              onRangeChange={handleRangeChange}
-              onViewChange={handleViewChange}
-              onNavigate={handleNavigate}
-              onEventDrop={handleEventDrop}
-              onSelectDate={handleSelectDate}
-              selectedDate={selectedDate}
+              date={currentDate}
+              loading={isLoading && events.length === 0}
+              onDatesChange={handleDatesChange}
+              onEventClick={handleEventClick}
             />
           </div>
-          <CalendarDayPlanner
-            date={selectedDate}
-            categories={categories}
-            onCreateTask={handlePlannerTaskCreate}
-            onCreateList={handlePlannerListCreate}
-            onCreateNote={handlePlannerNoteCreate}
-            onCreateCategory={handlePlannerCategoryCreate}
-            onCreateReminder={handlePlannerReminderCreate}
-            onCreateEvent={handlePlannerEventCreate}
-            onImportEvents={handlePlannerIcsImport}
-          />
-        </main>
-      </div>
+          <aside className="space-y-4 rounded-3xl border border-zen-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/60">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-200/70">Event focus</h2>
+            {selectedEvent ? (
+              <div className="space-y-3 text-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="text-lg font-semibold text-zen-900 dark:text-zen-50">{selectedEvent.title}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-zen-400 dark:text-zen-500">{selectedEvent.type.split('_').join(' ')}</span>
+                </div>
+                <p className="text-sm text-zen-600 dark:text-zen-200/80">{selectedEvent.description ?? 'No additional description provided.'}</p>
+                <div className="rounded-2xl bg-zen-100/70 p-3 text-xs font-semibold text-zen-600 shadow-inner dark:bg-zen-800/40 dark:text-zen-200">
+                  {formatEventTime(selectedEvent)}
+                </div>
+                <dl className="grid grid-cols-1 gap-3 text-xs text-zen-500 dark:text-zen-300">
+                  <div>
+                    <dt className="font-semibold uppercase tracking-wide">Scope</dt>
+                    <dd className="capitalize text-zen-600 dark:text-zen-100">{selectedEvent.scope}</dd>
+                  </div>
+                  {isTaskMetadata(selectedEvent.metadata) ? (
+                    <div>
+                      <dt className="font-semibold uppercase tracking-wide">Reminder</dt>
+                      <dd className="text-zen-600 dark:text-zen-100">
+                        {selectedEvent.metadata.reminder?.minutesBefore
+                          ? `${selectedEvent.metadata.reminder.minutesBefore} minutes before`
+                          : 'No reminder configured'}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {isUserEventMetadata(selectedEvent.metadata) ? (
+                    <div>
+                      <dt className="font-semibold uppercase tracking-wide">Location</dt>
+                      <dd className="text-zen-600 dark:text-zen-100">
+                        {selectedEvent.metadata.location ? selectedEvent.metadata.location : 'Not specified'}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </div>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-zen-500 dark:text-zen-300">
+                <p>Select an event from the calendar to see details and context here.</p>
+                <p>This panel updates in real time with Supabase live events, so shared edits appear instantly.</p>
+              </div>
+            )}
+          </aside>
+        </section>
+      </main>
     </div>
   );
 }
