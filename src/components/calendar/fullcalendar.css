@@ -1,0 +1,244 @@
+.calendar-view-shell {
+  position: relative;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+[data-theme$='dark'] .calendar-view-shell {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(71, 85, 105, 0.4);
+  box-shadow: 0 20px 45px -12px rgba(2, 6, 23, 0.55);
+}
+
+.calendar-loading-indicator {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  background: linear-gradient(
+    to bottom right,
+    rgba(255, 255, 255, 0.82),
+    rgba(244, 244, 245, 0.82)
+  );
+}
+
+[data-theme$='dark'] .calendar-loading-indicator {
+  color: rgba(226, 232, 240, 0.85);
+  background: linear-gradient(
+    to bottom right,
+    rgba(15, 23, 42, 0.82),
+    rgba(30, 41, 59, 0.82)
+  );
+}
+
+.calendar-view-shell .fc {
+  --calendar-bg: rgba(255, 255, 255, 0.94);
+  --calendar-text: #0f172a;
+  --calendar-muted: #475569;
+  --calendar-grid: rgba(148, 163, 184, 0.32);
+  --calendar-today: rgba(14, 165, 233, 0.12);
+  --calendar-event-text: #0f172a;
+  --calendar-personal: #10b981;
+  --calendar-shared: #6366f1;
+  --calendar-task: #0ea5e9;
+  --calendar-note: #f97316;
+  --calendar-reminder: #f59e0b;
+  --calendar-event: #8b5cf6;
+  --calendar-outline: rgba(255, 255, 255, 0.65);
+  background-color: transparent;
+  color: var(--calendar-text);
+}
+
+[data-theme$='dark'] .calendar-view-shell .fc {
+  --calendar-bg: rgba(15, 23, 42, 0.9);
+  --calendar-text: #f1f5f9;
+  --calendar-muted: #cbd5f5;
+  --calendar-grid: rgba(71, 85, 105, 0.55);
+  --calendar-today: rgba(56, 189, 248, 0.14);
+  --calendar-event-text: rgba(15, 23, 42, 0.9);
+  --calendar-outline: rgba(15, 23, 42, 0.6);
+}
+
+.calendar-view-shell .fc .fc-toolbar {
+  padding: 1rem 1.25rem 0.25rem;
+  flex-wrap: wrap;
+  row-gap: 0.75rem;
+}
+
+.calendar-view-shell .fc .fc-toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--calendar-text);
+}
+
+.calendar-view-shell .fc .fc-button {
+  border: 1px solid var(--calendar-grid);
+  border-radius: 9999px;
+  background: var(--calendar-bg);
+  color: var(--calendar-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: none;
+  padding: 0.45rem 0.9rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.calendar-view-shell .fc .fc-button:hover {
+  color: var(--calendar-text);
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.2);
+}
+
+.calendar-view-shell .fc .fc-button-primary:not(:disabled).fc-button-active {
+  background: linear-gradient(120deg, rgba(59, 130, 246, 0.9), rgba(14, 165, 233, 0.85));
+  color: white;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+}
+
+.calendar-view-shell .fc .fc-button:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 1px;
+}
+
+.calendar-view-shell .fc .fc-daygrid-day,
+.calendar-view-shell .fc .fc-timegrid-slot {
+  background-color: transparent;
+}
+
+.calendar-view-shell .fc .fc-scrollgrid,
+.calendar-view-shell .fc .fc-timegrid,
+.calendar-view-shell .fc .fc-daygrid {
+  border: none;
+}
+
+.calendar-view-shell .fc .fc-col-header-cell {
+  border: none;
+  padding: 0.75rem 0;
+  color: var(--calendar-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.calendar-view-shell .fc .fc-daygrid-day-frame,
+.calendar-view-shell .fc .fc-timegrid-slot {
+  border-color: var(--calendar-grid);
+}
+
+.calendar-view-shell .fc .fc-daygrid-day-number {
+  font-weight: 600;
+  color: var(--calendar-muted);
+}
+
+.calendar-view-shell .fc .fc-daygrid-day.fc-day-today,
+.calendar-view-shell .fc .fc-timegrid-col.fc-day-today {
+  background: var(--calendar-today);
+}
+
+.calendar-view-shell .fc .calendar-event {
+  border-radius: 0.9rem;
+  border-width: 1px;
+  border-style: solid;
+  padding: 0.55rem 0.65rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+}
+
+.calendar-view-shell .fc .calendar-event:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
+.calendar-view-shell .fc .fc-timegrid-event .fc-event-main-frame {
+  padding: 0.35rem 0.4rem;
+}
+
+.fc-event-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+}
+
+.fc-event-main-title {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.fc-event-main-time {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fc-event-main-desc {
+  font-size: 0.7rem;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+[data-theme$='dark'] .fc-event-main-desc {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.calendar-event-type-task_due,
+.calendar-event-type-task_reminder {
+  background: linear-gradient(120deg, rgba(14, 165, 233, 0.95), rgba(59, 130, 246, 0.9));
+  border-color: rgba(14, 165, 233, 0.2);
+  color: white;
+}
+
+.calendar-event-type-note {
+  background: linear-gradient(120deg, rgba(249, 115, 22, 0.92), rgba(251, 191, 36, 0.85));
+  border-color: rgba(249, 115, 22, 0.2);
+  color: white;
+}
+
+.calendar-event-type-zen_reminder {
+  background: linear-gradient(120deg, rgba(245, 158, 11, 0.95), rgba(251, 191, 36, 0.88));
+  border-color: rgba(245, 158, 11, 0.2);
+  color: white;
+}
+
+.calendar-event-type-event {
+  background: linear-gradient(120deg, rgba(99, 102, 241, 0.95), rgba(168, 85, 247, 0.9));
+  border-color: rgba(129, 140, 248, 0.25);
+  color: white;
+}
+
+.calendar-event-scope-shared {
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.5);
+}
+
+.calendar-view-shell .fc .fc-daygrid-more-link {
+  border-radius: 9999px;
+  padding: 0.2rem 0.5rem;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--calendar-text);
+  font-weight: 600;
+}
+
+.calendar-view-shell .fc .fc-popover {
+  border-radius: 1rem;
+  border: 1px solid var(--calendar-grid);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+
+.calendar-view-shell .fc-theme-standard .fc-popover-header {
+  border-bottom: 1px solid var(--calendar-grid);
+  background: var(--calendar-bg);
+  color: var(--calendar-text);
+  font-weight: 600;
+}
+
+.calendar-view-shell .fc-theme-standard .fc-popover-body {
+  background: var(--calendar-bg);
+}
