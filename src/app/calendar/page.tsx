@@ -79,7 +79,7 @@ function formatEventTime(event: CalendarEventRecord) {
 
 export default function CalendarPage() {
   const router = useRouter();
-  const { user, authChecked } = useAuthSession();
+  const { user, authChecked, signOut } = useAuthSession();
   const [scope, setScope] = useState<CalendarScope>('all');
   const [view, setView] = useState<CalendarViewType>('dayGridMonth');
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
@@ -154,7 +154,13 @@ export default function CalendarPage() {
             </button>
           </div>
         }
-        footer={<AccountSummary />}
+        footer={
+          <AccountSummary
+            email={user?.email ?? undefined}
+            syncing={isValidating}
+            onSignOut={signOut}
+          />
+        }
       />
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pb-16 pt-10 sm:px-6 lg:px-8">
@@ -166,7 +172,7 @@ export default function CalendarPage() {
                 <span className="text-xs font-semibold uppercase tracking-wide text-zen-400 dark:text-zen-500">Loading…</span>
               ) : null}
               {error ? (
-                <span className="text-xs font-semibold text-red-500">{error.message ?? 'Unable to load calendar.'}</span>
+                <span className="text-xs font-semibold text-red-500">{error ?? 'Unable to load calendar.'}</span>
               ) : null}
             </div>
             <FullCalendarViewNoSSR
