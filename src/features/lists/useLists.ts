@@ -595,30 +595,21 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to add items to this list.' };
       }
 
-      const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
-      const nextPosition = existingItems.reduce((max, item) => Math.max(max, item.position ?? 0), -1) + 1;
-
       try {
-        const { data, error } = await supabase
-          .from('list_items')
-          .insert({
-            list_id: listId,
-            content,
-            position: nextPosition,
-          })
-          .select('id, list_id, content, completed, position, created_at, updated_at')
-          .single();
+        const { data, error } = await supabase.rpc<ListItemRow>('create_list_item', {
+          target_list_id: listId,
+          item_content: content,
+        });
 
         if (error) {
           throw new Error(error.message || 'Unable to add list item.');
         }
 
-        const row = data as ListItemRow | null;
-        if (!row) {
+        if (!data) {
           throw new Error('List item was not returned after creation.');
         }
 
-        const item = mapListItem(row);
+        const item = mapListItem(data);
 
         setState(prev => ({
           ...prev,
