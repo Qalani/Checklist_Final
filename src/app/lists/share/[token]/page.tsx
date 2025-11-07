@@ -5,7 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import MarkdownDisplay from '@/components/MarkdownDisplay';
 import Link from 'next/link';
-import { List as ListIcon, CalendarDays, Mail, ArrowLeft, ArrowUpRight, CheckSquare, Square } from 'lucide-react';
+import { List as ListIcon, CalendarDays, Mail, ArrowLeft, ArrowUpRight } from 'lucide-react';
+import SharedListItems from './SharedListItems';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -151,7 +152,7 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
               Back to Zen Lists
             </Link>
             <span className="rounded-full border border-zen-200 bg-surface/60 px-3 py-1 text-xs font-medium text-zen-500">
-              View only
+              Personal progress
             </span>
           </div>
         </header>
@@ -179,23 +180,12 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
                         No list items have been shared yet.
                       </div>
                     ) : (
-                      list.items.map(item => (
-                        <div
-                          key={item.id}
-                          className="flex items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4"
-                        >
-                          <div className={`mt-0.5 flex-shrink-0 ${item.completed ? 'text-sage-600' : 'text-sage-400'}`}>
-                            {item.completed ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                          </div>
-                          <p
-                            className={`flex-1 text-sm leading-relaxed ${
-                              item.completed ? 'line-through text-zen-400' : 'text-zen-700'
-                            }`}
-                          >
-                            {item.content ? item.content : <span className="text-zen-300">No details provided.</span>}
-                          </p>
-                        </div>
-                      ))
+                      <>
+                        <SharedListItems token={token} items={list.items} />
+                        <p className="text-xs text-zen-400">
+                          Ticking an item only updates progress on this device and does not change the owner&apos;s list.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
