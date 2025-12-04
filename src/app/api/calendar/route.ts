@@ -13,6 +13,8 @@ import type {
   CalendarZenReminderMetadata,
 } from '@/features/calendar/types';
 
+export const runtime = 'nodejs';
+
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 

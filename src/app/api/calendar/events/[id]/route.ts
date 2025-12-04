@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 
+export const runtime = 'nodejs';
+
 function parseOptionalIsoDate(value: unknown, label: string): Date {
   if (typeof value !== 'string') {
     throw new Error(`${label} must be an ISO date string.`);
