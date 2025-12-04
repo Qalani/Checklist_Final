@@ -16,7 +16,7 @@ type SharedListItemsProps = {
 };
 
 const STORAGE_PREFIX = 'zen-shared-list-progress';
-const URL_PATTERN = /(https?:\/\/[^\s]+)/gi;
+const URL_PATTERN = /([([{<]?)(https?:\/\/[^\s)\]\}>]+)([)\]\}>]?)/gi;
 
 function getStorageKey(token: string) {
   return `${STORAGE_PREFIX}:${token}`;
@@ -132,9 +132,11 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
     const parts: ReactNode[] = [];
     let lastIndex = 0;
 
-    matches.forEach((match, index) => {
-      const start = match.index ?? 0;
-      const url = match[0];
+    matches.forEach((match) => {
+      const fullStart = match.index ?? 0;
+      const leading = match[1] ?? '';
+      const url = match[2];
+      const start = fullStart + leading.length;
 
       if (start > lastIndex) {
         parts.push(
