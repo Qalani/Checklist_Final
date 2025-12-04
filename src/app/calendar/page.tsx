@@ -218,9 +218,23 @@ export default function CalendarPage() {
   );
 
   const handleDatesChange = useCallback(({ range, view, currentDate }: DatesChangePayload) => {
-    setRange({ start: new Date(range.start), end: new Date(range.end) });
-    setView(view);
-    setCurrentDate(new Date(currentDate));
+    setRange((previousRange) => {
+      const startChanged = previousRange.start.getTime() !== range.start.getTime();
+      const endChanged = previousRange.end.getTime() !== range.end.getTime();
+
+      if (!startChanged && !endChanged) {
+        return previousRange;
+      }
+
+      return { start: new Date(range.start), end: new Date(range.end) };
+    });
+
+    setView((previousView) => (previousView === view ? previousView : view));
+
+    setCurrentDate((previousDate) => {
+      const nextDateTime = currentDate.getTime();
+      return previousDate.getTime() === nextDateTime ? previousDate : new Date(currentDate);
+    });
   }, []);
 
   const handleEventClick = useCallback((event: CalendarEventRecord) => {
