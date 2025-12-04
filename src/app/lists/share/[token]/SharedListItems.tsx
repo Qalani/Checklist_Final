@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { CheckSquare, Square } from 'lucide-react';
 
@@ -15,6 +16,7 @@ type SharedListItemsProps = {
 };
 
 const STORAGE_PREFIX = 'zen-shared-list-progress';
+const URL_PATTERN = /(https?:\/\/[^\s]+)/gi;
 
 function getStorageKey(token: string) {
   return `${STORAGE_PREFIX}:${token}`;
@@ -117,6 +119,60 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
     });
   };
 
+  const renderContentWithLinks = (content: string) => {
+    if (!content) {
+      return <span className="text-zen-300">No details provided.</span>;
+    }
+
+    const matches = [...content.matchAll(URL_PATTERN)];
+    if (matches.length === 0) {
+      return content;
+    }
+
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+
+    matches.forEach((match, index) => {
+      const start = match.index ?? 0;
+      const url = match[0];
+
+      if (start > lastIndex) {
+        parts.push(
+          <span key={`text-${parts.length}`}>{content.slice(lastIndex, start)}</span>,
+        );
+      }
+
+      parts.push(
+        <a
+          key={`link-${parts.length}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sage-700 underline"
+          onClick={(event: MouseEvent<HTMLAnchorElement>) => event.stopPropagation()}
+          onKeyDown={(event: KeyboardEvent<HTMLAnchorElement>) => event.stopPropagation()}
+        >
+          {url}
+        </a>,
+      );
+
+      lastIndex = start + url.length;
+    });
+
+    if (lastIndex < content.length) {
+      parts.push(<span key={`text-${parts.length}`}>{content.slice(lastIndex)}</span>);
+    }
+
+    return parts;
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>, id: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleToggle(id);
+    }
+  };
+
   if (items.length === 0) {
     return null;
   }
@@ -129,18 +185,20 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
         const iconClasses = item.completed ? 'text-sage-600' : 'text-sage-400';
 
         return (
-          <button
+          <div
             key={item.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={() => handleToggle(item.id)}
-            className="flex w-full items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4 text-left transition-colors hover:border-sage-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-500"
+            onKeyDown={event => handleKeyDown(event, item.id)}
+            className="flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4 text-left transition-colors hover:border-sage-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-500"
             aria-pressed={item.completed}
           >
             <Icon className={`h-5 w-5 ${iconClasses}`} aria-hidden />
-            <p className={`flex-1 text-sm leading-relaxed ${textClasses}`}>
-              {item.content ? item.content : <span className="text-zen-300">No details provided.</span>}
+            <p className={`flex-1 whitespace-pre-wrap text-sm leading-relaxed ${textClasses}`}>
+              {renderContentWithLinks(item.content)}
             </p>
-          </button>
+          </div>
         );
       })}
     </div>
