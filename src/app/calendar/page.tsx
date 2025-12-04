@@ -269,13 +269,15 @@ export default function CalendarPage() {
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-zen-50 via-white to-zen-100 dark:from-zen-950 dark:via-zen-900 dark:to-zen-950">
       <ParallaxBackground />
-      <ThemeSwitcher />
       <ZenPageHeader
         title="Harmonic calendar"
         subtitle="A grounded view of your commitments, rituals, and shared moments."
         icon={CalendarIcon}
+        backHref="/"
+        backLabel="Overview"
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <ThemeSwitcher />
             <div className="flex items-center gap-2 rounded-full border border-zen-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-zen-600 shadow-soft backdrop-blur-sm dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200">
               <Filter className="h-4 w-4" />
               <select
