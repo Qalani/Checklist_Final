@@ -35,10 +35,18 @@ const VIEW_OPTIONS: Array<{ value: CalendarViewType; label: string }> = [
 ];
 
 function renderEventContent(arg: EventContentArg) {
-  const { event, timeText } = arg;
+  const { event, timeText, view } = arg;
   const record = event.extendedProps.record as CalendarEventRecord | undefined;
   const isTaskEvent = record?.type === 'task_due' || record?.type === 'task_reminder';
   const type = (record?.type ?? 'event') as CalendarEventType;
+
+  if (view.type === 'dayGridMonth') {
+    return (
+      <div className="fc-event-wrapper fc-event-month" data-event-type={type}>
+        <span className="fc-event-title">{event.title}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="fc-event-wrapper" data-event-type={type}>
