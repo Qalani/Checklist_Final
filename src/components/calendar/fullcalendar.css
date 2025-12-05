@@ -283,6 +283,15 @@
   color: white;
 }
 
+.fc-event-month {
+  width: 100%;
+  flex-direction: row;
+  gap: 0;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 0.1rem 0.35rem;
+}
+
 .fc-event-main-row {
   display: flex;
   align-items: center;
@@ -300,6 +309,13 @@
 .fc-event-title {
   font-weight: 700;
   line-height: 1.2;
+}
+
+.fc-event-month .fc-event-title {
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fc-event-time-row {
