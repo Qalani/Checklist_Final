@@ -310,7 +310,7 @@ export default function CalendarPage() {
         }
       />
 
-      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pb-16 pt-10 sm:px-6 lg:px-8">
+      <main className="relative mx-auto flex w-full flex-col gap-8 px-4 pb-16 pt-10 sm:px-6 lg:px-10">
         <section className="grid gap-6 xl:grid-cols-[1.7fr,1fr]">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-zen-200/70 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/70">
@@ -357,7 +357,7 @@ export default function CalendarPage() {
                     key={event.id}
                     type="button"
                     onClick={() => handleEventClick(event)}
-                    className="w-full rounded-2xl border border-zen-200/70 bg-gradient-to-br from-white via-zen-50 to-zen-100 px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zen-300 hover:shadow-md dark:border-zen-800/60 dark:from-zen-900 dark:via-zen-900/90 dark:to-zen-800"
+                    className="w-full rounded-2xl border border-zen-200/70 bg-gradient-to-br from-white via-zen-50 to-zen-100 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zen-300 hover:shadow-md dark:border-zen-800/60 dark:from-zen-900 dark:via-zen-900/90 dark:to-zen-800"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col">
