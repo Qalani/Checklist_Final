@@ -12,7 +12,12 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
   CheckCircle2,
@@ -439,8 +444,8 @@ export default function TaskBentoGrid({
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
-        <div className="columns-1 lg:columns-2 gap-4 [column-fill:_balance]">
+      <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <div className="flex flex-col gap-4">
           {tasks.map(task => {
             const isEditing = editingTaskId === task.id;
             const editingContent =
