@@ -1,19 +1,9 @@
 'use client';
 
+import Draggabilly from 'draggabilly';
+import Packery from 'packery';
 import { motion } from 'framer-motion';
-import { type ReactNode } from 'react';
-import {
-  DndContext,
-  DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import {
   CheckCircle2,
   Circle,
@@ -72,7 +62,7 @@ function formatReminder(minutes: number) {
   return `${minutes} minutes before`;
 }
 
-function SortableTaskCard({
+function TaskCard({
   task,
   category,
   onEdit,
@@ -93,17 +83,6 @@ function SortableTaskCard({
   editingContent?: ReactNode;
   enableReorder: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-    disabled: !enableReorder,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   const dueDate = task.due_date ? new Date(task.due_date) : null;
   let dueBadge: { text: string; tone: string } | null = null;
 
@@ -180,7 +159,7 @@ function SortableTaskCard({
   `;
 
   return (
-    <div ref={setNodeRef} style={style} className="group relative h-full">
+    <div className="group relative h-full">
       <motion.div
         layout
         initial={{ opacity: 0, scale: 0.9 }}
@@ -195,9 +174,7 @@ function SortableTaskCard({
             {/* Drag Handle */}
             {enableReorder ? (
               <div
-                {...attributes}
-                {...listeners}
-                className="absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                className="packery-drag-handle absolute left-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
               >
                 <GripVertical className="w-4 h-4 text-zen-400" />
               </div>
@@ -382,44 +359,104 @@ export default function TaskBentoGrid({
   onCreateCategory,
   enableReorder = true,
 }: TaskBentoGridProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 6,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 150,
-        tolerance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-  const handleDragEnd = (event: DragEndEvent) => {
-    if (!enableReorder) {
-      return;
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const packeryRef = useRef<Packery | null>(null);
+  const draggiesRef = useRef<Map<string, Draggabilly>>(new Map());
+
+  const taskLookup = useMemo(() => new Map(tasks.map(task => [task.id, task])), [tasks]);
+
+  useEffect(() => {
+    const container = gridRef.current;
+
+    if (!container) {
+      return undefined;
     }
 
-    const { active, over } = event;
+    const packery = new Packery(container, {
+      itemSelector: '.packery-item',
+      gutter: 16,
+      percentPosition: true,
+      columnWidth: '.packery-sizer',
+    });
 
-    if (over && active.id !== over.id) {
-      const oldIndex = tasks.findIndex(t => t.id === active.id);
-      const newIndex = tasks.findIndex(t => t.id === over.id);
+    packeryRef.current = packery;
 
-      const newTasks = [...tasks];
-      const [movedTask] = newTasks.splice(oldIndex, 1);
-      newTasks.splice(newIndex, 0, movedTask);
+    const cleanupDraggies = () => {
+      draggiesRef.current.forEach(draggie => draggie.destroy());
+      draggiesRef.current.clear();
+    };
 
-      onReorder(newTasks);
-    }
-  };
+    const syncLayoutAndDragging = () => {
+      cleanupDraggies();
+
+      if (!enableReorder) {
+        packery.reloadItems();
+        packery.layout();
+        return;
+      }
+
+      tasks.forEach(task => {
+        const element = container.querySelector<HTMLElement>(`[data-task-id="${task.id}"]`);
+        if (!element) {
+          return;
+        }
+
+        const draggie = new Draggabilly(element, {
+          handle: '.packery-drag-handle',
+        });
+
+        draggie.on('dragEnd', () => {
+          packery.layout();
+
+          const orderedIds = packery
+            .getItemElements()
+            .map(el => el.getAttribute('data-task-id'))
+            .filter((id): id is string => Boolean(id));
+
+          if (!enableReorder || orderedIds.length !== tasks.length) {
+            return;
+          }
+
+          const reorderedTasks = orderedIds
+            .map(id => taskLookup.get(id))
+            .filter((task): task is Task => Boolean(task));
+
+          const orderChanged = reorderedTasks.some((task, index) => task.id !== tasks[index]?.id);
+
+          if (orderChanged && reorderedTasks.length === tasks.length) {
+            onReorder(reorderedTasks);
+          }
+        });
+
+        packery.bindDraggabillyEvents(draggie);
+        draggiesRef.current.set(task.id, draggie);
+      });
+
+      packery.reloadItems();
+      packery.layout();
+    };
+
+    syncLayoutAndDragging();
+
+    const handleResize = () => packery.layout();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cleanupDraggies();
+      packery.destroy();
+      packeryRef.current = null;
+    };
+  }, [enableReorder, onReorder, taskLookup, tasks]);
+
+  useEffect(() => {
+    packeryRef.current?.reloadItems();
+    packeryRef.current?.layout();
+  }, [editingTaskId]);
 
   if (tasks.length === 0) {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="flex flex-col items-center justify-center py-20 text-center"
@@ -434,47 +471,46 @@ export default function TaskBentoGrid({
   }
 
   return (
-    <DndContext
-      sensors={enableReorder ? sensors : undefined}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
-        <div className="columns-1 lg:columns-2 gap-4 [column-fill:_balance]">
-          {tasks.map(task => {
-            const isEditing = editingTaskId === task.id;
-            const editingContent =
-              isEditing && onSaveEdit && onCancelEdit && onCreateCategory
-                ? (
-                    <TaskForm
-                      task={task}
-                      categories={categories}
-                      onCreateCategory={onCreateCategory}
-                      onClose={onCancelEdit}
-                      onSave={(updates) => onSaveEdit(task, updates)}
-                      mode="inline"
-                    />
-                  )
-                : null;
+    <div className="relative">
+      <div ref={gridRef} className="packery-grid relative" aria-live="polite">
+        <div className="packery-sizer w-full sm:w-1/2 xl:w-1/3" aria-hidden />
+        {tasks.map(task => {
+          const isEditing = editingTaskId === task.id;
+          const editingContent =
+            isEditing && onSaveEdit && onCancelEdit && onCreateCategory
+              ? (
+                  <TaskForm
+                    task={task}
+                    categories={categories}
+                    onCreateCategory={onCreateCategory}
+                    onClose={onCancelEdit}
+                    onSave={(updates) => onSaveEdit(task, updates)}
+                    mode="inline"
+                  />
+                )
+              : null;
 
-            return (
-              <div key={task.id} className="mb-4 break-inside-avoid">
-                <SortableTaskCard
-                  task={task}
-                  category={categories.find(c => c.name === task.category)}
-                  onEdit={() => onEdit(task)}
-                  onDelete={() => onDelete(task.id)}
-                  onToggle={() => onToggle(task.id, !task.completed)}
-                  onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
-                  isEditing={isEditing}
-                  editingContent={editingContent}
-                  enableReorder={enableReorder}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </SortableContext>
-    </DndContext>
+          return (
+            <div
+              key={task.id}
+              className="packery-item w-full sm:w-1/2 xl:w-1/3 mb-4"
+              data-task-id={task.id}
+            >
+              <TaskCard
+                task={task}
+                category={categories.find(c => c.name === task.category)}
+                onEdit={() => onEdit(task)}
+                onDelete={() => onDelete(task.id)}
+                onToggle={() => onToggle(task.id, !task.completed)}
+                onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
+                isEditing={isEditing}
+                editingContent={editingContent}
+                enableReorder={enableReorder}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
