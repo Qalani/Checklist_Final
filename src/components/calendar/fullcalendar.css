@@ -404,4 +404,37 @@
   .calendar-body .fc {
     padding: 0.25rem;
   }
+
+  .calendar-body .fc .calendar-event {
+    padding: 0.35rem 0.4rem;
+    border-radius: 0.75rem;
+  }
+
+  .fc-event-wrapper {
+    gap: 0.15rem;
+    font-size: 0.72rem;
+  }
+
+  .fc-event-month {
+    font-size: 0.7rem;
+    padding: 0.08rem 0.25rem;
+  }
+
+  .fc-event-main-row {
+    gap: 0.3rem;
+  }
+
+  .fc-event-title {
+    font-size: 0.78rem;
+  }
+
+  .fc-event-time-row {
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+  }
+
+  .fc-event-description {
+    font-size: 0.7rem;
+    -webkit-line-clamp: 2;
+  }
 }

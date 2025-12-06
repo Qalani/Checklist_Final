@@ -206,15 +206,20 @@ export default function CalendarPage() {
     pause: !authChecked,
   });
 
-  const calendarEvents = useMemo(() => events.map((event) => mapEventToView(event)), [events]);
+  const filteredEvents = useMemo(
+    () => events.filter((event) => event.type !== 'task_reminder'),
+    [events],
+  );
+
+  const calendarEvents = useMemo(() => filteredEvents.map((event) => mapEventToView(event)), [filteredEvents]);
 
   const upcomingHighlights = useMemo(
     () =>
-      [...events]
+      [...filteredEvents]
         .sort((a, b) => compareAsc(new Date(a.start), new Date(b.start)))
         .filter((event) => new Date(event.end) >= new Date())
         .slice(0, 6),
-    [events],
+    [filteredEvents],
   );
 
   const handleDatesChange = useCallback(({ range, view, currentDate }: DatesChangePayload) => {
@@ -311,7 +316,7 @@ export default function CalendarPage() {
       />
 
       <main className="relative mx-auto flex w-full flex-col gap-8 px-4 pb-16 pt-10 sm:px-6 lg:px-10">
-        <section className="grid gap-6 xl:grid-cols-[1.7fr,1fr]">
+        <section className="grid gap-6 xl:grid-cols-[1.9fr,0.95fr]">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-zen-200/70 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/70">
               <div>
