@@ -440,7 +440,7 @@ export default function TaskBentoGrid({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={tasks.map(t => t.id)} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="columns-1 lg:columns-2 gap-4 [column-fill:_balance]">
           {tasks.map(task => {
             const isEditing = editingTaskId === task.id;
             const editingContent =
@@ -458,18 +458,19 @@ export default function TaskBentoGrid({
                 : null;
 
             return (
-              <SortableTaskCard
-                key={task.id}
-                task={task}
-                category={categories.find(c => c.name === task.category)}
-                onEdit={() => onEdit(task)}
-                onDelete={() => onDelete(task.id)}
-                onToggle={() => onToggle(task.id, !task.completed)}
-                onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
-                isEditing={isEditing}
-                editingContent={editingContent}
-                enableReorder={enableReorder}
-              />
+              <div key={task.id} className="mb-4 break-inside-avoid">
+                <SortableTaskCard
+                  task={task}
+                  category={categories.find(c => c.name === task.category)}
+                  onEdit={() => onEdit(task)}
+                  onDelete={() => onDelete(task.id)}
+                  onToggle={() => onToggle(task.id, !task.completed)}
+                  onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
+                  isEditing={isEditing}
+                  editingContent={editingContent}
+                  enableReorder={enableReorder}
+                />
+              </div>
             );
           })}
         </div>
