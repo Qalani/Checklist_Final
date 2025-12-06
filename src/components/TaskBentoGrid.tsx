@@ -1,7 +1,7 @@
 'use client';
 
-import Draggabilly from 'draggabilly';
-import Packery from 'packery';
+import type Draggabilly from 'draggabilly';
+import type Packery from 'packery';
 import { motion } from 'framer-motion';
 import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import {
@@ -368,84 +368,117 @@ export default function TaskBentoGrid({
   useEffect(() => {
     const container = gridRef.current;
 
-    if (!container) {
+    if (!container || tasks.length === 0 || typeof window === 'undefined') {
       return undefined;
     }
 
-    const packery = new Packery(container, {
-      itemSelector: '.packery-item',
-      gutter: 16,
-      percentPosition: true,
-      columnWidth: '.packery-sizer',
-    });
+    let resizeHandler: (() => void) | null = null;
+    let cancelled = false;
 
-    packeryRef.current = packery;
+    const setupPackery = async () => {
+      const [packeryModule, draggabillyModule] = await Promise.all([
+        import('packery'),
+        import('draggabilly'),
+      ]);
 
-    const cleanupDraggies = () => {
-      draggiesRef.current.forEach(draggie => draggie.destroy());
-      draggiesRef.current.clear();
-    };
-
-    const syncLayoutAndDragging = () => {
-      cleanupDraggies();
-
-      if (!enableReorder) {
-        packery.reloadItems();
-        packery.layout();
+      if (cancelled || !gridRef.current) {
         return;
       }
 
-      tasks.forEach(task => {
-        const element = container.querySelector<HTMLElement>(`[data-task-id="${task.id}"]`);
-        if (!element) {
+      const PackeryConstructor = packeryModule.default as typeof Packery;
+      const DraggabillyConstructor = draggabillyModule.default as typeof Draggabilly;
+
+      const packery = new PackeryConstructor(gridRef.current, {
+        itemSelector: '.packery-item',
+        gutter: 16,
+        percentPosition: true,
+        columnWidth: '.packery-sizer',
+      });
+
+      packeryRef.current = packery;
+
+      const cleanupDraggies = () => {
+        draggiesRef.current.forEach(draggie => draggie.destroy());
+        draggiesRef.current.clear();
+      };
+
+      const syncLayoutAndDragging = () => {
+        cleanupDraggies();
+
+        if (!enableReorder) {
+          packery.reloadItems();
+          packery.layout();
           return;
         }
 
-        const draggie = new Draggabilly(element, {
-          handle: '.packery-drag-handle',
-        });
-
-        draggie.on('dragEnd', () => {
-          packery.layout();
-
-          const orderedIds = packery
-            .getItemElements()
-            .map(el => el.getAttribute('data-task-id'))
-            .filter((id): id is string => Boolean(id));
-
-          if (!enableReorder || orderedIds.length !== tasks.length) {
+        tasks.forEach(task => {
+          const element = container.querySelector<HTMLElement>(`[data-task-id="${task.id}"]`);
+          if (!element) {
             return;
           }
 
-          const reorderedTasks = orderedIds
-            .map(id => taskLookup.get(id))
-            .filter((task): task is Task => Boolean(task));
+          const draggie = new DraggabillyConstructor(element, {
+            handle: '.packery-drag-handle',
+          });
 
-          const orderChanged = reorderedTasks.some((task, index) => task.id !== tasks[index]?.id);
+          draggie.on('dragEnd', () => {
+            packery.layout();
 
-          if (orderChanged && reorderedTasks.length === tasks.length) {
-            onReorder(reorderedTasks);
-          }
+            const orderedIds = packery
+              .getItemElements()
+              .map(el => el.getAttribute('data-task-id'))
+              .filter((id): id is string => Boolean(id));
+
+            if (!enableReorder || orderedIds.length !== tasks.length) {
+              return;
+            }
+
+            const reorderedTasks = orderedIds
+              .map(id => taskLookup.get(id))
+              .filter((task): task is Task => Boolean(task));
+
+            const orderChanged = reorderedTasks.some((task, index) => task.id !== tasks[index]?.id);
+
+            if (orderChanged && reorderedTasks.length === tasks.length) {
+              onReorder(reorderedTasks);
+            }
+          });
+
+          packery.bindDraggabillyEvents(draggie);
+          draggiesRef.current.set(task.id, draggie);
         });
 
-        packery.bindDraggabillyEvents(draggie);
-        draggiesRef.current.set(task.id, draggie);
-      });
+        packery.reloadItems();
+        packery.layout();
+      };
 
-      packery.reloadItems();
-      packery.layout();
+      syncLayoutAndDragging();
+
+      resizeHandler = () => packery.layout();
+      window.addEventListener('resize', resizeHandler);
+
+      return () => {
+        window.removeEventListener('resize', resizeHandler!);
+        cleanupDraggies();
+        packery.destroy();
+        packeryRef.current = null;
+      };
     };
 
-    syncLayoutAndDragging();
-
-    const handleResize = () => packery.layout();
-    window.addEventListener('resize', handleResize);
+    const teardownPromise = setupPackery();
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      cleanupDraggies();
-      packery.destroy();
-      packeryRef.current = null;
+      cancelled = true;
+      if (resizeHandler) {
+        window.removeEventListener('resize', resizeHandler);
+      }
+      teardownPromise
+        .then(dispose => {
+          dispose?.();
+        })
+        .catch(() => {
+          // no-op: cleanup errors should not block unmount
+        });
     };
   }, [enableReorder, onReorder, taskLookup, tasks]);
 
