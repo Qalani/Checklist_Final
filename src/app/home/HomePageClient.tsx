@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Bell, CalendarDays, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
@@ -16,6 +16,7 @@ import { useRemindersOverview } from '@/features/home/hooks/useRemindersOverview
 import { useTasksOverview } from '@/features/home/hooks/useTasksOverview';
 import type { FeatureCardProps } from '@/features/home/components/FeatureCard';
 import { FeatureCard } from '@/features/home/components/FeatureCard';
+import { useNotificationPermission } from '@/lib/hooks/useNotificationPermission';
 
 function LoadingScreen() {
   return (
@@ -37,9 +38,8 @@ export default function HomePageClient() {
   const notesOverview = useNotesOverview(targetUserId, demoMode);
   const friendsOverview = useFriendsOverview(targetUserId, demoMode);
   const remindersOverview = useRemindersOverview(targetUserId, demoMode);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported' | 'pending'>(
-    'pending',
-  );
+  const { permission: notificationPermission, statusMessage: notificationStatus, requestPermission } =
+    useNotificationPermission();
 
   const userEmail = useMemo(() => {
     if (demoMode) {
@@ -47,47 +47,6 @@ export default function HomePageClient() {
     }
     return user?.email ?? user?.user_metadata?.email ?? null;
   }, [demoMode, user]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (!('Notification' in window)) {
-      setNotificationPermission('unsupported');
-      return;
-    }
-
-    const NotificationAPI = window.Notification;
-
-    if (!NotificationAPI) {
-      setNotificationPermission('unsupported');
-      return;
-    }
-
-    setNotificationPermission(NotificationAPI.permission);
-  }, []);
-
-  const requestNotificationPermission = useCallback(async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setNotificationPermission('unsupported');
-      return;
-    }
-
-    const NotificationAPI = window.Notification;
-
-    if (!NotificationAPI) {
-      setNotificationPermission('unsupported');
-      return;
-    }
-
-    try {
-      const permission = await NotificationAPI.requestPermission();
-      setNotificationPermission(permission);
-    } catch (error) {
-      console.error('Failed to request notification permission', error);
-    }
-  }, []);
 
   const tasksLoading = tasksOverview.loading;
   const listsLoading = listsOverview.loading;
@@ -256,11 +215,41 @@ export default function HomePageClient() {
             onSignOut={signOut}
             notificationPermission={notificationPermission}
             onRequestNotificationPermission={() => {
-              void requestNotificationPermission();
+              void requestPermission();
             }}
           />
         </div>
       </header>
+
+      {notificationStatus ? (
+        <div className="mx-6 mt-4 rounded-2xl border border-zen-200/70 bg-warm-50/80 px-4 py-3 text-sm text-zen-700 shadow-soft lg:mx-12 dark:border-zen-700/40 dark:bg-zen-900/60 dark:text-zen-100">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-zen-100 px-2 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-800/80 dark:text-zen-100">
+              Notifications
+            </div>
+            <div className="space-y-2">
+              <p>{notificationStatus}</p>
+              <p className="text-xs text-zen-500 dark:text-zen-300">
+                If notifications stay blocked, open your browser&apos;s site settings (usually behind the lock icon) and allow alerts for Zen
+                Workspace.
+              </p>
+              {notificationPermission === 'default' || notificationPermission === 'denied' ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void requestPermission();
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-zen-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zen-700 transition hover:border-zen-400 hover:text-zen-900 dark:border-zen-700/60 dark:bg-zen-900/80 dark:text-zen-100"
+                  >
+                    Retry permission
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <main className="flex-1 px-6 pb-16 pt-10 lg:px-12">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
