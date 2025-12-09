@@ -554,7 +554,11 @@ export function useLists(userId: string | null): UseListsResult {
         }
       } catch (error) {
         if (createdListId) {
-          await supabase.from('lists').delete().eq('id', createdListId).catch(() => undefined);
+          try {
+            await supabase.from('lists').delete().eq('id', createdListId);
+          } catch {
+            // Best-effort cleanup; ignore failures
+          }
         }
         return { error: extractErrorMessage(error, 'Unable to create list.') };
       }
