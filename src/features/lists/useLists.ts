@@ -29,9 +29,11 @@ interface ErrorResult {
   error: string;
 }
 
+type CreateListItemInput = Partial<Pick<ListItem, 'content' | 'completed' | 'position'>>;
+
 export interface UseListsResult extends ListsState {
   createList: (
-    input: { name: string; description?: string; createdAt?: string | Date },
+    input: { name: string; description?: string; createdAt?: string | Date; items?: CreateListItemInput[] },
   ) => Promise<void | ErrorResult>;
   updateList: (id: string, input: { name: string; description?: string }) => Promise<void | ErrorResult>;
   deleteList: (id: string) => Promise<void | ErrorResult>;
@@ -443,6 +445,22 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to create lists.' };
       }
 
+      const initialItems = Array.isArray(input.items)
+        ? input.items
+            .map((item, index) => ({
+              content: (item?.content ?? '').trim(),
+              completed: Boolean(item?.completed),
+              position:
+                typeof item?.position === 'number' && Number.isFinite(item.position)
+                  ? item.position
+                  : index,
+            }))
+            .sort((a, b) => a.position - b.position)
+            .map((item, index) => ({ ...item, position: index }))
+        : [];
+
+      let createdListId: string | null = null;
+
       try {
         const timestampInput = input.createdAt;
         let createdAt: string | null = null;
@@ -493,6 +511,41 @@ export function useLists(userId: string | null): UseListsResult {
             items: [],
           };
 
+          createdListId = data.id;
+
+          if (initialItems.length > 0) {
+            const { data: itemsData, error: itemsError } = await supabase
+              .from('list_items')
+              .insert(
+                initialItems.map(item => ({
+                  list_id: data.id,
+                  content: item.content,
+                  completed: item.completed ?? false,
+                  position: item.position,
+                })),
+              )
+              .select('id, list_id, content, completed, position, created_at, updated_at');
+
+            if (itemsError) {
+              await supabase.from('lists').delete().eq('id', data.id);
+              createdListId = null;
+              throw new Error(itemsError.message || 'Unable to add list items.');
+            }
+
+            const mappedItems: ListItem[] = [];
+
+            for (const row of itemsData ?? []) {
+              if (!isListItemRow(row)) {
+                await supabase.from('lists').delete().eq('id', data.id);
+                createdListId = null;
+                throw new Error('List items were not returned after creation.');
+              }
+              mappedItems.push(mapListItem(row));
+            }
+
+            newList.items = mappedItems.sort((a, b) => a.position - b.position);
+          }
+
           setState(prev => ({
             ...prev,
             lists: [...prev.lists, newList],
@@ -500,6 +553,9 @@ export function useLists(userId: string | null): UseListsResult {
           }));
         }
       } catch (error) {
+        if (createdListId) {
+          await supabase.from('lists').delete().eq('id', createdListId).catch(() => undefined);
+        }
         return { error: extractErrorMessage(error, 'Unable to create list.') };
       }
     },

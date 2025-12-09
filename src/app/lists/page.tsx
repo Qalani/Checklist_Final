@@ -153,6 +153,7 @@ export default function ListsPage() {
   const [itemActionErrors, setItemActionErrors] = useState<Record<string, string | null>>({});
   const [editingItemsListId, setEditingItemsListId] = useState<string | null>(null);
   const [listSort, setListSort] = useState<ListSortOption>('created-oldest');
+  const [newListItems, setNewListItems] = useState<List['items']>([]);
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -190,6 +191,7 @@ export default function ListsPage() {
       setEditingList(null);
       setFormError(null);
       setEditingItemsListId(null);
+      setNewListItems([]);
     }
   }, [inlineEditingListId, showForm]);
 
@@ -354,6 +356,7 @@ export default function ListsPage() {
     setFormState(INITIAL_FORM);
     setEditingItemsListId(null);
     setFormError(null);
+    setNewListItems([]);
     setShowForm(true);
   };
 
@@ -372,7 +375,63 @@ export default function ListsPage() {
       description: list.description ?? '',
     });
     setFormError(null);
+    setNewListItems([]);
     setShowForm(false);
+  };
+
+  const addNewListItem = async () => {
+    const id = crypto.randomUUID ? crypto.randomUUID() : `temp-${Date.now()}-${Math.random()}`;
+    setNewListItems(prev => {
+      const next = Array.isArray(prev) ? [...prev] : [];
+      next.push({
+        id,
+        list_id: 'new',
+        content: '',
+        completed: false,
+        position: next.length,
+      });
+      return next;
+    });
+    return id;
+  };
+
+  const updateNewListItemContent = async (itemId: string, content: string) => {
+    setNewListItems(prev =>
+      (Array.isArray(prev) ? prev : []).map(item =>
+        item.id === itemId ? { ...item, content: content.trim() } : item,
+      ),
+    );
+  };
+
+  const toggleNewListItem = async (itemId: string, completed: boolean) => {
+    setNewListItems(prev =>
+      (Array.isArray(prev) ? prev : []).map(item => (item.id === itemId ? { ...item, completed } : item)),
+    );
+  };
+
+  const deleteNewListItem = async (itemId: string) => {
+    setNewListItems(prev => {
+      const remaining = (Array.isArray(prev) ? prev : []).filter(item => item.id !== itemId);
+      return remaining.map((item, index) => ({ ...item, position: index }));
+    });
+  };
+
+  const reorderNewListItems = async (orderedIds: string[]) => {
+    setNewListItems(prev => {
+      const current = Array.isArray(prev) ? prev : [];
+      const map = new Map(current.map(item => [item.id, item] as const));
+      const ordered: NonNullable<List['items']> = [];
+
+      for (const [index, id] of orderedIds.entries()) {
+        const item = map.get(id);
+        if (!item) {
+          return current;
+        }
+        ordered.push({ ...item, position: index });
+      }
+
+      return ordered;
+    });
   };
 
   const handleSubmit = async () => {
@@ -387,6 +446,17 @@ export default function ListsPage() {
     const payload = {
       name: formState.name.trim(),
       description: formState.description.trim(),
+      items:
+        editingList === null
+          ? (Array.isArray(newListItems) ? newListItems : [])
+              .slice()
+              .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+              .map(item => ({
+                content: item.content.trim(),
+                completed: item.completed,
+                position: item.position ?? 0,
+              }))
+          : undefined,
     };
 
     if (editingList) {
@@ -412,6 +482,7 @@ export default function ListsPage() {
       setShowForm(false);
       setFormState(INITIAL_FORM);
       setEditingItemsListId(null);
+      setNewListItems([]);
     }
 
     setSubmitting(false);
@@ -807,6 +878,25 @@ export default function ListsPage() {
                         onChange={value => setFormState(prev => ({ ...prev, description: value }))}
                         placeholder="Add a gentle reminder of what this list helps you with."
                         rows={4}
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium text-zen-700">List items</label>
+                        <span className="text-xs text-zen-500">
+                          Add items now just like in edit mode.
+                        </span>
+                      </div>
+                      <ListItemsBoard
+                        items={Array.isArray(newListItems) ? newListItems : []}
+                        canEdit
+                        editing
+                        onAddItem={addNewListItem}
+                        onToggleItem={(itemId, completed) => toggleNewListItem(itemId, completed)}
+                        onContentCommit={(itemId, content) => updateNewListItemContent(itemId, content)}
+                        onDeleteItem={deleteNewListItem}
+                        onReorder={reorderNewListItems}
+                        error={null}
                       />
                     </div>
                   </div>
