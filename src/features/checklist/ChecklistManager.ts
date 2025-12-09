@@ -66,8 +66,24 @@ function normalizeReminderFields(task: Task): Task {
   };
 }
 
-export async function fetchTasks(userId: string): Promise<Task[]> {
-  const { data, error } = await supabase.rpc('get_tasks_with_access');
+export interface FetchTasksOptions {
+  from?: number;
+  to?: number;
+  limit?: number;
+}
+
+export async function fetchTasks(userId: string, options: FetchTasksOptions = {}): Promise<Task[]> {
+  const rangeStart = typeof options.from === 'number' ? options.from : 0;
+  const calculatedEnd =
+    typeof options.to === 'number'
+      ? options.to
+      : typeof options.limit === 'number'
+        ? rangeStart + Math.max(options.limit, 1) - 1
+        : rangeStart + 199;
+
+  const { data, error } = await supabase
+    .rpc('get_tasks_with_access', { user_id: userId })
+    .range(rangeStart, calculatedEnd);
 
   if (error) {
     throw new Error(error.message || 'Failed to load tasks.');
@@ -195,7 +211,7 @@ export class ChecklistManager {
         const message = extractErrorMessage(error, 'Failed to sync your checklist.');
         this.setSnapshot((prev) => ({
           ...prev,
-          status: prev.status === 'idle' ? 'error' : prev.status,
+          status: 'error',
           syncing: false,
           error: message,
         }));
