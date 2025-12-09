@@ -82,7 +82,7 @@ export async function fetchTasks(userId: string, options: FetchTasksOptions = {}
         : rangeStart + 199;
 
   const { data, error } = await supabase
-    .rpc('get_tasks_with_access', { user_id: userId })
+    .rpc('get_tasks_with_access')
     .range(rangeStart, calculatedEnd);
 
   if (error) {

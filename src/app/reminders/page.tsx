@@ -12,6 +12,7 @@ import AccountSummary from '@/components/AccountSummary';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useZenReminders } from '@/features/reminders/useZenReminders';
 import type { ZenReminder } from '@/types';
+import { useNotificationPermission } from '@/lib/hooks/useNotificationPermission';
 
 interface StatusMessage {
   type: 'success' | 'error';
@@ -66,6 +67,12 @@ export default function ZenRemindersPage() {
     deleteReminder,
     refresh,
   } = useZenReminders(user?.id ?? null);
+  const {
+    permission: notificationPermission,
+    statusMessage: notificationStatus,
+    requestPermission,
+    requesting: requestingNotificationPermission,
+  } = useNotificationPermission();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -201,6 +208,11 @@ export default function ZenRemindersPage() {
 
   const bannerMessage = statusMessage ?? (error ? { type: 'error', message: error } : null);
 
+  const notificationInlineMessage =
+    notificationPermission !== 'granted' && notificationStatus ? notificationStatus : null;
+  const notificationsUnavailable =
+    notificationPermission === 'unsupported' || notificationPermission === 'denied';
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
       <ParallaxBackground />
@@ -249,6 +261,33 @@ export default function ZenRemindersPage() {
               }`}
             >
               {bannerMessage.type === 'success' ? '✔️' : '⚠️'} {bannerMessage.message}
+            </div>
+          ) : null}
+
+          {notificationInlineMessage ? (
+            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-zen-200/70 bg-zen-50/80 px-4 py-3 text-sm text-zen-700 shadow-soft dark:border-zen-700/40 dark:bg-zen-900/70 dark:text-zen-100">
+              <div className="rounded-full bg-zen-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-zen-600 dark:bg-zen-800/80 dark:text-zen-100">
+                Notifications
+              </div>
+              <div className="space-y-2">
+                <p>{notificationInlineMessage}</p>
+                <p className="text-xs text-zen-500 dark:text-zen-300">
+                  Use your browser&apos;s site settings (look for the lock icon near the address bar) to allow notifications, then
+                  retry. Reminders will still be saved here even if alerts stay disabled.
+                </p>
+                {notificationPermission !== 'unsupported' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void requestPermission();
+                    }}
+                    disabled={requestingNotificationPermission}
+                    className="inline-flex items-center gap-2 rounded-full border border-zen-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zen-700 transition hover:border-zen-400 hover:text-zen-900 disabled:cursor-not-allowed disabled:opacity-70 dark:border-zen-700/60 dark:bg-zen-900/80 dark:text-zen-100"
+                  >
+                    {requestingNotificationPermission ? 'Requesting…' : 'Retry permission'}
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -312,11 +351,16 @@ export default function ZenRemindersPage() {
                 <button
                   type="submit"
                   className="inline-flex items-center gap-2 rounded-full bg-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-sage-600 disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={submitting}
+                  disabled={submitting || notificationsUnavailable}
                 >
                   <Bell className="h-4 w-4" />
                   {submitting ? 'Scheduling…' : 'Schedule reminder'}
                 </button>
+                {notificationsUnavailable ? (
+                  <p className="text-xs font-semibold text-warm-600 dark:text-warm-400">
+                    Browser alerts are disabled. Enable notifications in your browser settings to schedule reminders here.
+                  </p>
+                ) : null}
               </form>
             </section>
 
