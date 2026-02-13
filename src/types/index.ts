@@ -140,13 +140,3 @@ export interface Note extends Record<string, unknown> {
   created_at?: string;
   updated_at?: string;
 }
-
-export interface ListItem extends Record<string, unknown> {
-  id: string;
-  list_id: string;
-  content: string;
-  completed: boolean;
-  position: number;
-  created_at?: string;
-  updated_at?: string;
-}
