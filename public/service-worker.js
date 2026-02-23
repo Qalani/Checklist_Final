@@ -1,4 +1,4 @@
-const CACHE_NAME = "zen-workspace-cache-v2";
+const CACHE_NAME = "zen-workspace-cache-v3";
 const ASSETS_TO_CACHE = ["/"];
 
 self.addEventListener("install", (event) => {
@@ -42,7 +42,8 @@ async function cacheResponse(request, response) {
     response &&
     response.status === 200 &&
     response.type === "basic" &&
-    !request.url.includes("/__")
+    !request.url.includes("/__") &&
+    !new URL(request.url).pathname.startsWith("/api/")
   ) {
     const cache = await caches.open(CACHE_NAME);
     await cache.put(request, response.clone());

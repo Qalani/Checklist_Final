@@ -1,36 +1,21 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const supabaseAdmin =
-  supabaseUrl && serviceRoleKey
-    ? createClient(supabaseUrl, serviceRoleKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      })
-    : null;
 
 export async function POST(request: Request) {
   if (!supabaseAdmin) {
     return NextResponse.json({ error: 'Supabase is not configured on the server.' }, { status: 500 });
   }
 
-  const authorization = request.headers.get('authorization') || request.headers.get('Authorization');
+  let userId: string;
 
-  if (!authorization?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'Missing access token.' }, { status: 401 });
-  }
-
-  const accessToken = authorization.slice('Bearer '.length);
-  const { data: userResult, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-
-  if (userError || !userResult.user) {
-    return NextResponse.json({ error: 'Invalid access token.' }, { status: 401 });
+  try {
+    const { user } = await authenticateRequest(request);
+    userId = user.id;
+  } catch (error) {
+    const status = error instanceof Error && 'status' in error ? (error as { status?: number }).status ?? 401 : 401;
+    const message = error instanceof Error ? error.message : 'Unauthorized.';
+    return NextResponse.json({ error: message }, { status });
   }
 
   let body: unknown;
@@ -168,7 +153,14 @@ export async function POST(request: Request) {
   let normalizedTimezone: string | null = null;
   if (typeof reminderTimezone === 'string') {
     const trimmed = reminderTimezone.trim();
-    normalizedTimezone = trimmed.length > 0 ? trimmed : null;
+    if (trimmed.length > 0) {
+      try {
+        Intl.DateTimeFormat(undefined, { timeZone: trimmed });
+        normalizedTimezone = trimmed;
+      } catch {
+        return NextResponse.json({ error: 'Reminder timezone must be a valid IANA timezone name.' }, { status: 400 });
+      }
+    }
   } else if (typeof reminderTimezone !== 'undefined' && reminderTimezone !== null) {
     return NextResponse.json({ error: 'Reminder timezone must be a string or null.' }, { status: 400 });
   }
@@ -199,7 +191,7 @@ export async function POST(request: Request) {
       reminder_next_trigger_at: normalizedNextTrigger,
       reminder_snoozed_until: normalizedSnoozedUntil,
       reminder_timezone: normalizedTimezone,
-      user_id: userResult.user.id,
+      user_id: userId,
     })
     .select()
     .single();
