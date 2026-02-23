@@ -1,4 +1,4 @@
-const CACHE_NAME = "zen-workspace-cache-v2";
+const CACHE_NAME = "zen-workspace-cache-v3";
 const ASSETS_TO_CACHE = ["/"];
 
 self.addEventListener("install", (event) => {
