@@ -42,7 +42,8 @@ async function cacheResponse(request, response) {
     response &&
     response.status === 200 &&
     response.type === "basic" &&
-    !request.url.includes("/__")
+    !request.url.includes("/__") &&
+    !new URL(request.url).pathname.startsWith("/api/")
   ) {
     const cache = await caches.open(CACHE_NAME);
     await cache.put(request, response.clone());
