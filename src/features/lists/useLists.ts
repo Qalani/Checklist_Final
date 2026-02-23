@@ -1,5 +1,7 @@
 import { MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
+import { isOnline, enqueueOp } from '@/lib/offlineSync';
 import type { List, ListItem, ListMember } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -146,8 +148,8 @@ export async function fetchLists(userId: string): Promise<List[]> {
   const records = data ?? [];
 
   const lists = records
-    .filter(record => record.list !== null)
-    .map(record => {
+    .filter((record) => record.list !== null)
+    .map((record) => {
       const list = record.list!;
       const shareRecord = Array.isArray(list.public_share) ? list.public_share[0] : null;
       return {
@@ -164,7 +166,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
       } satisfies List;
     });
 
-  const listIds = lists.map(list => list.id).filter(Boolean);
+  const listIds = lists.map((list) => list.id).filter(Boolean);
   if (listIds.length === 0) {
     return lists;
   }
@@ -188,7 +190,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
     itemsByList.set(row.list_id, existing);
   }
 
-  return lists.map(list => ({
+  return lists.map((list) => ({
     ...list,
     items: itemsByList.get(list.id) ?? [],
   }));
@@ -231,24 +233,101 @@ export function useLists(userId: string | null): UseListsResult {
       }
 
       const doRefresh = async () => {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           syncing: true,
           status: prev.status === 'idle' ? 'loading' : prev.status,
           error: prev.status === 'error' ? prev.error : null,
         }));
 
+        // Offline: serve from IndexedDB
+        if (!isOnline()) {
+          try {
+            const localLists = await db.lists.where('user_id').equals(userId).toArray();
+            const listIds = localLists.map((l) => l.id);
+            const localItems = listIds.length
+              ? await db.listItems.where('list_id').anyOf(listIds).toArray()
+              : [];
+
+            const itemsByList = new Map<string, ListItem[]>();
+            for (const item of localItems) {
+              const arr = itemsByList.get(item.list_id) ?? [];
+              arr.push(item);
+              itemsByList.set(item.list_id, arr);
+            }
+
+            const listsWithItems = localLists.map((l) => ({
+              ...l,
+              items: (itemsByList.get(l.id) ?? []).sort((a, b) => a.position - b.position),
+            }));
+
+            listsRef.current = listsWithItems;
+            setState({ status: 'ready', syncing: false, lists: listsWithItems, error: null });
+          } catch {
+            setState((prev) => ({
+              ...prev,
+              syncing: false,
+              error: 'You are offline and no local lists are available.',
+            }));
+          }
+          return;
+        }
+
         try {
           const lists = await fetchLists(userId);
-          setState({
-            status: 'ready',
-            syncing: false,
-            lists,
-            error: null,
-          });
-        } catch (error) {
-          const message = extractErrorMessage(error, 'Failed to load your lists.');
-          setState(prev => ({
+
+          // Persist to IndexedDB in the background
+          void (async () => {
+            try {
+              await db.lists.where('user_id').equals(userId).delete();
+              await db.lists.bulkPut(
+                lists
+                  .filter((l) => l.user_id === userId)
+                  .map((l) => ({ ...l, items: undefined })) as List[],
+              );
+
+              const allItems = lists.flatMap((l) => l.items ?? []);
+              const listIds = lists.map((l) => l.id);
+              if (listIds.length > 0) {
+                await db.listItems.where('list_id').anyOf(listIds).delete();
+              }
+              if (allItems.length > 0) {
+                await db.listItems.bulkPut(allItems);
+              }
+            } catch {
+              // Non-critical
+            }
+          })();
+
+          listsRef.current = lists;
+          setState({ status: 'ready', syncing: false, lists, error: null });
+        } catch (networkError) {
+          // Fall back to IndexedDB
+          try {
+            const localLists = await db.lists.where('user_id').equals(userId).toArray();
+            if (localLists.length > 0) {
+              const listIds = localLists.map((l) => l.id);
+              const localItems = await db.listItems.where('list_id').anyOf(listIds).toArray();
+              const itemsByList = new Map<string, ListItem[]>();
+              for (const item of localItems) {
+                const arr = itemsByList.get(item.list_id) ?? [];
+                arr.push(item);
+                itemsByList.set(item.list_id, arr);
+              }
+              const listsWithItems = localLists.map((l) => ({
+                ...l,
+                items: (itemsByList.get(l.id) ?? []).sort((a, b) => a.position - b.position),
+              }));
+              listsRef.current = listsWithItems;
+              setState({ status: 'ready', syncing: false, lists: listsWithItems, error: null });
+              return;
+            }
+          } catch {
+            // IndexedDB also failed
+          }
+
+          const message = extractErrorMessage(networkError, 'Failed to load your lists.');
+          setState((prev) => ({
             ...prev,
             syncing: false,
             status: prev.status === 'idle' ? 'error' : prev.status,
@@ -277,6 +356,32 @@ export function useLists(userId: string | null): UseListsResult {
     }
 
     currentUserIdRef.current = userId;
+
+    // Show cached lists immediately
+    void (async () => {
+      try {
+        const localLists = await db.lists.where('user_id').equals(userId).toArray();
+        if (localLists.length > 0) {
+          const listIds = localLists.map((l) => l.id);
+          const localItems = await db.listItems.where('list_id').anyOf(listIds).toArray();
+          const itemsByList = new Map<string, ListItem[]>();
+          for (const item of localItems) {
+            const arr = itemsByList.get(item.list_id) ?? [];
+            arr.push(item);
+            itemsByList.set(item.list_id, arr);
+          }
+          const listsWithItems = localLists.map((l) => ({
+            ...l,
+            items: (itemsByList.get(l.id) ?? []).sort((a, b) => a.position - b.position),
+          }));
+          listsRef.current = listsWithItems;
+          setState({ status: 'ready', syncing: true, lists: listsWithItems, error: null });
+        }
+      } catch {
+        // Ignore – runRefresh will set the proper loading state
+      }
+    })();
+
     void runRefresh(true);
   }, [reset, runRefresh, state.status, userId]);
 
@@ -295,7 +400,7 @@ export function useLists(userId: string | null): UseListsResult {
 
     membershipChannelRef.current = channel;
 
-    channel.subscribe(status => {
+    channel.subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.error('Supabase realtime channel error for list memberships');
       }
@@ -320,12 +425,12 @@ export function useLists(userId: string | null): UseListsResult {
       return;
     }
 
-    const ids = state.lists.map(list => list.id).filter(Boolean);
+    const ids = state.lists.map((list) => list.id).filter(Boolean);
     if (!ids.length) {
       return;
     }
 
-    const filter = `id=in.(${ids.map(id => `'${id}'`).join(',')})`;
+    const filter = `id=in.(${ids.map((id) => `'${id}'`).join(',')})`;
 
     const channel = supabase
       .channel(`lists-changes:${userId}`)
@@ -335,7 +440,7 @@ export function useLists(userId: string | null): UseListsResult {
 
     listsChannelRef.current = channel;
 
-    channel.subscribe(status => {
+    channel.subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.error('Supabase realtime channel error for lists');
       }
@@ -360,23 +465,30 @@ export function useLists(userId: string | null): UseListsResult {
       return;
     }
 
-    const ids = state.lists.map(list => list.id).filter(Boolean);
+    const ids = state.lists.map((list) => list.id).filter(Boolean);
     if (!ids.length) {
       return;
     }
 
-    const filter = `list_id=in.(${ids.map(id => `'${id}'`).join(',')})`;
+    const filter = `list_id=in.(${ids.map((id) => `'${id}'`).join(',')})`;
 
     const channel = supabase
       .channel(`list-items:${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'list_items', filter }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'list_items', filter }, (payload) => {
         const row = (payload.new ?? payload.old) as ListItemRow | null;
         if (!row) {
           return;
         }
 
-        setState(prev => {
-          const updatedLists = prev.lists.map(list => {
+        // Keep IndexedDB in sync
+        if (payload.eventType === 'DELETE') {
+          void db.listItems.delete(row.id).catch(() => {});
+        } else if (payload.new) {
+          void db.listItems.put(mapListItem(payload.new as ListItemRow)).catch(() => {});
+        }
+
+        setState((prev) => {
+          const updatedLists = prev.lists.map((list) => {
             if (list.id !== row.list_id) {
               return list;
             }
@@ -386,12 +498,12 @@ export function useLists(userId: string | null): UseListsResult {
             if (payload.eventType === 'DELETE') {
               return {
                 ...list,
-                items: currentItems.filter(item => item.id !== row.id),
+                items: currentItems.filter((item) => item.id !== row.id),
               };
             }
 
             const mapped = mapListItem(payload.new as ListItemRow);
-            const existingIndex = currentItems.findIndex(item => item.id === mapped.id);
+            const existingIndex = currentItems.findIndex((item) => item.id === mapped.id);
 
             if (existingIndex >= 0) {
               currentItems[existingIndex] = mapped;
@@ -421,7 +533,7 @@ export function useLists(userId: string | null): UseListsResult {
 
     itemsChannelRef.current = channel;
 
-    channel.subscribe(status => {
+    channel.subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.error('Supabase realtime channel error for list items');
       }
@@ -459,25 +571,87 @@ export function useLists(userId: string | null): UseListsResult {
             .map((item, index) => ({ ...item, position: index }))
         : [];
 
-      let createdListId: string | null = null;
+      const timestampInput = input.createdAt;
+      let createdAt: string | null = null;
+
+      if (timestampInput instanceof Date) {
+        const parsed = new Date(timestampInput.getTime());
+        if (!Number.isNaN(parsed.getTime())) {
+          createdAt = parsed.toISOString();
+        }
+      } else if (typeof timestampInput === 'string' && timestampInput.trim().length > 0) {
+        const parsed = new Date(timestampInput);
+        if (!Number.isNaN(parsed.getTime())) {
+          createdAt = parsed.toISOString();
+        }
+      }
+
+      const listId = crypto.randomUUID();
+      const now = createdAt ?? new Date().toISOString();
+
+      const newList: List = {
+        id: listId,
+        name: input.name,
+        description: input.description ?? null,
+        created_at: now,
+        user_id: userId,
+        owner_id: userId,
+        access_role: 'owner',
+        public_share_token: null,
+        public_share_enabled: false,
+        items: initialItems.map((item, i) => ({
+          id: crypto.randomUUID(),
+          list_id: listId,
+          content: item.content,
+          completed: item.completed,
+          position: i,
+          created_at: now,
+          updated_at: now,
+        })),
+      };
+
+      // Optimistic update + IndexedDB
+      setState((prev) => ({
+        ...prev,
+        lists: [...prev.lists, newList],
+        status: prev.status === 'idle' ? 'ready' : prev.status,
+      }));
+      void db.lists.put({ ...newList, items: undefined } as List).catch(() => {});
+      for (const item of newList.items ?? []) {
+        void db.listItems.put(item).catch(() => {});
+      }
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'lists',
+          operation: 'create',
+          recordId: listId,
+          data: {
+            id: listId,
+            name: input.name,
+            description: input.description ?? null,
+            user_id: userId,
+            ...(createdAt ? { created_at: createdAt } : {}),
+          },
+          createdAt: Date.now(),
+        });
+        for (const item of newList.items ?? []) {
+          await enqueueOp({
+            userId,
+            table: 'list_items',
+            operation: 'create',
+            recordId: item.id,
+            data: item as unknown as Record<string, unknown>,
+            createdAt: Date.now(),
+          });
+        }
+        return;
+      }
 
       try {
-        const timestampInput = input.createdAt;
-        let createdAt: string | null = null;
-
-        if (timestampInput instanceof Date) {
-          const parsed = new Date(timestampInput.getTime());
-          if (!Number.isNaN(parsed.getTime())) {
-            createdAt = parsed.toISOString();
-          }
-        } else if (typeof timestampInput === 'string' && timestampInput.trim().length > 0) {
-          const parsed = new Date(timestampInput);
-          if (!Number.isNaN(parsed.getTime())) {
-            createdAt = parsed.toISOString();
-          }
-        }
-
-        const record: { name: string; description: string | null; user_id: string; created_at?: string } = {
+        const record: { id: string; name: string; description: string | null; user_id: string; created_at?: string } = {
+          id: listId,
           name: input.name,
           description: input.description ?? null,
           user_id: userId,
@@ -487,79 +661,29 @@ export function useLists(userId: string | null): UseListsResult {
           record.created_at = createdAt;
         }
 
-        const { data, error } = await supabase
-          .from('lists')
-          .insert(record)
-          .select('*')
-          .single();
+        const { error } = await supabase.from('lists').insert(record);
 
         if (error) {
           throw new Error(error.message || 'Unable to create list.');
         }
 
-        if (data) {
-          const newList: List = {
-            id: data.id,
-            name: data.name,
-            description: data.description,
-            created_at: data.created_at ?? undefined,
-            user_id: data.user_id,
-            owner_id: data.user_id,
-            access_role: 'owner',
-            public_share_token: null,
-            public_share_enabled: false,
-            items: [],
-          };
+        if (initialItems.length > 0) {
+          const { error: itemsError } = await supabase.from('list_items').insert(
+            (newList.items ?? []).map((item) => ({
+              id: item.id,
+              list_id: listId,
+              content: item.content,
+              completed: item.completed ?? false,
+              position: item.position,
+            })),
+          );
 
-          createdListId = data.id;
-
-          if (initialItems.length > 0) {
-            const { data: itemsData, error: itemsError } = await supabase
-              .from('list_items')
-              .insert(
-                initialItems.map(item => ({
-                  list_id: data.id,
-                  content: item.content,
-                  completed: item.completed ?? false,
-                  position: item.position,
-                })),
-              )
-              .select('id, list_id, content, completed, position, created_at, updated_at');
-
-            if (itemsError) {
-              await supabase.from('lists').delete().eq('id', data.id);
-              createdListId = null;
-              throw new Error(itemsError.message || 'Unable to add list items.');
-            }
-
-            const mappedItems: ListItem[] = [];
-
-            for (const row of itemsData ?? []) {
-              if (!isListItemRow(row)) {
-                await supabase.from('lists').delete().eq('id', data.id);
-                createdListId = null;
-                throw new Error('List items were not returned after creation.');
-              }
-              mappedItems.push(mapListItem(row));
-            }
-
-            newList.items = mappedItems.sort((a, b) => a.position - b.position);
+          if (itemsError) {
+            await supabase.from('lists').delete().eq('id', listId);
+            throw new Error(itemsError.message || 'Unable to add list items.');
           }
-
-          setState(prev => ({
-            ...prev,
-            lists: [...prev.lists, newList],
-            status: prev.status === 'idle' ? 'ready' : prev.status,
-          }));
         }
       } catch (error) {
-        if (createdListId) {
-          try {
-            await supabase.from('lists').delete().eq('id', createdListId);
-          } catch {
-            // Best-effort cleanup; ignore failures
-          }
-        }
         return { error: extractErrorMessage(error, 'Unable to create list.') };
       }
     },
@@ -572,7 +696,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to update lists.' };
       }
 
-      const existing = listsRef.current.find(list => list.id === id);
+      const existing = listsRef.current.find((list) => list.id === id);
       if (!existing) {
         return { error: 'List not found.' };
       }
@@ -581,13 +705,30 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to update this list.' };
       }
 
+      // Optimistic update
+      const updated = { ...existing, name: input.name, description: input.description ?? null };
+      setState((prev) => ({
+        ...prev,
+        lists: prev.lists.map((l) => (l.id === id ? updated : l)),
+      }));
+      void db.lists.put({ ...updated, items: undefined } as List).catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'lists',
+          operation: 'update',
+          recordId: id,
+          data: { name: input.name, description: input.description ?? null },
+          createdAt: Date.now(),
+        });
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('lists')
-          .update({
-            name: input.name,
-            description: input.description ?? null,
-          })
+          .update({ name: input.name, description: input.description ?? null })
           .eq('id', id)
           .select('*')
           .single();
@@ -597,9 +738,9 @@ export function useLists(userId: string | null): UseListsResult {
         }
 
         if (data) {
-          setState(prev => ({
+          setState((prev) => ({
             ...prev,
-            lists: prev.lists.map(list =>
+            lists: prev.lists.map((list) =>
               list.id === id
                 ? {
                     ...list,
@@ -625,7 +766,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to delete lists.' };
       }
 
-      const existing = listsRef.current.find(list => list.id === id);
+      const existing = listsRef.current.find((list) => list.id === id);
       if (!existing) {
         return { error: 'List not found.' };
       }
@@ -634,20 +775,29 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'Only owners can delete a list.' };
       }
 
+      // Optimistic removal
+      setState((prev) => ({ ...prev, lists: prev.lists.filter((l) => l.id !== id) }));
+      void db.lists.delete(id).catch(() => {});
+      void db.listItems.where('list_id').equals(id).delete().catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'lists',
+          operation: 'delete',
+          recordId: id,
+          data: {},
+          createdAt: Date.now(),
+        });
+        return;
+      }
+
       try {
-        const { error } = await supabase
-          .from('lists')
-          .delete()
-          .eq('id', id);
+        const { error } = await supabase.from('lists').delete().eq('id', id);
 
         if (error) {
           throw new Error(error.message || 'Unable to delete list.');
         }
-
-        setState(prev => ({
-          ...prev,
-          lists: prev.lists.filter(list => list.id !== id),
-        }));
       } catch (error) {
         return { error: extractErrorMessage(error, 'Unable to delete list.') };
       }
@@ -661,7 +811,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to add list items.' };
       }
 
-      const targetList = listsRef.current.find(list => list.id === listId);
+      const targetList = listsRef.current.find((list) => list.id === listId);
       if (!targetList) {
         return { error: 'List not found.' };
       }
@@ -669,6 +819,44 @@ export function useLists(userId: string | null): UseListsResult {
       const role = targetList.access_role ?? 'owner';
       if (!['owner', 'editor'].includes(role)) {
         return { error: 'You do not have permission to add items to this list.' };
+      }
+
+      const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
+      const nextPosition = existingItems.reduce((max, i) => Math.max(max, i.position ?? 0), -1) + 1;
+      const itemId = crypto.randomUUID();
+      const now = new Date().toISOString();
+
+      const optimisticItem: ListItem = {
+        id: itemId,
+        list_id: listId,
+        content,
+        completed: false,
+        position: nextPosition,
+        created_at: now,
+        updated_at: now,
+      };
+
+      // Optimistic update
+      setState((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) =>
+          list.id === listId
+            ? { ...list, items: [...(list.items ?? []), optimisticItem].sort((a, b) => a.position - b.position) }
+            : list,
+        ),
+      }));
+      void db.listItems.put(optimisticItem).catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'list_items',
+          operation: 'create',
+          recordId: itemId,
+          data: optimisticItem as unknown as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        return { item: optimisticItem };
       }
 
       try {
@@ -684,18 +872,22 @@ export function useLists(userId: string | null): UseListsResult {
         const newRow = Array.isArray(data) ? data[0] : data;
 
         if (!isListItemRow(newRow)) {
-          throw new Error('List item was not returned after creation.');
+          // Server didn't return the item; the optimistic one is fine
+          return { item: optimisticItem };
         }
 
         const item = mapListItem(newRow);
+        void db.listItems.put(item).catch(() => {});
 
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          lists: prev.lists.map(list =>
+          lists: prev.lists.map((list) =>
             list.id === listId
               ? {
                   ...list,
-                  items: [...(list.items ?? []), item].sort((a, b) => a.position - b.position),
+                  items: [...(list.items ?? []).filter((i) => i.id !== itemId), item].sort(
+                    (a, b) => a.position - b.position,
+                  ),
                 }
               : list,
           ),
@@ -715,7 +907,9 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to update list items.' };
       }
 
-      const targetList = listsRef.current.find(list => Array.isArray(list.items) && list.items.some(item => item.id === itemId));
+      const targetList = listsRef.current.find(
+        (list) => Array.isArray(list.items) && list.items.some((item) => item.id === itemId),
+      );
       if (!targetList) {
         return { error: 'List item not found.' };
       }
@@ -734,11 +928,42 @@ export function useLists(userId: string | null): UseListsResult {
       }
 
       if (!Object.keys(payload).length) {
-        const existing = targetList.items?.find(item => item.id === itemId);
+        const existing = targetList.items?.find((item) => item.id === itemId);
         if (existing) {
           return { item: existing };
         }
         return { error: 'Nothing to update.' };
+      }
+
+      // Optimistic update
+      const existingItem = targetList.items?.find((i) => i.id === itemId);
+      if (existingItem) {
+        const optimistic: ListItem = { ...existingItem, ...payload, updated_at: new Date().toISOString() };
+        void db.listItems.put(optimistic).catch(() => {});
+        setState((prev) => ({
+          ...prev,
+          lists: prev.lists.map((list) =>
+            list.id === targetList.id
+              ? {
+                  ...list,
+                  items: (list.items ?? []).map((i) => (i.id === itemId ? optimistic : i)),
+                }
+              : list,
+          ),
+        }));
+      }
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'list_items',
+          operation: 'update',
+          recordId: itemId,
+          data: payload as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        if (existingItem) return { item: { ...existingItem, ...payload } as ListItem };
+        return { error: 'List item not found.' };
       }
 
       try {
@@ -759,14 +984,15 @@ export function useLists(userId: string | null): UseListsResult {
         }
 
         const item = mapListItem(row);
+        void db.listItems.put(item).catch(() => {});
 
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          lists: prev.lists.map(list =>
+          lists: prev.lists.map((list) =>
             list.id === item.list_id
               ? {
                   ...list,
-                  items: (list.items ?? []).map(existing => (existing.id === item.id ? item : existing)),
+                  items: (list.items ?? []).map((existing) => (existing.id === item.id ? item : existing)),
                 }
               : list,
           ),
@@ -786,7 +1012,9 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to delete list items.' };
       }
 
-      const targetList = listsRef.current.find(list => Array.isArray(list.items) && list.items.some(item => item.id === itemId));
+      const targetList = listsRef.current.find(
+        (list) => Array.isArray(list.items) && list.items.some((item) => item.id === itemId),
+      );
       if (!targetList) {
         return { error: 'List item not found.' };
       }
@@ -796,27 +1024,35 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to delete this list item.' };
       }
 
+      // Optimistic removal
+      setState((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) =>
+          list.id === targetList.id
+            ? { ...list, items: (list.items ?? []).filter((item) => item.id !== itemId) }
+            : list,
+        ),
+      }));
+      void db.listItems.delete(itemId).catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'list_items',
+          operation: 'delete',
+          recordId: itemId,
+          data: {},
+          createdAt: Date.now(),
+        });
+        return;
+      }
+
       try {
-        const { error } = await supabase
-          .from('list_items')
-          .delete()
-          .eq('id', itemId);
+        const { error } = await supabase.from('list_items').delete().eq('id', itemId);
 
         if (error) {
           throw new Error(error.message || 'Unable to delete list item.');
         }
-
-        setState(prev => ({
-          ...prev,
-          lists: prev.lists.map(list =>
-            list.id === targetList.id
-              ? {
-                  ...list,
-                  items: (list.items ?? []).filter(item => item.id !== itemId),
-                }
-              : list,
-          ),
-        }));
       } catch (error) {
         return { error: extractErrorMessage(error, 'Unable to delete list item.') };
       }
@@ -830,7 +1066,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to reorder list items.' };
       }
 
-      const targetList = listsRef.current.find(list => list.id === listId);
+      const targetList = listsRef.current.find((list) => list.id === listId);
       if (!targetList) {
         return { error: 'List not found.' };
       }
@@ -841,7 +1077,7 @@ export function useLists(userId: string | null): UseListsResult {
       }
 
       const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
-      const orderMap = new Map(existingItems.map(item => [item.id, item] as const));
+      const orderMap = new Map(existingItems.map((item) => [item.id, item] as const));
       const nextItems: ListItem[] = [];
 
       for (let index = 0; index < orderedIds.length; index += 1) {
@@ -853,17 +1089,31 @@ export function useLists(userId: string | null): UseListsResult {
         nextItems.push({ ...item, position: index });
       }
 
-      setState(prev => ({
+      // Optimistic update
+      setState((prev) => ({
         ...prev,
-        lists: prev.lists.map(list =>
-          list.id === listId
-            ? {
-                ...list,
-                items: nextItems,
-              }
-            : list,
+        lists: prev.lists.map((list) =>
+          list.id === listId ? { ...list, items: nextItems } : list,
         ),
       }));
+      for (const item of nextItems) {
+        void db.listItems.put(item).catch(() => {});
+      }
+
+      if (!isOnline()) {
+        // Queue individual position updates
+        for (const item of nextItems) {
+          await enqueueOp({
+            userId,
+            table: 'list_items',
+            operation: 'update',
+            recordId: item.id,
+            data: { position: item.position },
+            createdAt: Date.now(),
+          });
+        }
+        return;
+      }
 
       try {
         const { error } = await supabase.rpc('reorder_list_items', {
@@ -875,15 +1125,11 @@ export function useLists(userId: string | null): UseListsResult {
           throw new Error(error.message || 'Unable to reorder list items.');
         }
       } catch (error) {
-        setState(prev => ({
+        // Revert
+        setState((prev) => ({
           ...prev,
-          lists: prev.lists.map(list =>
-            list.id === listId
-              ? {
-                  ...list,
-                  items: existingItems,
-                }
-              : list,
+          lists: prev.lists.map((list) =>
+            list.id === listId ? { ...list, items: existingItems } : list,
           ),
         }));
         return { error: extractErrorMessage(error, 'Unable to reorder list items.') };
@@ -990,7 +1236,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to manage public sharing.' };
       }
 
-      const existing = listsRef.current.find(list => list.id === listId);
+      const existing = listsRef.current.find((list) => list.id === listId);
       if (!existing) {
         return { error: 'List not found.' };
       }
@@ -1015,9 +1261,9 @@ export function useLists(userId: string | null): UseListsResult {
           throw new Error('Public share token was not returned.');
         }
 
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          lists: prev.lists.map(list =>
+          lists: prev.lists.map((list) =>
             list.id === listId
               ? { ...list, public_share_token: token, public_share_enabled: true }
               : list,
@@ -1038,7 +1284,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to rotate public sharing.' };
       }
 
-      const existing = listsRef.current.find(list => list.id === listId);
+      const existing = listsRef.current.find((list) => list.id === listId);
       if (!existing) {
         return { error: 'List not found.' };
       }
@@ -1067,9 +1313,9 @@ export function useLists(userId: string | null): UseListsResult {
           throw new Error('Public share token was not returned.');
         }
 
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          lists: prev.lists.map(list =>
+          lists: prev.lists.map((list) =>
             list.id === listId
               ? { ...list, public_share_token: token, public_share_enabled: true }
               : list,
@@ -1090,7 +1336,7 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You must be signed in to disable public sharing.' };
       }
 
-      const existing = listsRef.current.find(list => list.id === listId);
+      const existing = listsRef.current.find((list) => list.id === listId);
       if (!existing) {
         return { error: 'List not found.' };
       }
@@ -1108,9 +1354,9 @@ export function useLists(userId: string | null): UseListsResult {
           throw new Error(error.message || 'Unable to disable public sharing.');
         }
 
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          lists: prev.lists.map(list =>
+          lists: prev.lists.map((list) =>
             list.id === listId
               ? { ...list, public_share_token: null, public_share_enabled: false }
               : list,

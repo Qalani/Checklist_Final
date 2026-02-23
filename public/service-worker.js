@@ -1,4 +1,5 @@
-const CACHE_NAME = "zen-workspace-cache-v3";
+// Bumped to v4 to force rollout of the offline-first data layer
+const CACHE_NAME = "zen-workspace-cache-v4";
 const ASSETS_TO_CACHE = ["/"];
 
 self.addEventListener("install", (event) => {
@@ -37,14 +38,24 @@ function shouldHandleAsNavigation(request) {
   return acceptHeader.includes("text/html");
 }
 
-async function cacheResponse(request, response) {
+function isCacheable(request, response) {
+  if (!response || response.status !== 200 || response.type !== "basic") {
+    return false;
+  }
+  const url = new URL(request.url);
+  // Never cache API routes, Next.js internals, or third-party requests
   if (
-    response &&
-    response.status === 200 &&
-    response.type === "basic" &&
-    !request.url.includes("/__") &&
-    !new URL(request.url).pathname.startsWith("/api/")
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/__") ||
+    url.origin !== self.location.origin
   ) {
+    return false;
+  }
+  return true;
+}
+
+async function cacheResponse(request, response) {
+  if (isCacheable(request, response)) {
     const cache = await caches.open(CACHE_NAME);
     await cache.put(request, response.clone());
   }
@@ -57,6 +68,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Let third-party requests (e.g. Supabase) pass through unmodified
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Navigation: network-first so users always get the latest shell
   if (shouldHandleAsNavigation(request)) {
     event.respondWith(
       fetch(request)
@@ -66,14 +84,10 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(async () => {
           const cached = await caches.match(request);
-          if (cached) {
-            return cached;
-          }
+          if (cached) return cached;
 
           const fallback = await caches.match("/");
-          if (fallback) {
-            return fallback;
-          }
+          if (fallback) return fallback;
 
           return new Response("Offline", { status: 503 });
         })
@@ -81,20 +95,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Static assets: stale-while-revalidate for fast loads with background refresh
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(request)
+      const networkFetch = fetch(request)
         .then(async (response) => {
           await cacheResponse(request, response);
           return response;
         })
-        .catch(() =>
-          cachedResponse || new Response("Offline", { status: 503 })
-        );
+        .catch(() => cachedResponse || new Response("Offline", { status: 503 }));
+
+      // Return cached copy immediately; update cache in background
+      return cachedResponse || networkFetch;
     })
   );
 });
