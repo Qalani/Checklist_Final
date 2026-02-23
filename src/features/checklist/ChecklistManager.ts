@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
+import { isOnline, enqueueOp, flushPendingOps } from '@/lib/offlineSync';
 import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type {
@@ -14,6 +16,7 @@ export interface ChecklistSnapshot {
   tasks: Task[];
   categories: Category[];
   error: string | null;
+  pendingOpsCount: number;
 }
 
 type Subscriber = (snapshot: ChecklistSnapshot) => void;
@@ -41,12 +44,8 @@ function sortCategories(categories: Category[]): Category[] {
     if (a.created_at && b.created_at && a.created_at !== b.created_at) {
       return a.created_at.localeCompare(b.created_at);
     }
-    if (a.created_at && !b.created_at) {
-      return -1;
-    }
-    if (!a.created_at && b.created_at) {
-      return 1;
-    }
+    if (a.created_at && !b.created_at) return -1;
+    if (!a.created_at && b.created_at) return 1;
     return a.name.localeCompare(b.name);
   });
 }
@@ -96,7 +95,8 @@ export async function fetchTasks(userId: string, options: FetchTasksOptions = {}
     return {
       ...task,
       access_role:
-        (record as { access_role?: Task['access_role'] }).access_role ?? (record.user_id === userId ? 'owner' : undefined),
+        (record as { access_role?: Task['access_role'] }).access_role ??
+        (record.user_id === userId ? 'owner' : undefined),
     };
   });
 }
@@ -122,6 +122,7 @@ export class ChecklistManager {
     tasks: [],
     categories: [],
     error: null,
+    pendingOpsCount: 0,
   };
 
   private userId: string | null = null;
@@ -161,18 +162,50 @@ export class ChecklistManager {
         tasks: [],
         categories: [],
         error: null,
+        pendingOpsCount: 0,
       });
       return;
     }
 
     this.userId = userId;
-    this.setSnapshot({
-      status: 'loading',
-      syncing: true,
-      tasks: [],
-      categories: [],
-      error: null,
-    });
+
+    // Show cached data immediately for instant perceived performance
+    try {
+      const [localTasks, localCategories] = await Promise.all([
+        db.tasks.where('user_id').equals(userId).toArray(),
+        db.categories.where('user_id').equals(userId).toArray(),
+      ]);
+
+      if (localTasks.length > 0 || localCategories.length > 0) {
+        const pendingOpsCount = await this.getPendingOpsCount();
+        this.setSnapshot({
+          status: 'ready',
+          syncing: true,
+          tasks: localTasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          categories: sortCategories(localCategories),
+          error: null,
+          pendingOpsCount,
+        });
+      } else {
+        this.setSnapshot({
+          status: 'loading',
+          syncing: true,
+          tasks: [],
+          categories: [],
+          error: null,
+          pendingOpsCount: 0,
+        });
+      }
+    } catch {
+      this.setSnapshot({
+        status: 'loading',
+        syncing: true,
+        tasks: [],
+        categories: [],
+        error: null,
+        pendingOpsCount: 0,
+      });
+    }
 
     await this.refresh(true);
     this.subscribeToRealtime(userId);
@@ -194,21 +227,88 @@ export class ChecklistManager {
         error: prev.status === 'error' ? prev.error : null,
       }));
 
+      // Offline: serve IndexedDB data directly
+      if (!isOnline()) {
+        try {
+          const [tasks, categories] = await Promise.all([
+            db.tasks.where('user_id').equals(this.userId!).toArray(),
+            db.categories.where('user_id').equals(this.userId!).toArray(),
+          ]);
+          const pendingOpsCount = await this.getPendingOpsCount();
+          this.setSnapshot({
+            status: 'ready',
+            syncing: false,
+            tasks: tasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+            categories: sortCategories(categories),
+            error: null,
+            pendingOpsCount,
+          });
+        } catch {
+          this.setSnapshot((prev) => ({
+            ...prev,
+            syncing: false,
+            error: 'You are offline and no local data is available.',
+          }));
+        }
+        return;
+      }
+
+      // Online: flush queued ops first, then pull fresh data
+      await flushPendingOps(this.userId!);
+
       try {
         const [tasks, categories] = await Promise.all([
           fetchTasks(this.userId as string),
           fetchCategories(this.userId as string),
         ]);
 
+        // Persist fresh server data to IndexedDB in the background
+        const userId = this.userId!;
+        void (async () => {
+          try {
+            await db.tasks.where('user_id').equals(userId).delete();
+            await db.tasks.bulkPut(tasks.filter((t) => t.user_id === userId));
+            await db.categories.where('user_id').equals(userId).delete();
+            await db.categories.bulkPut(categories);
+          } catch {
+            // Non-critical – don't block the UI
+          }
+        })();
+
+        const pendingOpsCount = await this.getPendingOpsCount();
         this.setSnapshot({
           status: 'ready',
           syncing: false,
           tasks,
           categories: sortCategories(categories),
           error: null,
+          pendingOpsCount,
         });
-      } catch (error) {
-        const message = extractErrorMessage(error, 'Failed to sync your checklist.');
+      } catch (networkError) {
+        // Network request failed – fall back to whatever we have in IndexedDB
+        try {
+          const [tasks, categories] = await Promise.all([
+            db.tasks.where('user_id').equals(this.userId!).toArray(),
+            db.categories.where('user_id').equals(this.userId!).toArray(),
+          ]);
+
+          if (tasks.length > 0 || categories.length > 0) {
+            const pendingOpsCount = await this.getPendingOpsCount();
+            this.setSnapshot({
+              status: 'ready',
+              syncing: false,
+              tasks: tasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+              categories: sortCategories(categories),
+              error: null,
+              pendingOpsCount,
+            });
+            return;
+          }
+        } catch {
+          // IndexedDB also failed
+        }
+
+        const message = extractErrorMessage(networkError, 'Failed to sync your checklist.');
         this.setSnapshot((prev) => ({
           ...prev,
           status: 'error',
@@ -231,14 +331,13 @@ export class ChecklistManager {
     }
 
     try {
+      // ── UPDATE ────────────────────────────────────────────────────────────
       if (existingTask) {
         if (existingTask.access_role && !['owner', 'editor'].includes(existingTask.access_role)) {
           throw new Error('You do not have permission to edit this task.');
         }
 
-        const sanitizedInput: Record<string, unknown> = {
-          ...taskData,
-        };
+        const sanitizedInput: Record<string, unknown> = { ...taskData };
 
         if (typeof sanitizedInput.title === 'string') {
           sanitizedInput.title = (sanitizedInput.title as string).trim();
@@ -248,6 +347,33 @@ export class ChecklistManager {
         delete sanitizedInput.user_id;
         delete sanitizedInput.order;
 
+        // Optimistic state update
+        const optimisticTask = this.normalizeTask(
+          { ...existingTask, ...sanitizedInput } as Task,
+          existingTask,
+        );
+        this.setSnapshot((prev) => ({
+          ...prev,
+          tasks: prev.tasks
+            .map((t) => (t.id === existingTask.id ? { ...t, ...optimisticTask } : t))
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          error: null,
+        }));
+        void db.tasks.put(optimisticTask).catch(() => {});
+
+        if (!isOnline()) {
+          await enqueueOp({
+            userId: this.userId,
+            table: 'tasks',
+            operation: 'update',
+            recordId: existingTask.id,
+            data: sanitizedInput,
+            createdAt: Date.now(),
+          });
+          await this.refreshPendingCount();
+          return {};
+        }
+
         const { data, error } = await supabase
           .from('tasks')
           .update(sanitizedInput)
@@ -256,91 +382,119 @@ export class ChecklistManager {
           .single();
 
         if (error) {
+          await enqueueOp({
+            userId: this.userId,
+            table: 'tasks',
+            operation: 'update',
+            recordId: existingTask.id,
+            data: sanitizedInput,
+            createdAt: Date.now(),
+          });
+          await this.refreshPendingCount();
           throw new Error(error.message || 'Unable to save task.');
         }
 
         const updatedTask = this.normalizeTask((data ?? existingTask) as Task, existingTask);
+        void db.tasks.put(updatedTask).catch(() => {});
         this.setSnapshot((prev) => ({
           ...prev,
           tasks: prev.tasks
-            .map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task))
-            .sort((a, b) => a.order - b.order),
+            .map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t))
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
           error: null,
         }));
         return {};
       }
 
-      const { data: sessionResult } = await supabase.auth.getSession();
-      const token = sessionResult.session?.access_token;
-
-      if (!token) {
-        throw new Error('You must be signed in to add tasks.');
-      }
-
+      // ── CREATE ────────────────────────────────────────────────────────────
       const trimmedTitle = typeof taskData.title === 'string' ? taskData.title.trim() : '';
 
       if (!trimmedTitle || !taskData.priority || !taskData.category || !taskData.category_color) {
         throw new Error('Task is missing required information.');
       }
 
-      const ownedTasks = this.snapshot.tasks.filter((task) => task.user_id === this.userId);
-      const nextOrder = ownedTasks.reduce(
-        (max, current) => Math.max(max, current.order ?? 0),
-        -1,
-      ) + 1;
+      const ownedTasks = this.snapshot.tasks.filter((t) => t.user_id === this.userId);
+      const nextOrder = ownedTasks.reduce((max, t) => Math.max(max, t.order ?? 0), -1) + 1;
 
-      const response = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: trimmedTitle,
-          description: taskData.description ?? '',
-          priority: taskData.priority,
-          category: taskData.category,
-          category_color: taskData.category_color,
-          completed: Boolean(taskData.completed),
-          due_date: taskData.due_date ?? null,
-          reminder_minutes_before: taskData.reminder_minutes_before ?? null,
-          reminder_recurrence: taskData.reminder_recurrence ?? null,
-          reminder_next_trigger_at: taskData.reminder_next_trigger_at ?? null,
-          reminder_snoozed_until: taskData.reminder_snoozed_until ?? null,
-          reminder_timezone: taskData.reminder_timezone ?? null,
-          order: nextOrder,
-        }),
-      });
+      // Generate UUID client-side so we have a stable ID for offline storage
+      const taskId = crypto.randomUUID();
+      const now = new Date().toISOString();
 
-      const payload = await response.json().catch(() => ({}));
+      const newTask: Task = {
+        id: taskId,
+        title: trimmedTitle,
+        description: taskData.description ?? '',
+        priority: taskData.priority,
+        category: taskData.category,
+        category_color: taskData.category_color,
+        completed: Boolean(taskData.completed),
+        due_date: taskData.due_date ?? null,
+        reminder_minutes_before: taskData.reminder_minutes_before ?? null,
+        reminder_recurrence: taskData.reminder_recurrence ?? null,
+        reminder_next_trigger_at: taskData.reminder_next_trigger_at ?? null,
+        reminder_snoozed_until: taskData.reminder_snoozed_until ?? null,
+        reminder_timezone: taskData.reminder_timezone ?? null,
+        order: nextOrder,
+        user_id: this.userId,
+        created_at: now,
+        updated_at: now,
+        access_role: 'owner',
+      };
 
-      if (!response.ok) {
-        const message =
-          typeof (payload as { error?: unknown })?.error === 'string'
-            ? (payload as { error?: string }).error
-            : 'Unable to save task. Please try again.';
-        throw new Error(message);
+      // Optimistic state + IndexedDB write
+      this.setSnapshot((prev) => ({
+        ...prev,
+        tasks: [...prev.tasks, newTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        error: null,
+      }));
+      void db.tasks.put(newTask).catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId: this.userId,
+          table: 'tasks',
+          operation: 'create',
+          recordId: taskId,
+          data: newTask as unknown as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        await this.refreshPendingCount();
+        return {};
       }
 
-      const savedTask =
-        payload && typeof payload === 'object'
-          ? ((payload as { task?: Task }).task as Task | undefined)
-          : undefined;
+      // Insert directly via Supabase client using the pre-generated UUID.
+      // Requires the INSERT RLS policy added in migration 20250601000000.
+      const { error: insertError } = await supabase.from('tasks').insert({
+        id: taskId,
+        title: trimmedTitle,
+        description: taskData.description ?? '',
+        priority: taskData.priority,
+        category: taskData.category,
+        category_color: taskData.category_color,
+        completed: Boolean(taskData.completed),
+        due_date: taskData.due_date ?? null,
+        reminder_minutes_before: taskData.reminder_minutes_before ?? null,
+        reminder_recurrence: taskData.reminder_recurrence ?? null,
+        reminder_next_trigger_at: taskData.reminder_next_trigger_at ?? null,
+        reminder_snoozed_until: taskData.reminder_snoozed_until ?? null,
+        reminder_timezone: taskData.reminder_timezone ?? null,
+        order: nextOrder,
+        user_id: this.userId,
+      });
 
-      if (!savedTask) {
-        throw new Error('Unable to save task. Please try again.');
+      if (insertError) {
+        // Task already in local state; queue for later sync
+        await enqueueOp({
+          userId: this.userId,
+          table: 'tasks',
+          operation: 'create',
+          recordId: taskId,
+          data: newTask as unknown as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        await this.refreshPendingCount();
       }
 
-      const normalizedTask = this.normalizeTask(savedTask as Task);
-
-      this.setSnapshot((prev) => {
-        const existingTasks = prev.tasks.filter((task) => task.id !== normalizedTask.id);
-        return {
-          ...prev,
-          tasks: [...existingTasks, normalizedTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-          error: null,
-        };
-      });
       return {};
     } catch (error) {
       const message = extractErrorMessage(error, 'Unable to save task. Please try again.');
@@ -353,13 +507,34 @@ export class ChecklistManager {
       return;
     }
 
-    const targetTask = this.snapshot.tasks.find((task) => task.id === id);
+    const targetTask = this.snapshot.tasks.find((t) => t.id === id);
 
     if (!targetTask || targetTask.user_id !== this.userId) {
       this.setSnapshot((prev) => ({
         ...prev,
         error: 'You can only delete tasks that you own.',
       }));
+      return;
+    }
+
+    // Optimistic removal
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: prev.tasks.filter((t) => t.id !== id),
+      error: null,
+    }));
+    void db.tasks.delete(id).catch(() => {});
+
+    if (!isOnline()) {
+      await enqueueOp({
+        userId: this.userId,
+        table: 'tasks',
+        operation: 'delete',
+        recordId: id,
+        data: {},
+        createdAt: Date.now(),
+      });
+      await this.refreshPendingCount();
       return;
     }
 
@@ -370,19 +545,16 @@ export class ChecklistManager {
       .eq('user_id', this.userId);
 
     if (error) {
-      console.error('Error deleting task', error);
-      this.setSnapshot((prev) => ({
-        ...prev,
-        error: error.message || 'Unable to delete task. Please try again.',
-      }));
-      return;
+      // Restore task and queue for retry
+      if (targetTask) {
+        this.setSnapshot((prev) => ({
+          ...prev,
+          tasks: [...prev.tasks, targetTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          error: error.message || 'Unable to delete task. Please try again.',
+        }));
+        void db.tasks.put(targetTask).catch(() => {});
+      }
     }
-
-    this.setSnapshot((prev) => ({
-      ...prev,
-      tasks: prev.tasks.filter((task) => task.id !== id),
-      error: null,
-    }));
   }
 
   async toggleTask(id: string, completed: boolean) {
@@ -390,7 +562,7 @@ export class ChecklistManager {
       return;
     }
 
-    const targetTask = this.snapshot.tasks.find((task) => task.id === id);
+    const targetTask = this.snapshot.tasks.find((t) => t.id === id);
 
     if (!targetTask) {
       return;
@@ -404,6 +576,28 @@ export class ChecklistManager {
       return;
     }
 
+    // Optimistic update
+    const optimistic = { ...targetTask, completed };
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === id ? optimistic : t)),
+      error: null,
+    }));
+    void db.tasks.put(optimistic).catch(() => {});
+
+    if (!isOnline()) {
+      await enqueueOp({
+        userId: this.userId,
+        table: 'tasks',
+        operation: 'update',
+        recordId: id,
+        data: { completed },
+        createdAt: Date.now(),
+      });
+      await this.refreshPendingCount();
+      return;
+    }
+
     let query = supabase.from('tasks').update({ completed }).eq('id', id);
 
     if (targetTask.user_id === this.userId) {
@@ -413,18 +607,21 @@ export class ChecklistManager {
     const { data, error } = await query.select().single();
 
     if (error) {
-      console.error('Error toggling task', error);
+      // Revert optimistic update
       this.setSnapshot((prev) => ({
         ...prev,
+        tasks: prev.tasks.map((t) => (t.id === id ? targetTask : t)),
         error: error.message || 'Unable to update task. Please try again.',
       }));
+      void db.tasks.put(targetTask).catch(() => {});
       return;
     }
 
     const updatedTask = this.normalizeTask(data as Task, targetTask);
+    void db.tasks.put(updatedTask).catch(() => {});
     this.setSnapshot((prev) => ({
       ...prev,
-      tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
+      tasks: prev.tasks.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t)),
       error: null,
     }));
   }
@@ -434,7 +631,7 @@ export class ChecklistManager {
       return;
     }
 
-    const invalidTask = reorderedTasks.find((task) => task.user_id !== this.userId);
+    const invalidTask = reorderedTasks.find((t) => t.user_id !== this.userId);
 
     if (invalidTask) {
       this.setSnapshot((prev) => ({
@@ -444,42 +641,58 @@ export class ChecklistManager {
       return;
     }
 
-    const reorderedTaskIds = new Set(reorderedTasks.map((task) => task.id));
+    const reorderedTaskIds = new Set(reorderedTasks.map((t) => t.id));
     const preservedOrders = this.snapshot.tasks
-      .filter((task) => reorderedTaskIds.has(task.id))
+      .filter((t) => reorderedTaskIds.has(t.id))
       .sort((a, b) => a.order - b.order)
-      .map((task) => task.order);
+      .map((t) => t.order);
 
-    const updatedReorderedTasks = reorderedTasks.map((task, index) => ({
-      ...task,
-      order: preservedOrders[index] ?? task.order,
+    const updatedReorderedTasks = reorderedTasks.map((t, index) => ({
+      ...t,
+      order: preservedOrders[index] ?? t.order,
     }));
-    const updatedTasksById = new Map(
-      updatedReorderedTasks.map((task) => [task.id, task] as const),
-    );
+    const updatedTasksById = new Map(updatedReorderedTasks.map((t) => [t.id, t] as const));
+
+    // Optimistic update + IndexedDB
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: prev.tasks
+        .map((t) => updatedTasksById.get(t.id) ?? t)
+        .sort((a, b) => a.order - b.order),
+      error: null,
+    }));
+    for (const t of updatedReorderedTasks) {
+      void db.tasks.put(t).catch(() => {});
+    }
+
+    if (!isOnline()) {
+      for (const t of updatedReorderedTasks) {
+        await enqueueOp({
+          userId: this.userId,
+          table: 'tasks',
+          operation: 'update',
+          recordId: t.id,
+          data: { order: t.order },
+          createdAt: Date.now(),
+        });
+      }
+      await this.refreshPendingCount();
+      return;
+    }
 
     try {
-      for (const task of updatedReorderedTasks) {
+      for (const t of updatedReorderedTasks) {
         const { error } = await supabase
           .from('tasks')
-          .update({ order: task.order })
-          .eq('id', task.id)
+          .update({ order: t.order })
+          .eq('id', t.id)
           .eq('user_id', this.userId as string);
 
         if (error) {
           throw new Error(error.message || 'Unable to reorder tasks. Please try again.');
         }
       }
-
-      this.setSnapshot((prev) => ({
-        ...prev,
-        tasks: prev.tasks
-          .map((task) => updatedTasksById.get(task.id) ?? task)
-          .sort((a, b) => a.order - b.order),
-        error: null,
-      }));
     } catch (error) {
-      console.error('Error reordering tasks', error);
       this.setSnapshot((prev) => ({
         ...prev,
         error: extractErrorMessage(error, 'Unable to reorder tasks. Please try again.'),
@@ -492,54 +705,66 @@ export class ChecklistManager {
       throw new Error('You must be signed in to add categories.');
     }
 
-    const { data: sessionResult } = await supabase.auth.getSession();
-    const token = sessionResult.session?.access_token;
+    const categoryId = crypto.randomUUID();
+    const now = new Date().toISOString();
 
-    if (!token) {
-      throw new Error('You must be signed in to add categories.');
+    const newCategory: Category = {
+      id: categoryId,
+      name: input.name,
+      color: input.color,
+      user_id: this.userId,
+      created_at: now,
+    };
+
+    // Optimistic update
+    this.setSnapshot((prev) => ({
+      ...prev,
+      categories: sortCategories([...prev.categories, newCategory]),
+      error: null,
+    }));
+    void db.categories.put(newCategory).catch(() => {});
+
+    if (!isOnline()) {
+      await enqueueOp({
+        userId: this.userId,
+        table: 'categories',
+        operation: 'create',
+        recordId: categoryId,
+        data: newCategory as unknown as Record<string, unknown>,
+        createdAt: Date.now(),
+      });
+      await this.refreshPendingCount();
+      return newCategory;
     }
 
-    const response = await fetch('/api/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(input),
-    });
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({ id: categoryId, name: input.name, color: input.color, user_id: this.userId })
+      .select()
+      .single();
 
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const message =
-        typeof (payload as { error?: unknown })?.error === 'string'
-          ? (payload as { error?: string }).error
-          : 'Unable to save category. Please try again.';
-      throw new Error(message);
+    if (error) {
+      await enqueueOp({
+        userId: this.userId,
+        table: 'categories',
+        operation: 'create',
+        recordId: categoryId,
+        data: newCategory as unknown as Record<string, unknown>,
+        createdAt: Date.now(),
+      });
+      await this.refreshPendingCount();
+      return newCategory;
     }
 
-    const savedCategory =
-      payload && typeof payload === 'object'
-        ? ((payload as { category?: Category }).category as Category | undefined)
-        : undefined;
-
-    if (!savedCategory) {
-      throw new Error('Unable to save category. Please try again.');
-    }
-
-    this.setSnapshot((prev) => {
-      const categories = prev.categories.some((category) => category.id === savedCategory.id)
-        ? prev.categories.map((category) =>
-            category.id === savedCategory.id ? { ...category, ...savedCategory } : category,
-          )
-        : [...prev.categories, savedCategory];
-
-      return {
-        ...prev,
-        categories: sortCategories(categories),
-        error: null,
-      };
-    });
+    const savedCategory = data as Category;
+    void db.categories.put(savedCategory).catch(() => {});
+    this.setSnapshot((prev) => ({
+      ...prev,
+      categories: sortCategories(
+        prev.categories.map((c) => (c.id === categoryId ? { ...c, ...savedCategory } : c)),
+      ),
+      error: null,
+    }));
 
     return savedCategory;
   }
@@ -549,10 +774,40 @@ export class ChecklistManager {
       throw new Error('You must be signed in to update categories.');
     }
 
-    const previousCategory = this.snapshot.categories.find((category) => category.id === id);
+    const previousCategory = this.snapshot.categories.find((c) => c.id === id);
     const previousCategorySnapshot = previousCategory
       ? { name: previousCategory.name, color: previousCategory.color }
       : null;
+
+    if (!isOnline()) {
+      if (previousCategory) {
+        const updated = { ...previousCategory, ...updates };
+        void db.categories.put(updated).catch(() => {});
+        this.setSnapshot((prev) => ({
+          ...prev,
+          categories: sortCategories(prev.categories.map((c) => (c.id === id ? updated : c))),
+          tasks: previousCategorySnapshot
+            ? prev.tasks.map((t) =>
+                t.category === previousCategorySnapshot.name
+                  ? { ...t, category: updates.name, category_color: updates.color }
+                  : t,
+              )
+            : prev.tasks,
+          error: null,
+        }));
+      }
+      await enqueueOp({
+        userId: this.userId,
+        table: 'categories',
+        operation: 'update',
+        recordId: id,
+        data: updates as unknown as Record<string, unknown>,
+        createdAt: Date.now(),
+      });
+      await this.refreshPendingCount();
+      return;
+    }
+
     const { data, error } = await supabase
       .from('categories')
       .update(updates)
@@ -566,22 +821,17 @@ export class ChecklistManager {
     }
 
     const updatedCategory = data as Category;
+    void db.categories.put(updatedCategory).catch(() => {});
     this.setSnapshot((prev) => ({
       ...prev,
       categories: sortCategories(
-        prev.categories.map((category) =>
-          category.id === id ? { ...category, ...updatedCategory } : category,
-        ),
+        prev.categories.map((c) => (c.id === id ? { ...c, ...updatedCategory } : c)),
       ),
       tasks: previousCategorySnapshot
-        ? prev.tasks.map((task) =>
-            task.category === previousCategorySnapshot.name
-              ? {
-                  ...task,
-                  category: updatedCategory.name,
-                  category_color: updatedCategory.color,
-                }
-              : task,
+        ? prev.tasks.map((t) =>
+            t.category === previousCategorySnapshot.name
+              ? { ...t, category: updatedCategory.name, category_color: updatedCategory.color }
+              : t,
           )
         : prev.tasks,
       error: null,
@@ -590,18 +840,13 @@ export class ChecklistManager {
     if (previousCategorySnapshot) {
       const { error: tasksError } = await supabase
         .from('tasks')
-        .update({
-          category: updatedCategory.name,
-          category_color: updatedCategory.color,
-        })
+        .update({ category: updatedCategory.name, category_color: updatedCategory.color })
         .eq('user_id', this.userId)
         .eq('category', previousCategorySnapshot.name);
 
       if (tasksError) {
         await this.refresh(true);
-        throw new Error(
-          tasksError.message || 'Unable to update category. Please try again.',
-        );
+        throw new Error(tasksError.message || 'Unable to update category. Please try again.');
       }
     }
   }
@@ -609,6 +854,27 @@ export class ChecklistManager {
   async deleteCategory(id: string) {
     if (!this.userId) {
       throw new Error('You must be signed in to delete categories.');
+    }
+
+    // Optimistic removal
+    this.setSnapshot((prev) => ({
+      ...prev,
+      categories: sortCategories(prev.categories.filter((c) => c.id !== id)),
+      error: null,
+    }));
+    void db.categories.delete(id).catch(() => {});
+
+    if (!isOnline()) {
+      await enqueueOp({
+        userId: this.userId,
+        table: 'categories',
+        operation: 'delete',
+        recordId: id,
+        data: {},
+        createdAt: Date.now(),
+      });
+      await this.refreshPendingCount();
+      return;
     }
 
     const { error } = await supabase
@@ -620,12 +886,6 @@ export class ChecklistManager {
     if (error) {
       throw new Error(error.message || 'Unable to delete category. Please try again.');
     }
-
-    this.setSnapshot((prev) => ({
-      ...prev,
-      categories: sortCategories(prev.categories.filter((category) => category.id !== id)),
-      error: null,
-    }));
   }
 
   async loadTaskCollaborators(taskId: string) {
@@ -705,6 +965,22 @@ export class ChecklistManager {
     }
   }
 
+  // ── Private helpers ──────────────────────────────────────────────────────
+
+  private async getPendingOpsCount(): Promise<number> {
+    if (!this.userId) return 0;
+    try {
+      return db.pendingOps.where('userId').equals(this.userId).count();
+    } catch {
+      return 0;
+    }
+  }
+
+  private async refreshPendingCount() {
+    const count = await this.getPendingOpsCount();
+    this.setSnapshot((prev) => ({ ...prev, pendingOpsCount: count }));
+  }
+
   private subscribeToRealtime(userId: string) {
     this.unsubscribeFromRealtime();
 
@@ -767,17 +1043,24 @@ export class ChecklistManager {
 
   private normalizeTask(incoming: Task, previous?: Task): Task {
     const accessRole =
-      incoming.access_role ?? previous?.access_role ?? (incoming.user_id === this.userId ? 'owner' : previous?.access_role);
+      incoming.access_role ??
+      previous?.access_role ??
+      (incoming.user_id === this.userId ? 'owner' : previous?.access_role);
     const reminderRecurrence = normalizeReminderRecurrence(
-      (incoming.reminder_recurrence as ReminderRecurrence | null | undefined) ?? previous?.reminder_recurrence ?? null,
+      (incoming.reminder_recurrence as ReminderRecurrence | null | undefined) ??
+        previous?.reminder_recurrence ??
+        null,
     );
 
     return {
       ...incoming,
       reminder_recurrence: reminderRecurrence,
-      reminder_next_trigger_at: incoming.reminder_next_trigger_at ?? previous?.reminder_next_trigger_at ?? null,
-      reminder_last_trigger_at: incoming.reminder_last_trigger_at ?? previous?.reminder_last_trigger_at ?? null,
-      reminder_snoozed_until: incoming.reminder_snoozed_until ?? previous?.reminder_snoozed_until ?? null,
+      reminder_next_trigger_at:
+        incoming.reminder_next_trigger_at ?? previous?.reminder_next_trigger_at ?? null,
+      reminder_last_trigger_at:
+        incoming.reminder_last_trigger_at ?? previous?.reminder_last_trigger_at ?? null,
+      reminder_snoozed_until:
+        incoming.reminder_snoozed_until ?? previous?.reminder_snoozed_until ?? null,
       reminder_timezone: incoming.reminder_timezone ?? previous?.reminder_timezone ?? null,
       access_role: accessRole,
     };
@@ -788,44 +1071,37 @@ export class ChecklistManager {
 
     if (eventType === 'INSERT' && newTask) {
       this.setSnapshot((prev) => {
-        const existing = prev.tasks.find((task) => task.id === newTask.id);
+        const existing = prev.tasks.find((t) => t.id === newTask.id);
         const normalizedTask = this.normalizeTask(newTask, existing);
-        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), normalizedTask].sort(
+        const tasks = [...prev.tasks.filter((t) => t.id !== newTask.id), normalizedTask].sort(
           (a, b) => (a.order ?? 0) - (b.order ?? 0),
         );
-
-        return {
-          ...prev,
-          tasks,
-          error: null,
-        };
+        return { ...prev, tasks, error: null };
       });
+      void db.tasks.put(newTask).catch(() => {});
       return;
     }
 
     if (eventType === 'UPDATE' && newTask) {
       this.setSnapshot((prev) => {
-        const existing = prev.tasks.find((task) => task.id === newTask.id);
+        const existing = prev.tasks.find((t) => t.id === newTask.id);
         const normalizedTask = this.normalizeTask(newTask, existing);
-        const tasks = [...prev.tasks.filter((task) => task.id !== newTask.id), normalizedTask].sort(
+        const tasks = [...prev.tasks.filter((t) => t.id !== newTask.id), normalizedTask].sort(
           (a, b) => (a.order ?? 0) - (b.order ?? 0),
         );
-
-        return {
-          ...prev,
-          tasks,
-          error: null,
-        };
+        return { ...prev, tasks, error: null };
       });
+      void db.tasks.put(newTask).catch(() => {});
       return;
     }
 
     if (eventType === 'DELETE' && oldTask) {
       this.setSnapshot((prev) => ({
         ...prev,
-        tasks: prev.tasks.filter((task) => task.id !== oldTask.id),
+        tasks: prev.tasks.filter((t) => t.id !== oldTask.id),
         error: null,
       }));
+      void db.tasks.delete(oldTask.id).catch(() => {});
     }
   }
 
@@ -834,17 +1110,15 @@ export class ChecklistManager {
 
     if (eventType === 'INSERT' && newCategory) {
       this.setSnapshot((prev) => {
-        const exists = prev.categories.some((category) => category.id === newCategory.id);
-        if (exists) {
-          return prev;
-        }
-
+        const exists = prev.categories.some((c) => c.id === newCategory.id);
+        if (exists) return prev;
         return {
           ...prev,
           categories: sortCategories([...prev.categories, newCategory]),
           error: null,
         };
       });
+      void db.categories.put(newCategory).catch(() => {});
       return;
     }
 
@@ -852,25 +1126,29 @@ export class ChecklistManager {
       this.setSnapshot((prev) => ({
         ...prev,
         categories: sortCategories(
-          prev.categories.map((category) =>
-            category.id === newCategory.id ? { ...category, ...newCategory } : category,
-          ),
+          prev.categories.map((c) => (c.id === newCategory.id ? { ...c, ...newCategory } : c)),
         ),
         error: null,
       }));
+      void db.categories.put(newCategory).catch(() => {});
       return;
     }
 
     if (eventType === 'DELETE' && oldCategory) {
       this.setSnapshot((prev) => ({
         ...prev,
-        categories: sortCategories(prev.categories.filter((category) => category.id !== oldCategory.id)),
+        categories: sortCategories(prev.categories.filter((c) => c.id !== oldCategory.id)),
         error: null,
       }));
+      void db.categories.delete(oldCategory.id).catch(() => {});
     }
   }
 
-  private setSnapshot(patch: Partial<ChecklistSnapshot> | ((snapshot: ChecklistSnapshot) => ChecklistSnapshot)) {
+  private setSnapshot(
+    patch:
+      | Partial<ChecklistSnapshot>
+      | ((snapshot: ChecklistSnapshot) => ChecklistSnapshot),
+  ) {
     if (typeof patch === 'function') {
       this.snapshot = (patch as (snapshot: ChecklistSnapshot) => ChecklistSnapshot)(this.snapshot);
     } else {

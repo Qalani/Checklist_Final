@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
+import { isOnline, enqueueOp } from '@/lib/offlineSync';
 import type { Note } from '@/types';
 import { computeNoteMetadata } from './noteUtils';
 
@@ -73,6 +75,14 @@ function mapRowToNote(row: NoteRow): Note {
   } satisfies Note;
 }
 
+function sortNotes(notes: Note[]): Note[] {
+  return [...notes].sort((a, b) => {
+    const aDate = a.updated_at ?? a.created_at ?? '';
+    const bDate = b.updated_at ?? b.created_at ?? '';
+    return bDate.localeCompare(aDate);
+  });
+}
+
 export async function fetchNotes(userId: string): Promise<Note[]> {
   const { data, error } = await supabase
     .from('notes')
@@ -86,7 +96,7 @@ export async function fetchNotes(userId: string): Promise<Note[]> {
   }
 
   const rows = data ?? [];
-  return rows.map(row => mapRowToNote(row));
+  return rows.map((row) => mapRowToNote(row));
 }
 
 export function useNotes(userId: string | null): UseNotesResult {
@@ -125,24 +135,61 @@ export function useNotes(userId: string | null): UseNotesResult {
       }
 
       const performRefresh = async () => {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           syncing: true,
           status: prev.status === 'idle' ? 'loading' : prev.status,
           error: prev.status === 'error' ? prev.error : null,
         }));
 
+        // Offline: serve IndexedDB
+        if (!isOnline()) {
+          try {
+            const local = await db.notes.where('user_id').equals(userId).toArray();
+            const sorted = sortNotes(local);
+            notesRef.current = sorted;
+            setState({ status: 'ready', syncing: false, notes: sorted, error: null });
+          } catch {
+            setState((prev) => ({
+              ...prev,
+              syncing: false,
+              error: 'You are offline and no local notes are available.',
+            }));
+          }
+          return;
+        }
+
         try {
           const notes = await fetchNotes(userId);
-          setState({
-            status: 'ready',
-            syncing: false,
-            notes,
-            error: null,
-          });
-        } catch (error) {
-          const message = extractErrorMessage(error, 'Failed to load your notes.');
-          setState(prev => ({
+
+          // Persist to IndexedDB in the background
+          void (async () => {
+            try {
+              await db.notes.where('user_id').equals(userId).delete();
+              await db.notes.bulkPut(notes.filter((n) => n.user_id === userId));
+            } catch {
+              // Non-critical
+            }
+          })();
+
+          notesRef.current = notes;
+          setState({ status: 'ready', syncing: false, notes, error: null });
+        } catch (networkError) {
+          // Fall back to IndexedDB
+          try {
+            const local = await db.notes.where('user_id').equals(userId).toArray();
+            if (local.length > 0) {
+              const sorted = sortNotes(local);
+              notesRef.current = sorted;
+              setState({ status: 'ready', syncing: false, notes: sorted, error: null });
+              return;
+            }
+          } catch {
+            // IndexedDB also failed
+          }
+
+          const message = extractErrorMessage(networkError, 'Failed to load your notes.');
+          setState((prev) => ({
             ...prev,
             syncing: false,
             status: prev.status === 'idle' ? 'error' : prev.status,
@@ -171,6 +218,21 @@ export function useNotes(userId: string | null): UseNotesResult {
     }
 
     currentUserIdRef.current = userId;
+
+    // Show IndexedDB cache immediately before the network request lands
+    void (async () => {
+      try {
+        const local = await db.notes.where('user_id').equals(userId).toArray();
+        if (local.length > 0) {
+          const sorted = sortNotes(local);
+          notesRef.current = sorted;
+          setState({ status: 'ready', syncing: true, notes: sorted, error: null });
+        }
+      } catch {
+        // Ignore – runRefresh will set loading state
+      }
+    })();
+
     void runRefresh(true);
   }, [reset, runRefresh, state.status, userId]);
 
@@ -186,8 +248,8 @@ export function useNotes(userId: string | null): UseNotesResult {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${userId}` },
-        payload => {
-          setState(prev => {
+        (payload) => {
+          setState((prev) => {
             const notes = notesRef.current;
 
             if (payload.eventType === 'DELETE') {
@@ -195,18 +257,21 @@ export function useNotes(userId: string | null): UseNotesResult {
               if (!removedId) {
                 return prev;
               }
-              const filtered = notes.filter(note => note.id !== removedId);
+              const filtered = notes.filter((note) => note.id !== removedId);
               notesRef.current = filtered;
+              void db.notes.delete(removedId).catch(() => {});
               return { ...prev, notes: filtered };
             }
 
-            const row = (payload.new as NoteRow | null);
+            const row = payload.new as NoteRow | null;
             if (!row) {
               return prev;
             }
 
             const mapped = mapRowToNote(row);
-            const existingIndex = notes.findIndex(note => note.id === mapped.id);
+            void db.notes.put(mapped).catch(() => {});
+
+            const existingIndex = notes.findIndex((note) => note.id === mapped.id);
             let nextNotes: Note[];
 
             if (existingIndex >= 0) {
@@ -216,14 +281,9 @@ export function useNotes(userId: string | null): UseNotesResult {
               nextNotes = [mapped, ...notes];
             }
 
-            nextNotes.sort((a, b) => {
-              const aDate = a.updated_at ?? a.created_at ?? '';
-              const bDate = b.updated_at ?? b.created_at ?? '';
-              return bDate.localeCompare(aDate);
-            });
-
-            notesRef.current = nextNotes;
-            return { ...prev, notes: nextNotes };
+            const sorted = sortNotes(nextNotes);
+            notesRef.current = sorted;
+            return { ...prev, notes: sorted };
           });
         },
       )
@@ -261,10 +321,40 @@ export function useNotes(userId: string | null): UseNotesResult {
       }
 
       const { html, summary, wordCount } = computeNoteMetadata(rawContent);
+      const noteId = crypto.randomUUID();
+      const now = isoTimestamp ?? new Date().toISOString();
 
-      setState(prev => ({ ...prev, syncing: true }));
+      const optimisticNote: Note = {
+        id: noteId,
+        user_id: userId,
+        title: baseTitle,
+        content: html,
+        summary,
+        word_count: wordCount,
+        created_at: now,
+        updated_at: now,
+      };
 
-      const record: Partial<NoteRow> & { user_id: string } = {
+      // Optimistic state + IndexedDB
+      const nextNotes = sortNotes([optimisticNote, ...notesRef.current]);
+      notesRef.current = nextNotes;
+      setState({ status: 'ready', syncing: false, notes: nextNotes, error: null });
+      void db.notes.put(optimisticNote).catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'notes',
+          operation: 'create',
+          recordId: noteId,
+          data: optimisticNote as unknown as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        return { note: optimisticNote };
+      }
+
+      const record: Partial<NoteRow> & { id: string; user_id: string } = {
+        id: noteId,
         user_id: userId,
         title: baseTitle,
         content: html,
@@ -284,21 +374,23 @@ export function useNotes(userId: string | null): UseNotesResult {
         .single<NoteRow>();
 
       if (error) {
-        const message = extractErrorMessage(error, 'Unable to create note.');
-        setState(prev => ({ ...prev, syncing: false, error: message }));
-        return { error: message };
+        await enqueueOp({
+          userId,
+          table: 'notes',
+          operation: 'create',
+          recordId: noteId,
+          data: optimisticNote as unknown as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        return { note: optimisticNote };
       }
 
       const note = mapRowToNote(data);
-      const nextNotes = [note, ...notesRef.current];
-      nextNotes.sort((a, b) => {
-        const aDate = a.updated_at ?? a.created_at ?? '';
-        const bDate = b.updated_at ?? b.created_at ?? '';
-        return bDate.localeCompare(aDate);
-      });
+      void db.notes.put(note).catch(() => {});
 
-      notesRef.current = nextNotes;
-      setState({ status: 'ready', syncing: false, notes: nextNotes, error: null });
+      const refreshed = sortNotes(notesRef.current.map((n) => (n.id === noteId ? note : n)));
+      notesRef.current = refreshed;
+      setState({ status: 'ready', syncing: false, notes: refreshed, error: null });
 
       return { note };
     },
@@ -333,7 +425,28 @@ export function useNotes(userId: string | null): UseNotesResult {
         return;
       }
 
-      setState(prev => ({ ...prev, syncing: true }));
+      // Optimistic update
+      const existing = notesRef.current.find((n) => n.id === id);
+      if (existing) {
+        const optimistic: Note = { ...existing, ...updates, updated_at: new Date().toISOString() };
+        void db.notes.put(optimistic).catch(() => {});
+        const refreshed = sortNotes(notesRef.current.map((n) => (n.id === id ? optimistic : n)));
+        notesRef.current = refreshed;
+        setState((prev) => ({ ...prev, notes: refreshed }));
+      }
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'notes',
+          operation: 'update',
+          recordId: id,
+          data: updates as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
+        if (existing) return { note: { ...existing, ...updates } as Note };
+        return;
+      }
 
       const { data, error } = await supabase
         .from('notes')
@@ -344,29 +457,27 @@ export function useNotes(userId: string | null): UseNotesResult {
         .single<NoteRow>();
 
       if (error || !data) {
+        await enqueueOp({
+          userId,
+          table: 'notes',
+          operation: 'update',
+          recordId: id,
+          data: updates as Record<string, unknown>,
+          createdAt: Date.now(),
+        });
         const message = extractErrorMessage(error, 'Unable to update note.');
-        setState(prev => ({ ...prev, syncing: false, error: message }));
+        setState((prev) => ({ ...prev, error: message }));
         return { error: message };
       }
 
       const mapped = mapRowToNote(data);
-      const existingIndex = notesRef.current.findIndex(note => note.id === mapped.id);
-      const nextNotes = [...notesRef.current];
+      void db.notes.put(mapped).catch(() => {});
 
-      if (existingIndex >= 0) {
-        nextNotes[existingIndex] = mapped;
-      } else {
-        nextNotes.unshift(mapped);
-      }
-
-      nextNotes.sort((a, b) => {
-        const aDate = a.updated_at ?? a.created_at ?? '';
-        const bDate = b.updated_at ?? b.created_at ?? '';
-        return bDate.localeCompare(aDate);
-      });
-
-      notesRef.current = nextNotes;
-      setState(prev => ({ ...prev, syncing: false, notes: nextNotes }));
+      const refreshed = sortNotes(
+        notesRef.current.map((n) => (n.id === mapped.id ? mapped : n)),
+      );
+      notesRef.current = refreshed;
+      setState((prev) => ({ ...prev, notes: refreshed }));
 
       return { note: mapped };
     },
@@ -374,7 +485,7 @@ export function useNotes(userId: string | null): UseNotesResult {
   );
 
   const deleteNote = useCallback<UseNotesResult['deleteNote']>(
-    async id => {
+    async (id) => {
       if (!userId) {
         return { error: 'You must be signed in to delete a note.' };
       }
@@ -383,7 +494,23 @@ export function useNotes(userId: string | null): UseNotesResult {
         return { error: 'Missing note identifier.' };
       }
 
-      setState(prev => ({ ...prev, syncing: true }));
+      // Optimistic removal
+      const filtered = notesRef.current.filter((n) => n.id !== id);
+      notesRef.current = filtered;
+      setState((prev) => ({ ...prev, notes: filtered }));
+      void db.notes.delete(id).catch(() => {});
+
+      if (!isOnline()) {
+        await enqueueOp({
+          userId,
+          table: 'notes',
+          operation: 'delete',
+          recordId: id,
+          data: {},
+          createdAt: Date.now(),
+        });
+        return;
+      }
 
       const { error } = await supabase
         .from('notes')
@@ -393,19 +520,15 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       if (error) {
         const message = extractErrorMessage(error, 'Unable to delete note.');
-        setState(prev => ({ ...prev, syncing: false, error: message }));
+        setState((prev) => ({ ...prev, error: message }));
         return { error: message };
       }
-
-      const filtered = notesRef.current.filter(note => note.id !== id);
-      notesRef.current = filtered;
-      setState(prev => ({ ...prev, syncing: false, notes: filtered }));
     },
     [userId],
   );
 
   const refresh = useCallback<UseNotesResult['refresh']>(
-    async force => {
+    async (force) => {
       await runRefresh(force ?? false);
     },
     [runRefresh],
