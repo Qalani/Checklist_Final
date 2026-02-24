@@ -1,4 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/local-db';
+import { enqueue } from '@/lib/sync-queue';
+import { isOnline } from '@/lib/network-status';
 import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type {
@@ -73,6 +76,13 @@ export interface FetchTasksOptions {
 }
 
 export async function fetchTasks(userId: string, options: FetchTasksOptions = {}): Promise<Task[]> {
+  if (!isOnline()) {
+    const rows = await db.tasks.where('user_id').equals(userId).toArray();
+    return rows
+      .map(task => ({ ...normalizeReminderFields(task), access_role: task.access_role ?? 'owner' }))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }
+
   const rangeStart = typeof options.from === 'number' ? options.from : 0;
   const calculatedEnd =
     typeof options.to === 'number'
@@ -102,6 +112,16 @@ export async function fetchTasks(userId: string, options: FetchTasksOptions = {}
 }
 
 export async function fetchCategories(userId: string): Promise<Category[]> {
+  if (!isOnline()) {
+    const rows = await db.categories.where('user_id').equals(userId).toArray();
+    return rows.sort((a, b) => {
+      if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+        return a.created_at.localeCompare(b.created_at);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }
+
   const { data, error } = await supabase
     .from('categories')
     .select('*')
@@ -248,6 +268,20 @@ export class ChecklistManager {
         delete sanitizedInput.user_id;
         delete sanitizedInput.order;
 
+        if (!isOnline()) {
+          const updatedTask = this.normalizeTask({ ...existingTask, ...sanitizedInput } as Task, existingTask);
+          await db.tasks.put(updatedTask);
+          await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: updatedTask as Record<string, unknown> });
+          this.setSnapshot((prev) => ({
+            ...prev,
+            tasks: prev.tasks
+              .map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task))
+              .sort((a, b) => a.order - b.order),
+            error: null,
+          }));
+          return {};
+        }
+
         const { data, error } = await supabase
           .from('tasks')
           .update(sanitizedInput)
@@ -288,6 +322,43 @@ export class ChecklistManager {
         (max, current) => Math.max(max, current.order ?? 0),
         -1,
       ) + 1;
+
+      if (!isOnline()) {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const newTask: Task = {
+          id,
+          user_id: this.userId as string,
+          title: trimmedTitle,
+          description: taskData.description ?? '',
+          priority: taskData.priority as Task['priority'],
+          category: taskData.category as string,
+          category_color: taskData.category_color as string,
+          completed: Boolean(taskData.completed),
+          due_date: (taskData.due_date as string | null | undefined) ?? null,
+          reminder_minutes_before: (taskData.reminder_minutes_before as number | null | undefined) ?? null,
+          reminder_recurrence: (taskData.reminder_recurrence as Task['reminder_recurrence']) ?? null,
+          reminder_next_trigger_at: (taskData.reminder_next_trigger_at as string | null | undefined) ?? null,
+          reminder_snoozed_until: (taskData.reminder_snoozed_until as string | null | undefined) ?? null,
+          reminder_timezone: (taskData.reminder_timezone as string | null | undefined) ?? null,
+          order: nextOrder,
+          access_role: 'owner',
+          created_at: now,
+          updated_at: now,
+        };
+        const normalizedNew = this.normalizeTask(newTask);
+        await db.tasks.put(normalizedNew);
+        await enqueue({ table_name: 'tasks', operation: 'INSERT', payload: normalizedNew as Record<string, unknown> });
+        this.setSnapshot((prev) => {
+          const existingTasks = prev.tasks.filter((task) => task.id !== normalizedNew.id);
+          return {
+            ...prev,
+            tasks: [...existingTasks, normalizedNew].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+            error: null,
+          };
+        });
+        return {};
+      }
 
       const response = await fetch('/api/tasks', {
         method: 'POST',
@@ -363,6 +434,17 @@ export class ChecklistManager {
       return;
     }
 
+    if (!isOnline()) {
+      await db.tasks.delete(id);
+      await enqueue({ table_name: 'tasks', operation: 'DELETE', payload: { id } });
+      this.setSnapshot((prev) => ({
+        ...prev,
+        tasks: prev.tasks.filter((task) => task.id !== id),
+        error: null,
+      }));
+      return;
+    }
+
     const { error } = await supabase
       .from('tasks')
       .delete()
@@ -400,6 +482,18 @@ export class ChecklistManager {
       this.setSnapshot((prev) => ({
         ...prev,
         error: 'You do not have permission to update this task.',
+      }));
+      return;
+    }
+
+    if (!isOnline()) {
+      const updatedTask = this.normalizeTask({ ...targetTask, completed }, targetTask);
+      await db.tasks.put(updatedTask);
+      await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: { id, completed } });
+      this.setSnapshot((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
+        error: null,
       }));
       return;
     }
@@ -458,6 +552,21 @@ export class ChecklistManager {
       updatedReorderedTasks.map((task) => [task.id, task] as const),
     );
 
+    if (!isOnline()) {
+      for (const task of updatedReorderedTasks) {
+        await db.tasks.put({ ...task });
+        await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: { id: task.id, order: task.order } });
+      }
+      this.setSnapshot((prev) => ({
+        ...prev,
+        tasks: prev.tasks
+          .map((task) => updatedTasksById.get(task.id) ?? task)
+          .sort((a, b) => a.order - b.order),
+        error: null,
+      }));
+      return;
+    }
+
     try {
       for (const task of updatedReorderedTasks) {
         const { error } = await supabase
@@ -490,6 +599,21 @@ export class ChecklistManager {
   async createCategory(input: CategoryInput) {
     if (!this.userId) {
       throw new Error('You must be signed in to add categories.');
+    }
+
+    if (!isOnline()) {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const savedCategory: Category = { id, user_id: this.userId as string, name: input.name, color: input.color, created_at: now };
+      await db.categories.put(savedCategory);
+      await enqueue({ table_name: 'categories', operation: 'INSERT', payload: savedCategory as Record<string, unknown> });
+      this.setSnapshot((prev) => {
+        const categories = prev.categories.some((c) => c.id === savedCategory.id)
+          ? prev.categories.map((c) => (c.id === savedCategory.id ? { ...c, ...savedCategory } : c))
+          : [...prev.categories, savedCategory];
+        return { ...prev, categories: sortCategories(categories), error: null };
+      });
+      return savedCategory;
     }
 
     const { data: sessionResult } = await supabase.auth.getSession();
@@ -553,6 +677,29 @@ export class ChecklistManager {
     const previousCategorySnapshot = previousCategory
       ? { name: previousCategory.name, color: previousCategory.color }
       : null;
+
+    if (!isOnline()) {
+      if (!previousCategory) throw new Error('Category not found.');
+      const updatedCategory: Category = { ...previousCategory, ...updates };
+      await db.categories.put(updatedCategory);
+      await enqueue({ table_name: 'categories', operation: 'UPDATE', payload: updatedCategory as Record<string, unknown> });
+      this.setSnapshot((prev) => ({
+        ...prev,
+        categories: sortCategories(
+          prev.categories.map((category) => (category.id === id ? { ...category, ...updatedCategory } : category)),
+        ),
+        tasks: previousCategorySnapshot
+          ? prev.tasks.map((task) =>
+              task.category === previousCategorySnapshot.name
+                ? { ...task, category: updatedCategory.name, category_color: updatedCategory.color }
+                : task,
+            )
+          : prev.tasks,
+        error: null,
+      }));
+      return;
+    }
+
     const { data, error } = await supabase
       .from('categories')
       .update(updates)
@@ -609,6 +756,17 @@ export class ChecklistManager {
   async deleteCategory(id: string) {
     if (!this.userId) {
       throw new Error('You must be signed in to delete categories.');
+    }
+
+    if (!isOnline()) {
+      await db.categories.delete(id);
+      await enqueue({ table_name: 'categories', operation: 'DELETE', payload: { id } });
+      this.setSnapshot((prev) => ({
+        ...prev,
+        categories: sortCategories(prev.categories.filter((category) => category.id !== id)),
+        error: null,
+      }));
+      return;
     }
 
     const { error } = await supabase
