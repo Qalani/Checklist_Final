@@ -22,6 +22,7 @@ import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useNotes } from '@/features/notes/useNotes';
 import type { Note } from '@/types';
 import { extractPlainText } from '@/features/notes/noteUtils';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 
 function LoadingScreen() {
   return (
@@ -416,6 +417,7 @@ export default function NotesPage() {
                               <span className="text-[11px] text-zen-400">
                                 {note.word_count ? `${note.word_count} words` : 'Draft'}
                               </span>
+                              <SyncStatusBadge tableName="notes" id={note.id} />
                             </button>
                           );
                         })

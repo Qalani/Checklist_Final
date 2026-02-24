@@ -36,6 +36,7 @@ import {
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
 import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -382,6 +383,7 @@ function SortableTaskItem({
                   Snoozed until {snoozedLabel}
                 </span>
               )}
+              <SyncStatusBadge tableName="tasks" id={task.id} />
             </div>
 
             {isExpanded && (

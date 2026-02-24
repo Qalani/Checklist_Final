@@ -65,3 +65,16 @@ export async function incrementRetry(id: number): Promise<void> {
       entry.retries += 1;
     });
 }
+
+/**
+ * Re-enqueues a previously failed sync entry with a fresh retry counter.
+ * Call this when the user clicks "Retry" on an item in error state.
+ */
+export async function retryEntry(entry: SyncQueueEntry): Promise<void> {
+  await db.sync_queue.delete(entry.id!);
+  await enqueue({
+    table_name: entry.table_name,
+    operation: entry.operation,
+    payload: entry.payload,
+  });
+}
