@@ -21,6 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { CheckSquare, GripVertical, Plus, Square, Trash2 } from 'lucide-react';
 import type { ListItem } from '@/types';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 interface ListItemsBoardProps {
   items: ListItem[];
@@ -258,6 +259,9 @@ function SortableListItem({
             )}
           </p>
         )}
+        <div className="mt-1">
+          <SyncStatusBadge tableName="list_items" id={item.id} />
+        </div>
       </div>
       {canEdit && editing && onDelete && (
         <button

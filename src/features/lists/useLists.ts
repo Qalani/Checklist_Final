@@ -1,5 +1,8 @@
 import { MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/local-db';
+import { enqueue } from '@/lib/sync-queue';
+import { isOnline } from '@/lib/network-status';
 import type { List, ListItem, ListMember } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -119,6 +122,38 @@ function mapListItem(row: ListItemRow): ListItem {
 }
 
 export async function fetchLists(userId: string): Promise<List[]> {
+  if (!isOnline()) {
+    const memberships = await db.list_members.where('user_id').equals(userId).toArray();
+    const listIds = memberships.map(m => m.list_id);
+    if (listIds.length === 0) return [];
+
+    const lists = await db.lists.where('id').anyOf(listIds).toArray();
+    const allItems = await db.list_items.where('list_id').anyOf(listIds).toArray();
+
+    const itemsByList = new Map<string, ListItem[]>();
+    for (const item of allItems) {
+      const existing = itemsByList.get(item.list_id) ?? [];
+      existing.push(item);
+      itemsByList.set(item.list_id, existing);
+    }
+
+    const roleByListId = new Map(memberships.map(m => [m.list_id, m.role]));
+
+    return lists
+      .map(list => ({
+        ...list,
+        owner_id: list.user_id,
+        access_role: roleByListId.get(list.id) ?? 'owner',
+        public_share_token: list.public_share_token ?? null,
+        public_share_enabled: Boolean(list.public_share_token),
+        items: (itemsByList.get(list.id) ?? []).sort((a, b) => {
+          if (a.position === b.position) return (a.created_at ?? '').localeCompare(b.created_at ?? '');
+          return a.position - b.position;
+        }),
+      }))
+      .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  }
+
   const { data, error } = await supabase
     .from('list_members')
     .select(
@@ -459,6 +494,45 @@ export function useLists(userId: string | null): UseListsResult {
             .map((item, index) => ({ ...item, position: index }))
         : [];
 
+      if (!isOnline()) {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const newList: List = {
+          id,
+          name: input.name,
+          description: input.description ?? null,
+          created_at: now,
+          user_id: userId,
+          owner_id: userId,
+          access_role: 'owner',
+          public_share_token: null,
+          public_share_enabled: false,
+          items: [],
+        };
+        await db.lists.put(newList);
+        await db.list_members.put({ id: crypto.randomUUID(), list_id: id, user_id: userId, role: 'owner', created_at: now });
+        await enqueue({ table_name: 'lists', operation: 'INSERT', payload: { id, name: input.name, description: input.description ?? null, user_id: userId, created_at: now } });
+
+        if (initialItems.length > 0) {
+          const mappedItems: ListItem[] = [];
+          for (const item of initialItems) {
+            const itemId = crypto.randomUUID();
+            const newItem: ListItem = { id: itemId, list_id: id, content: item.content, completed: item.completed, position: item.position, created_at: now };
+            await db.list_items.put(newItem);
+            await enqueue({ table_name: 'list_items', operation: 'INSERT', payload: newItem as Record<string, unknown> });
+            mappedItems.push(newItem);
+          }
+          newList.items = mappedItems.sort((a, b) => a.position - b.position);
+        }
+
+        setState(prev => ({
+          ...prev,
+          lists: [...prev.lists, newList],
+          status: prev.status === 'idle' ? 'ready' : prev.status,
+        }));
+        return;
+      }
+
       let createdListId: string | null = null;
 
       try {
@@ -581,6 +655,19 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to update this list.' };
       }
 
+      if (!isOnline()) {
+        const updated: List = { ...existing, name: input.name, description: input.description ?? null };
+        await db.lists.put(updated);
+        await enqueue({ table_name: 'lists', operation: 'UPDATE', payload: { id, name: input.name, description: input.description ?? null } });
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === id ? { ...list, name: input.name, description: input.description ?? null } : list,
+          ),
+        }));
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('lists')
@@ -634,6 +721,13 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'Only owners can delete a list.' };
       }
 
+      if (!isOnline()) {
+        await db.lists.delete(id);
+        await enqueue({ table_name: 'lists', operation: 'DELETE', payload: { id } });
+        setState(prev => ({ ...prev, lists: prev.lists.filter(list => list.id !== id) }));
+        return;
+      }
+
       try {
         const { error } = await supabase
           .from('lists')
@@ -669,6 +763,25 @@ export function useLists(userId: string | null): UseListsResult {
       const role = targetList.access_role ?? 'owner';
       if (!['owner', 'editor'].includes(role)) {
         return { error: 'You do not have permission to add items to this list.' };
+      }
+
+      if (!isOnline()) {
+        const itemId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
+        const nextPosition = existingItems.reduce((max, i) => Math.max(max, i.position), -1) + 1;
+        const item: ListItem = { id: itemId, list_id: listId, content, completed: false, position: nextPosition, created_at: now };
+        await db.list_items.put(item);
+        await enqueue({ table_name: 'list_items', operation: 'INSERT', payload: item as Record<string, unknown> });
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === listId
+              ? { ...list, items: [...(list.items ?? []), item].sort((a, b) => a.position - b.position) }
+              : list,
+          ),
+        }));
+        return { item };
       }
 
       try {
@@ -741,6 +854,24 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'Nothing to update.' };
       }
 
+      if (!isOnline()) {
+        const existingItem = targetList.items?.find(item => item.id === itemId);
+        if (!existingItem) return { error: 'List item not found.' };
+        const now = new Date().toISOString();
+        const item: ListItem = { ...existingItem, ...payload, updated_at: now } as ListItem;
+        await db.list_items.put(item);
+        await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: item as Record<string, unknown> });
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === item.list_id
+              ? { ...list, items: (list.items ?? []).map(i => (i.id === itemId ? item : i)) }
+              : list,
+          ),
+        }));
+        return { item };
+      }
+
       try {
         const { data, error } = await supabase
           .from('list_items')
@@ -794,6 +925,20 @@ export function useLists(userId: string | null): UseListsResult {
       const role = targetList.access_role ?? 'owner';
       if (!['owner', 'editor'].includes(role)) {
         return { error: 'You do not have permission to delete this list item.' };
+      }
+
+      if (!isOnline()) {
+        await db.list_items.delete(itemId);
+        await enqueue({ table_name: 'list_items', operation: 'DELETE', payload: { id: itemId } });
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === targetList.id
+              ? { ...list, items: (list.items ?? []).filter(item => item.id !== itemId) }
+              : list,
+          ),
+        }));
+        return;
       }
 
       try {
@@ -851,6 +996,18 @@ export function useLists(userId: string | null): UseListsResult {
           return { error: 'List items changed. Refresh and try again.' };
         }
         nextItems.push({ ...item, position: index });
+      }
+
+      if (!isOnline()) {
+        for (const item of nextItems) {
+          await db.list_items.put(item);
+          await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: { id: item.id, position: item.position } });
+        }
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list => (list.id === listId ? { ...list, items: nextItems } : list)),
+        }));
+        return;
       }
 
       setState(prev => ({

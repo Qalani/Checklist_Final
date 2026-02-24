@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/lib/theme-context";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider>{children}</ThemeProvider>
         <ServiceWorkerRegistration />
+        <OfflineIndicator />
       </body>
     </html>
   );

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/local-db';
+import { enqueue } from '@/lib/sync-queue';
+import { isOnline } from '@/lib/network-status';
 import type { ZenReminder } from '@/types';
 
 export type ZenRemindersStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -99,6 +102,11 @@ function normalizeDateInput(input: string | Date): string {
 }
 
 export async function fetchZenReminders(userId: string): Promise<ZenReminder[]> {
+  if (!isOnline()) {
+    const rows = await db.zen_reminders.where('user_id').equals(userId).toArray();
+    return rows.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
+  }
+
   const { data, error } = await supabase
     .from('zen_reminders')
     .select('*')
@@ -271,6 +279,30 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         return { error: extractErrorMessage(error, 'Please provide a valid reminder time.') };
       }
 
+      if (!isOnline()) {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const reminder: ZenReminder = {
+          id,
+          user_id: userId,
+          title: input.title.trim(),
+          description: input.description?.trim() ? input.description.trim() : null,
+          remind_at: remindAtISO,
+          timezone: input.timezone ?? null,
+          created_at: now,
+          updated_at: now,
+        };
+        await db.zen_reminders.put(reminder);
+        await enqueue({ table_name: 'zen_reminders', operation: 'INSERT', payload: reminder as Record<string, unknown> });
+        setState(prev => {
+          const next = [...prev.reminders, reminder];
+          next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
+          remindersRef.current = next;
+          return { ...prev, reminders: next };
+        });
+        return { reminder };
+      }
+
       const payload = {
         user_id: userId,
         title: input.title.trim(),
@@ -331,6 +363,25 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         return;
       }
 
+      if (!isOnline()) {
+        const existing = remindersRef.current.find(r => r.id === id);
+        if (!existing) return { error: 'Reminder not found in local store.' };
+        const now = new Date().toISOString();
+        const updated: ZenReminder = { ...existing, ...updates, updated_at: now } as ZenReminder;
+        await db.zen_reminders.put(updated);
+        await enqueue({ table_name: 'zen_reminders', operation: 'UPDATE', payload: updated as Record<string, unknown> });
+        setState(prev => {
+          const index = prev.reminders.findIndex(r => r.id === id);
+          if (index === -1) return prev;
+          const next = [...prev.reminders];
+          next[index] = updated;
+          next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
+          remindersRef.current = next;
+          return { ...prev, reminders: next };
+        });
+        return { reminder: updated };
+      }
+
       const { data, error } = await supabase
         .from('zen_reminders')
         .update(updates)
@@ -366,6 +417,17 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
     async (id) => {
       if (!userId) {
         return { error: 'You must be signed in to delete reminders.' };
+      }
+
+      if (!isOnline()) {
+        await db.zen_reminders.delete(id);
+        await enqueue({ table_name: 'zen_reminders', operation: 'DELETE', payload: { id } });
+        setState(prev => {
+          const filtered = prev.reminders.filter(r => r.id !== id);
+          remindersRef.current = filtered;
+          return { ...prev, reminders: filtered };
+        });
+        return;
       }
 
       const { error } = await supabase

@@ -1,5 +1,10 @@
-const CACHE_NAME = "zen-workspace-cache-v3";
+const CACHE_NAME = "zen-workspace-cache-v4";
+const API_CACHE_NAME = "zen-api-cache-v1";
 const ASSETS_TO_CACHE = ["/"];
+
+// GET-only API routes served with stale-while-revalidate.
+// POST/PUT/DELETE are never cached.
+const SWR_API_PATHS = ["/api/tasks", "/api/categories"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -17,7 +22,7 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) =>
         Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
+            if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
               return caches.delete(cacheName);
             }
             return undefined;
@@ -28,6 +33,27 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ─── Background Sync ──────────────────────────────────────────────────────────
+// When the browser fires the 'zen-sync' tag (registered via enqueue() in
+// sync-queue.ts), we cannot access Dexie or Supabase directly from the SW
+// context, so we delegate back to every open page via postMessage.  The page
+// listens for ZEN_SYNC_PUSH and calls pushQueue() from sync-engine.ts.
+self.addEventListener("sync", (event) => {
+  if (event.tag === "zen-sync") {
+    event.waitUntil(
+      self.clients
+        .matchAll({ includeUncontrolled: true, type: "window" })
+        .then((clients) => {
+          for (const client of clients) {
+            client.postMessage({ type: "ZEN_SYNC_PUSH" });
+          }
+        })
+    );
+  }
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function shouldHandleAsNavigation(request) {
   if (request.mode === "navigate") {
     return true;
@@ -37,7 +63,18 @@ function shouldHandleAsNavigation(request) {
   return acceptHeader.includes("text/html");
 }
 
-async function cacheResponse(request, response) {
+function isSWRApiRoute(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    return SWR_API_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(path + "/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function cacheStaticResponse(request, response) {
   if (
     response &&
     response.status === 200 &&
@@ -50,6 +87,29 @@ async function cacheResponse(request, response) {
   }
 }
 
+// Stale-while-revalidate: return the cached entry immediately (if any) while
+// fetching a fresh copy in the background to update the cache.
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(API_CACHE_NAME);
+  const cached = await cache.match(request);
+
+  // Always kick off a background network request to refresh the cache.
+  const networkFetch = fetch(request)
+    .then(async (response) => {
+      if (response.ok) {
+        await cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  // Serve the cached entry immediately; fall back to the network response on
+  // first visit (no cache yet) or when offline and no cache is available.
+  return cached ?? (await networkFetch) ?? new Response("Offline", { status: 503 });
+}
+
+// ─── Fetch handler ────────────────────────────────────────────────────────────
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -57,11 +117,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Stale-while-revalidate for designated read-only API routes.
+  if (isSWRApiRoute(request.url)) {
+    event.respondWith(staleWhileRevalidate(request));
+    return;
+  }
+
   if (shouldHandleAsNavigation(request)) {
     event.respondWith(
       fetch(request)
         .then(async (response) => {
-          await cacheResponse(request, response);
+          await cacheStaticResponse(request, response);
           return response;
         })
         .catch(async () => {
@@ -89,7 +155,7 @@ self.addEventListener("fetch", (event) => {
 
       return fetch(request)
         .then(async (response) => {
-          await cacheResponse(request, response);
+          await cacheStaticResponse(request, response);
           return response;
         })
         .catch(() =>

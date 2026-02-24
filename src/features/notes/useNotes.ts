@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/local-db';
+import { enqueue } from '@/lib/sync-queue';
+import { isOnline } from '@/lib/network-status';
 import type { Note } from '@/types';
 import { computeNoteMetadata } from './noteUtils';
 
@@ -74,6 +77,15 @@ function mapRowToNote(row: NoteRow): Note {
 }
 
 export async function fetchNotes(userId: string): Promise<Note[]> {
+  if (!isOnline()) {
+    const rows = await db.notes.where('user_id').equals(userId).toArray();
+    return rows.sort((a, b) => {
+      const aDate = a.updated_at ?? a.created_at ?? '';
+      const bDate = b.updated_at ?? b.created_at ?? '';
+      return bDate.localeCompare(aDate);
+    });
+  }
+
   const { data, error } = await supabase
     .from('notes')
     .select('*')
@@ -262,6 +274,32 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       const { html, summary, wordCount } = computeNoteMetadata(rawContent);
 
+      if (!isOnline()) {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const note: Note = {
+          id,
+          user_id: userId,
+          title: baseTitle,
+          content: html,
+          summary: summary ?? undefined,
+          word_count: wordCount ?? undefined,
+          created_at: isoTimestamp ?? now,
+          updated_at: isoTimestamp ?? now,
+        };
+        await db.notes.put(note);
+        await enqueue({ table_name: 'notes', operation: 'INSERT', payload: note as Record<string, unknown> });
+        const nextNotes = [note, ...notesRef.current];
+        nextNotes.sort((a, b) => {
+          const aDate = a.updated_at ?? a.created_at ?? '';
+          const bDate = b.updated_at ?? b.created_at ?? '';
+          return bDate.localeCompare(aDate);
+        });
+        notesRef.current = nextNotes;
+        setState({ status: 'ready', syncing: false, notes: nextNotes, error: null });
+        return { note };
+      }
+
       setState(prev => ({ ...prev, syncing: true }));
 
       const record: Partial<NoteRow> & { user_id: string } = {
@@ -333,6 +371,25 @@ export function useNotes(userId: string | null): UseNotesResult {
         return;
       }
 
+      if (!isOnline()) {
+        const existing = notesRef.current.find(n => n.id === id);
+        if (!existing) return { error: 'Note not found in local store.' };
+        const now = new Date().toISOString();
+        const updated: Note = { ...existing, ...updates, updated_at: now } as Note;
+        await db.notes.put(updated);
+        await enqueue({ table_name: 'notes', operation: 'UPDATE', payload: updated as Record<string, unknown> });
+        const nextNotes = notesRef.current
+          .map(n => (n.id === id ? updated : n))
+          .sort((a, b) => {
+            const aDate = a.updated_at ?? a.created_at ?? '';
+            const bDate = b.updated_at ?? b.created_at ?? '';
+            return bDate.localeCompare(aDate);
+          });
+        notesRef.current = nextNotes;
+        setState(prev => ({ ...prev, notes: nextNotes }));
+        return { note: updated };
+      }
+
       setState(prev => ({ ...prev, syncing: true }));
 
       const { data, error } = await supabase
@@ -381,6 +438,15 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       if (!id) {
         return { error: 'Missing note identifier.' };
+      }
+
+      if (!isOnline()) {
+        await db.notes.delete(id);
+        await enqueue({ table_name: 'notes', operation: 'DELETE', payload: { id } });
+        const filtered = notesRef.current.filter(n => n.id !== id);
+        notesRef.current = filtered;
+        setState(prev => ({ ...prev, notes: filtered }));
+        return;
       }
 
       setState(prev => ({ ...prev, syncing: true }));
