@@ -43,7 +43,6 @@ const USER_SCOPED = new Set<SyncableTable>([
 
 // Generic Dexie table accessor — typed as any so the union of eight
 // distinct Table<T> generics doesn't produce incompatible-call errors.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getDexieTable(name: SyncableTable): Table<any, string> {
   const map = {
     tasks: db.tasks,
@@ -55,7 +54,6 @@ function getDexieTable(name: SyncableTable): Table<any, string> {
     zen_reminders: db.zen_reminders,
     calendar_events: db.calendar_events,
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return map[name] as unknown as Table<any, string>;
 }
 
@@ -94,7 +92,6 @@ export async function pullLatest(
   const tsField = TIMESTAMP_FIELD[table];
 
   // supabase is created without a Database generic so .from() accepts any string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase.from(table) as any).select('*').gt(tsField, since);
 
   if (USER_SCOPED.has(table)) {
@@ -147,11 +144,9 @@ export async function pushQueue(): Promise<void> {
       const { table_name, operation, payload } = entry;
 
       if (operation === 'INSERT' || operation === 'UPDATE') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.from(table_name) as any).upsert(payload);
         if (error) throw error;
       } else if (operation === 'DELETE') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.from(table_name) as any)
           .delete()
           .eq('id', (payload as { id: string }).id);
