@@ -37,3 +37,24 @@ export function onStatusChange(cb: StatusCallback): () => void {
     callbacks.delete(cb);
   };
 }
+
+/**
+ * Verifies actual internet reachability with a lightweight HTTP probe.
+ * navigator.onLine only checks local network connectivity and can return
+ * false even when the device has working internet (e.g. in containers,
+ * behind certain proxies, or on some Linux setups). This function
+ * confirms connectivity by hitting our own health endpoint.
+ */
+export async function checkHttpConnectivity(): Promise<boolean> {
+  if (typeof window === 'undefined') return true;
+  try {
+    const res = await fetch('/api/health', {
+      method: 'GET',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
