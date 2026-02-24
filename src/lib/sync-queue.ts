@@ -7,6 +7,12 @@ export type { SyncQueueEntry };
 /**
  * Adds a new operation to the sync queue.
  * Called whenever a write is made while offline so it survives page refreshes.
+ *
+ * After writing to the queue we attempt to register a Background Sync tag so
+ * the browser can wake the page and replay the queue even if the user closed
+ * the tab while offline and reopens it once connectivity is restored.
+ * Background Sync is not universally supported (e.g. Safari); the existing
+ * online-event fallback in sync-engine.ts remains the safety net.
  */
 export async function enqueue(
   entry: Pick<SyncQueueEntry, 'table_name' | 'operation' | 'payload'>
@@ -18,6 +24,20 @@ export async function enqueue(
     queued_at: new Date().toISOString(),
     retries: 0,
   });
+
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        // The Background Sync API is not in the base SW type; cast narrowly.
+        const syncManager = (reg as ServiceWorkerRegistration & {
+          sync?: { register(tag: string): Promise<void> };
+        }).sync;
+        return syncManager?.register('zen-sync');
+      })
+      .catch(() => {
+        // Best-effort — not all browsers support Background Sync.
+      });
+  }
 }
 
 /**

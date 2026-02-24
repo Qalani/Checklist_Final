@@ -176,4 +176,15 @@ if (typeof window !== 'undefined') {
   onStatusChange((online) => {
     if (online) pushQueue().catch(console.error);
   });
+
+  // Handle the ZEN_SYNC_PUSH message posted by the service worker's Background
+  // Sync handler.  The SW cannot access Dexie/Supabase directly so it delegates
+  // queue replay back to the page via postMessage.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
+      if ((event.data as { type?: string } | null)?.type === 'ZEN_SYNC_PUSH') {
+        pushQueue().catch(console.error);
+      }
+    });
+  }
 }
