@@ -305,9 +305,7 @@ export class ChecklistManager {
       }
 
       const { data: sessionResult } = await supabase.auth.getSession();
-      const token = sessionResult.session?.access_token;
-
-      if (!token) {
+      if (!sessionResult.session) {
         throw new Error('You must be signed in to add tasks.');
       }
 
@@ -360,15 +358,13 @@ export class ChecklistManager {
         return {};
       }
 
-      const response = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const { data: savedTask, error: insertError } = await supabase
+        .from('tasks')
+        .insert({
           title: trimmedTitle,
-          description: taskData.description ?? '',
+          description: typeof taskData.description === 'string' && taskData.description.trim()
+            ? taskData.description.trim()
+            : null,
           priority: taskData.priority,
           category: taskData.category,
           category_color: taskData.category_color,
@@ -380,26 +376,13 @@ export class ChecklistManager {
           reminder_snoozed_until: taskData.reminder_snoozed_until ?? null,
           reminder_timezone: taskData.reminder_timezone ?? null,
           order: nextOrder,
-        }),
-      });
+          user_id: this.userId,
+        })
+        .select()
+        .single();
 
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const message =
-          typeof (payload as { error?: unknown })?.error === 'string'
-            ? (payload as { error?: string }).error
-            : 'Unable to save task. Please try again.';
-        throw new Error(message);
-      }
-
-      const savedTask =
-        payload && typeof payload === 'object'
-          ? ((payload as { task?: Task }).task as Task | undefined)
-          : undefined;
-
-      if (!savedTask) {
-        throw new Error('Unable to save task. Please try again.');
+      if (insertError || !savedTask) {
+        throw new Error(insertError?.message || 'Unable to save task. Please try again.');
       }
 
       const normalizedTask = this.normalizeTask(savedTask as Task);
@@ -617,38 +600,22 @@ export class ChecklistManager {
     }
 
     const { data: sessionResult } = await supabase.auth.getSession();
-    const token = sessionResult.session?.access_token;
-
-    if (!token) {
+    if (!sessionResult.session) {
       throw new Error('You must be signed in to add categories.');
     }
 
-    const response = await fetch('/api/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(input),
-    });
+    const { data: savedCategory, error: insertError } = await supabase
+      .from('categories')
+      .insert({
+        name: input.name.trim(),
+        color: input.color.trim(),
+        user_id: this.userId,
+      })
+      .select()
+      .single();
 
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const message =
-        typeof (payload as { error?: unknown })?.error === 'string'
-          ? (payload as { error?: string }).error
-          : 'Unable to save category. Please try again.';
-      throw new Error(message);
-    }
-
-    const savedCategory =
-      payload && typeof payload === 'object'
-        ? ((payload as { category?: Category }).category as Category | undefined)
-        : undefined;
-
-    if (!savedCategory) {
-      throw new Error('Unable to save category. Please try again.');
+    if (insertError || !savedCategory) {
+      throw new Error(insertError?.message || 'Unable to save category. Please try again.');
     }
 
     this.setSnapshot((prev) => {
