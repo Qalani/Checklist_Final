@@ -197,7 +197,6 @@ export function useCalendarEvents(userId: string | null) {
         throw new Error('The uploaded file was empty.');
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let ICAL: any;
       try {
         ICAL = await import('ical.js');
@@ -237,7 +236,6 @@ export function useCalendarEvents(userId: string | null) {
 
       for (const vevent of vevents) {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const event = new ICAL.Event(vevent as any);
           if (!event.startDate) continue;
 
