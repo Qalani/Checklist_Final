@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import useSWR, { type KeyedMutator } from 'swr';
 import { supabase } from '@/lib/supabase';
-import type { CalendarEventRecord, CalendarResponsePayload, CalendarScope } from './types';
+import type { Task, Note, ZenReminder, CalendarEvent } from '@/types';
+import { getUpcomingReminderOccurrences, shouldScheduleReminder } from '@/utils/reminders';
+import type {
+  CalendarEventRecord,
+  CalendarNoteMetadata,
+  CalendarReminderMetadata,
+  CalendarResponsePayload,
+  CalendarScope,
+  CalendarTaskMetadata,
+  CalendarUserEventMetadata,
+  CalendarZenReminderMetadata,
+} from './types';
 
 interface UseCalendarOptions {
   start: Date;
@@ -23,38 +34,266 @@ interface CalendarDataResult {
   mutate: KeyedMutator<CalendarResponsePayload>;
 }
 
+const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+type AccessRole = 'owner' | 'editor' | 'viewer';
+
+function toIsoString(date: Date): string {
+  return new Date(date.getTime()).toISOString();
+}
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date.getTime());
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function endOfDay(date: Date): Date {
+  const s = startOfDay(date);
+  return new Date(s.getTime() + ONE_DAY_MS);
+}
+
+function buildReminderMetadata(task: Task): CalendarReminderMetadata | null {
+  const hasReminder =
+    typeof task.reminder_minutes_before === 'number' ||
+    Boolean(task.reminder_recurrence) ||
+    Boolean(task.reminder_next_trigger_at) ||
+    Boolean(task.reminder_snoozed_until);
+
+  if (!hasReminder) return null;
+
+  return {
+    minutesBefore: task.reminder_minutes_before ?? null,
+    recurrence: (task.reminder_recurrence ?? null) as CalendarReminderMetadata['recurrence'],
+    nextTriggerAt: task.reminder_next_trigger_at ?? null,
+    snoozedUntil: task.reminder_snoozed_until ?? null,
+    timezone: task.reminder_timezone ?? null,
+  };
+}
+
 async function fetchCalendarPayload(
+  userId: string,
   startIso: string,
   endIso: string,
   scope: CalendarScope,
 ): Promise<CalendarResponsePayload> {
-  const { data: sessionResult } = await supabase.auth.getSession();
-  const token = sessionResult.session?.access_token;
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  const rangeStartMs = start.getTime();
+  const rangeEndMs = end.getTime();
 
-  if (!token) {
-    throw new Error('You must be signed in to load the calendar.');
-  }
+  const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult, calendarEventsResult] =
+    await Promise.all([
+      supabase.from('tasks').select('*').eq('user_id', userId),
+      supabase.from('task_collaborators').select('role, task:tasks(*)').eq('user_id', userId),
+      supabase.from('notes').select('*').eq('user_id', userId),
+      supabase.from('zen_reminders').select('*').eq('user_id', userId),
+      supabase.from('calendar_events').select('*').eq('user_id', userId),
+    ]);
 
-  const params = new URLSearchParams({ start: startIso, end: endIso });
-  if (scope !== 'all') {
-    params.set('scope', scope);
-  }
+  if (ownedTasksResult.error) throw new Error(ownedTasksResult.error.message);
+  if (sharedTasksResult.error) throw new Error(sharedTasksResult.error.message);
+  if (notesResult.error) throw new Error(notesResult.error.message);
+  if (remindersResult.error) throw new Error(remindersResult.error.message);
+  if (calendarEventsResult.error) throw new Error(calendarEventsResult.error.message);
 
-  const response = await fetch(`/api/calendar?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
+  const tasksById = new Map<string, Task & { access_role?: AccessRole }>();
+
+  const ownedTasks = (ownedTasksResult.data ?? []) as Task[];
+  ownedTasks.forEach((task) => {
+    tasksById.set(task.id, { ...task, access_role: 'owner' });
   });
 
-  const payload = await response.json().catch(() => ({}));
+  type SharedTaskRow = { role?: AccessRole | null; task?: Task | Task[] | null };
+  const sharedTaskRows = (sharedTasksResult.data ?? []) as SharedTaskRow[];
+  sharedTaskRows.forEach((row) => {
+    const rawTask = row.task;
+    const task = Array.isArray(rawTask) ? rawTask[0] ?? null : rawTask ?? null;
+    if (!task) return;
+    const current = tasksById.get(task.id);
+    if (current && current.user_id === userId) return;
+    tasksById.set(task.id, { ...task, access_role: (row.role as AccessRole | null) ?? 'viewer' });
+  });
 
-  if (!response.ok) {
-    const message = typeof (payload as { error?: unknown }).error === 'string'
-      ? ((payload as { error?: string }).error as string)
-      : 'Failed to load calendar data.';
-    throw new Error(message);
+  const events: CalendarEventRecord[] = [];
+
+  const tasks = Array.from(tasksById.values()).filter((task) => {
+    if (scope === 'all') return true;
+    const isPersonal = task.user_id === userId;
+    return scope === 'personal' ? isPersonal : !isPersonal;
+  });
+
+  tasks.forEach((task) => {
+    const taskScope: 'personal' | 'shared' = task.user_id === userId ? 'personal' : 'shared';
+    const accessRole: AccessRole = task.access_role ?? (taskScope === 'personal' ? 'owner' : 'viewer');
+    const canEdit = accessRole === 'owner' || accessRole === 'editor';
+
+    if (task.due_date) {
+      const dueDate = new Date(task.due_date);
+      const dueTime = dueDate.getTime();
+      if (!isNaN(dueTime) && dueTime >= rangeStartMs && dueTime <= rangeEndMs) {
+        const dueEnd = new Date(dueTime + THIRTY_MINUTES_MS);
+        const reminderMetadata = buildReminderMetadata(task);
+        const taskMetadata: CalendarTaskMetadata = {
+          taskId: task.id,
+          accessRole,
+          canEdit,
+          category: task.category,
+          categoryColor: task.category_color,
+          dueDate: task.due_date ?? null,
+          ...(reminderMetadata ? { reminder: reminderMetadata } : {}),
+        };
+        events.push({
+          id: `task-due:${task.id}:${task.due_date}`,
+          entityId: task.id,
+          type: 'task_due',
+          title: task.title,
+          description: task.description ?? null,
+          start: toIsoString(dueDate),
+          end: toIsoString(dueEnd),
+          allDay: false,
+          scope: taskScope,
+          metadata: taskMetadata,
+        });
+      }
+    }
+
+    if (shouldScheduleReminder(task)) {
+      const occurrences = getUpcomingReminderOccurrences(task, { from: start, limit: 12 });
+      occurrences.forEach((occurrence) => {
+        const occurrenceTime = occurrence.getTime();
+        if (occurrenceTime < rangeStartMs || occurrenceTime > rangeEndMs) return;
+        const reminderEnd = new Date(occurrenceTime + THIRTY_MINUTES_MS);
+        const reminderMetadata = buildReminderMetadata(task);
+        const metadata: CalendarTaskMetadata = {
+          taskId: task.id,
+          accessRole,
+          canEdit,
+          category: task.category,
+          categoryColor: task.category_color,
+          dueDate: task.due_date ?? null,
+          ...(reminderMetadata ? { reminder: reminderMetadata } : {}),
+        };
+        events.push({
+          id: `task-reminder:${task.id}:${occurrence.toISOString()}`,
+          entityId: task.id,
+          type: 'task_reminder',
+          title: `${task.title} reminder`,
+          description: task.description ?? null,
+          start: toIsoString(occurrence),
+          end: toIsoString(reminderEnd),
+          allDay: false,
+          scope: taskScope,
+          metadata,
+        });
+      });
+    }
+  });
+
+  if (scope !== 'shared') {
+    const calendarEvents = (calendarEventsResult.data ?? []) as CalendarEvent[];
+    calendarEvents.forEach((calendarEvent) => {
+      const startDate = new Date(calendarEvent.start_time);
+      const endDateCandidate = new Date(calendarEvent.end_time);
+      if (isNaN(startDate.getTime())) return;
+
+      let endDate = endDateCandidate;
+      if (isNaN(endDateCandidate.getTime()) || endDateCandidate.getTime() <= startDate.getTime()) {
+        endDate = new Date(startDate.getTime() + (calendarEvent.all_day ? ONE_DAY_MS : THIRTY_MINUTES_MS));
+      }
+
+      const metadata: CalendarUserEventMetadata = {
+        eventId: calendarEvent.id,
+        canEdit: true,
+        location: calendarEvent.location ?? null,
+        importSource: calendarEvent.import_source ?? null,
+        importUid: calendarEvent.import_uid ?? null,
+        createdAt: calendarEvent.created_at ?? null,
+        updatedAt: calendarEvent.updated_at ?? null,
+      };
+
+      events.push({
+        id: `event:${calendarEvent.id}:${calendarEvent.start_time}`,
+        entityId: calendarEvent.id,
+        type: 'event',
+        title: calendarEvent.title,
+        description: calendarEvent.description ?? null,
+        start: toIsoString(startDate),
+        end: toIsoString(endDate),
+        allDay: Boolean(calendarEvent.all_day),
+        scope: 'personal',
+        metadata,
+      });
+    });
   }
 
-  return payload as CalendarResponsePayload;
+  const notes = (notesResult.data ?? []) as Note[];
+  notes.forEach((note) => {
+    const timestamp = note.updated_at ?? note.created_at;
+    if (!timestamp) return;
+    const noteDate = new Date(timestamp);
+    const noteTime = noteDate.getTime();
+    if (isNaN(noteTime) || noteTime < rangeStartMs || noteTime > rangeEndMs) return;
+
+    const noteStart = startOfDay(noteDate);
+    const noteEnd = endOfDay(noteDate);
+    const noteMetadata: CalendarNoteMetadata = {
+      noteId: note.id,
+      updatedAt: note.updated_at ?? null,
+      createdAt: note.created_at ?? null,
+    };
+
+    events.push({
+      id: `note:${note.id}:${noteStart.toISOString()}`,
+      entityId: note.id,
+      type: 'note',
+      title: note.title,
+      description: (note as unknown as { summary?: string | null }).summary ?? null,
+      start: toIsoString(noteStart),
+      end: toIsoString(noteEnd),
+      allDay: true,
+      scope: 'personal',
+      metadata: noteMetadata,
+    });
+  });
+
+  const zenReminders = (remindersResult.data ?? []) as ZenReminder[];
+  zenReminders.forEach((reminder) => {
+    const remindDate = reminder.remind_at ? new Date(reminder.remind_at) : null;
+    if (!remindDate) return;
+    const remindTime = remindDate.getTime();
+    if (isNaN(remindTime) || remindTime < rangeStartMs || remindTime > rangeEndMs) return;
+
+    const remindEnd = new Date(remindTime + THIRTY_MINUTES_MS);
+    const reminderMetadata: CalendarZenReminderMetadata = {
+      reminderId: reminder.id,
+      timezone: reminder.timezone ?? null,
+      createdAt: reminder.created_at ?? null,
+      updatedAt: reminder.updated_at ?? null,
+    };
+
+    events.push({
+      id: `zen-reminder:${reminder.id}:${reminder.remind_at}`,
+      entityId: reminder.id,
+      type: 'zen_reminder',
+      title: reminder.title,
+      description: reminder.description ?? null,
+      start: toIsoString(remindDate),
+      end: toIsoString(remindEnd),
+      allDay: false,
+      scope: 'personal',
+      metadata: reminderMetadata,
+    });
+  });
+
+  events.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+  return {
+    range: { start: toIsoString(start), end: toIsoString(end) },
+    events,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 export function useCalendarData(userId: string | null, options: UseCalendarOptions): CalendarDataResult {
@@ -68,14 +307,12 @@ export function useCalendarData(userId: string | null, options: UseCalendarOptio
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<CalendarResponsePayload>(
     shouldFetch ? ['calendar', userId, startIso, endIso, scope] : null,
-    () => fetchCalendarPayload(startIso, endIso, scope),
+    () => fetchCalendarPayload(userId!, startIso, endIso, scope),
     { revalidateOnFocus: false },
   );
 
   useEffect(() => {
-    if (!userId || !shouldFetch) {
-      return;
-    }
+    if (!userId || !shouldFetch) return;
 
     const tasksChannel = supabase
       .channel(`calendar:tasks:${userId}`)
@@ -86,33 +323,29 @@ export function useCalendarData(userId: string | null, options: UseCalendarOptio
 
     const notesChannel = supabase
       .channel(`calendar:notes:${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${userId}` }, () => {
-        void mutate();
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${userId}` },
+        () => { void mutate(); },
+      )
       .subscribe();
 
     const collaboratorsChannel = supabase
       .channel(`calendar:task-collaborators:${userId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'task_collaborators',
-        filter: `user_id=eq.${userId}`,
-      }, () => {
-        void mutate();
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_collaborators', filter: `user_id=eq.${userId}` },
+        () => { void mutate(); },
+      )
       .subscribe();
 
     const calendarEventsChannel = supabase
       .channel(`calendar:user-events:${userId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'calendar_events',
-        filter: `user_id=eq.${userId}`,
-      }, () => {
-        void mutate();
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'calendar_events', filter: `user_id=eq.${userId}` },
+        () => { void mutate(); },
+      )
       .subscribe();
 
     return () => {
