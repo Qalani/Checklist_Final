@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "493005152250",
+    "project_id": "zenworkspace-7f2ec",
+    "storage_bucket": "zenworkspace-7f2ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:493005152250:android:de4a1ad706ac3ed48f4e43",
+        "android_client_info": {
+          "package_name": "com.zenworkspace.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEqPB_4p1oa3FdEfIcBI5Cqyz7V-AnAAg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
