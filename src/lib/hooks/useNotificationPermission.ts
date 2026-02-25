@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { isCapacitorNative } from '@/lib/capacitor-auth';
 
 export type ExtendedNotificationPermission = NotificationPermission | 'unsupported' | 'pending';
 
@@ -29,11 +30,23 @@ function buildGuidanceMessage(permission: ExtendedNotificationPermission): strin
 }
 
 export function useNotificationPermission(): NotificationPermissionState {
-  const [permission, setPermission] = useState<ExtendedNotificationPermission>('pending');
+  // On Capacitor native, push notifications are handled by the OS via FCM.
+  // Report permission as granted so UI elements that gate on notification
+  // availability (e.g. the reminder submit button) remain enabled.
+  const isNative = typeof window !== 'undefined' && isCapacitorNative();
+
+  const [permission, setPermission] = useState<ExtendedNotificationPermission>(
+    isNative ? 'granted' : 'pending',
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [requesting, setRequesting] = useState(false);
 
   const updatePermissionFromBrowser = useCallback(() => {
+    if (isNative) {
+      // Native push is managed separately; nothing to do here.
+      return;
+    }
+
     if (typeof window === 'undefined') {
       return;
     }
@@ -47,13 +60,18 @@ export function useNotificationPermission(): NotificationPermissionState {
     const permissionFromBrowser = window.Notification.permission;
     setPermission(permissionFromBrowser);
     setStatusMessage(buildGuidanceMessage(permissionFromBrowser));
-  }, []);
+  }, [isNative]);
 
   useEffect(() => {
     updatePermissionFromBrowser();
   }, [updatePermissionFromBrowser]);
 
   const requestPermission = useCallback(async () => {
+    if (isNative) {
+      // Native permission is requested by PushNotificationInitializer at startup.
+      return;
+    }
+
     if (typeof window === 'undefined' || !('Notification' in window) || !window.Notification) {
       setPermission('unsupported');
       setStatusMessage(buildGuidanceMessage('unsupported'));
