@@ -1,0 +1,62 @@
+name: Capacitor Android Sync
+
+# Runs on every push to main/master, EXCEPT when only android/ files changed.
+# That path exclusion is what breaks the auto-commit loop: when this workflow
+# commits updated Android project files back, those commits only touch android/**
+# and therefore don't re-trigger the workflow.
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'android/**'
+      - '.github/**'
+
+jobs:
+  cap-sync:
+    runs-on: ubuntu-latest
+
+    # Write permission is required so the auto-commit step can push back.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use a PAT if you need to trigger downstream workflows from the
+          # auto-commit; the default GITHUB_TOKEN is fine otherwise.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # build:android = scripts/build-capacitor.js (static Next.js export)
+      #               + npx cap sync android (copy assets + wire up plugins)
+      #
+      # NEXT_PUBLIC_* vars are baked into the static bundle at build time.
+      # Add them as repository secrets:
+      #   Settings → Secrets and variables → Actions → New repository secret
+      - name: Build static export and sync Capacitor
+        run: npm run build:android
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      # Commits any files changed inside android/ back to the branch.
+      # [skip ci] in the message prevents GitHub from treating it as a new
+      # workflow trigger (belt-and-suspenders alongside paths-ignore above).
+      - name: Commit updated Android project files
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: cap sync android [skip ci]'
+          file_pattern: android/**
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
