@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
+import { isCapacitorNative, signInWithGoogleNative } from '@/lib/capacitor-auth';
 
 export default function AuthPanel() {
   const router = useRouter();
@@ -16,37 +17,22 @@ export default function AuthPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { redirectForRouter, redirectForSupabase } = useMemo(() => {
-    // When running inside a Capacitor native app (Android/iOS) the WebView
-    // serves the bundle at https://localhost.  After Google OAuth, Supabase
-    // must redirect back to that origin so the WebView regains control instead
-    // of sending the user to the public website.
-    // IMPORTANT: add https://localhost to Supabase → Authentication →
-    // URL Configuration → Redirect URLs so Supabase accepts this value.
-    const isCapacitorNative =
-      typeof window !== 'undefined' &&
-      !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
-        .Capacitor?.isNativePlatform?.();
+  const isNative = useMemo(() => isCapacitorNative(), []);
 
-    if (isCapacitorNative) {
-      return {
-        redirectForRouter: '/',
-        redirectForSupabase: 'https://localhost/',
-      };
-    }
+  // For web OAuth, Supabase needs a redirect URL back to the browser origin.
+  // On native this is unused because the native flow handles its own redirect
+  // via a custom URL-scheme deep link.
+  const redirectForSupabase = useMemo(() => {
+    if (isNative) return undefined;
 
     const configuredRedirect = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-
     try {
       if (configuredRedirect && configuredRedirect.length > 0) {
         const parsed = new URL(configuredRedirect);
         parsed.pathname = '/';
         parsed.hash = '';
         parsed.search = '';
-        return {
-          redirectForRouter: '/',
-          redirectForSupabase: parsed.toString(),
-        };
+        return parsed.toString();
       }
     } catch (error) {
       console.warn('Invalid NEXT_PUBLIC_SITE_URL provided, falling back to window origin.', error);
@@ -54,18 +40,11 @@ export default function AuthPanel() {
 
     if (typeof window !== 'undefined') {
       const origin = window.location.origin;
-      const normalizedOrigin = origin.endsWith('/') ? origin : `${origin}/`;
-      return {
-        redirectForRouter: '/',
-        redirectForSupabase: normalizedOrigin,
-      };
+      return origin.endsWith('/') ? origin : `${origin}/`;
     }
 
-    return {
-      redirectForRouter: '/',
-      redirectForSupabase: undefined,
-    };
-  }, []);
+    return undefined;
+  }, [isNative]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,8 +78,8 @@ export default function AuthPanel() {
 
         if (error) {
           setError(error.message);
-        } else if (redirectForRouter) {
-          router.replace(redirectForRouter);
+        } else {
+          router.replace('/');
         }
       }
     } catch (err) {
@@ -116,6 +95,16 @@ export default function AuthPanel() {
     setIsOAuthLoading(true);
 
     try {
+      if (isNative) {
+        // Native flow: open Chrome Custom Tab → deep-link back via custom scheme
+        await signInWithGoogleNative();
+        // Session is now set — onAuthStateChange in useAuthSession will pick it
+        // up automatically, so nothing more to do here.
+        setIsOAuthLoading(false);
+        return;
+      }
+
+      // Web flow: let Supabase handle the full-page redirect
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: redirectForSupabase ? { redirectTo: redirectForSupabase } : undefined,
@@ -140,8 +129,9 @@ export default function AuthPanel() {
         setIsOAuthLoading(false);
       }
       // Supabase will redirect on success so we don't need to clear the loading state.
-    } catch (_err) {
-      setError('Unexpected error. Please try again.');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unexpected error. Please try again.';
+      setError(errMsg);
       setIsOAuthLoading(false);
     }
   };
