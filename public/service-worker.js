@@ -33,6 +33,54 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ─── Push Notifications (web / PWA) ───────────────────────────────────────────
+// On native Android, FCM delivers notifications via @capacitor/push-notifications.
+// This handler covers the PWA / browser path where the service worker receives
+// push events from a Web Push subscription.
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let title = "Zen Workspace";
+  let body = "You have a new reminder";
+
+  try {
+    const payload = event.data.json();
+    title = payload.notification?.title ?? payload.title ?? title;
+    body = payload.notification?.body ?? payload.body ?? body;
+  } catch {
+    body = event.data.text() || body;
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: "zen-reminder",
+      renotify: true,
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if ("focus" in client) {
+            return client.focus();
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow("/reminders");
+        }
+      })
+  );
+});
+
 // ─── Background Sync ──────────────────────────────────────────────────────────
 // When the browser fires the 'zen-sync' tag (registered via enqueue() in
 // sync-queue.ts), we cannot access Dexie or Supabase directly from the SW
