@@ -17,6 +17,24 @@ export default function AuthPanel() {
   const [error, setError] = useState<string | null>(null);
 
   const { redirectForRouter, redirectForSupabase } = useMemo(() => {
+    // When running inside a Capacitor native app (Android/iOS) the WebView
+    // serves the bundle at https://localhost.  After Google OAuth, Supabase
+    // must redirect back to that origin so the WebView regains control instead
+    // of sending the user to the public website.
+    // IMPORTANT: add https://localhost to Supabase → Authentication →
+    // URL Configuration → Redirect URLs so Supabase accepts this value.
+    const isCapacitorNative =
+      typeof window !== 'undefined' &&
+      !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+        .Capacitor?.isNativePlatform?.();
+
+    if (isCapacitorNative) {
+      return {
+        redirectForRouter: '/',
+        redirectForSupabase: 'https://localhost/',
+      };
+    }
+
     const configuredRedirect = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
     try {
