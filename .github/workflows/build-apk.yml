@@ -28,6 +28,9 @@ jobs:
 
       - name: Build Next.js static export
         run: npm run build:capacitor
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Sync Capacitor assets to Android
         run: npx cap sync android
