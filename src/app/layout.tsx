@@ -1,12 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme-context";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Zen Workspace - Composed Productivity Hub",
@@ -31,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-theme={DEFAULT_THEME_ID}>
-      <body className={inter.className}>
+      <body>
         <ThemeProvider>{children}</ThemeProvider>
         <ServiceWorkerRegistration />
         <OfflineIndicator />

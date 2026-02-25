@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Build Next.js static export
-        run: CAPACITOR_BUILD=true npx next build
+        run: npm run build:capacitor
 
       - name: Sync Capacitor assets to Android
         run: npx cap sync android

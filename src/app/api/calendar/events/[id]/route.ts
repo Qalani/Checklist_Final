@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 
-export const runtime = 'nodejs';
-export function generateStaticParams() { return []; }
 
 function parseOptionalIsoDate(value: unknown, label: string): Date {
   if (typeof value !== 'string') {

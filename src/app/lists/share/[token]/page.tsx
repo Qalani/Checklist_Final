@@ -8,19 +8,26 @@ import Link from 'next/link';
 import { List as ListIcon, CalendarDays, Mail, ArrowLeft, ArrowUpRight } from 'lucide-react';
 import SharedListItems from './SharedListItems';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// generateStaticParams returns [] so no pages are pre-rendered during
+// static export (output: 'export' for Capacitor). The route is fully
+// functional when served from a Next.js server with Supabase configured.
+export function generateStaticParams() { return []; }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase credentials are not configured for public list sharing.');
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase credentials are not configured for public list sharing.');
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
 }
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
 
 type PublicListItem = {
   id: string;
@@ -43,7 +50,7 @@ const fetchPublicList = cache(async (token: string): Promise<PublicListRecord | 
     return null;
   }
 
-  const { data, error } = await supabase.rpc('get_public_list', {
+  const { data, error } = await getSupabase().rpc('get_public_list', {
     list_token: token,
   });
 
