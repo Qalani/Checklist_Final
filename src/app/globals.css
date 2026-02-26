@@ -83,71 +83,77 @@ body {
 :root[data-theme='midnight-dark'] {
   color-scheme: dark;
   --color-surface: 12 14 22;
-  --color-zen-50: 18 21 32;
-  --color-zen-100: 30 36 54;
-  --color-zen-200: 185 194 218;
-  --color-zen-300: 145 156 186;
-  --color-zen-400: 200 208 228;
-  --color-zen-500: 214 220 236;
-  --color-zen-600: 226 230 242;
-  --color-zen-700: 234 238 247;
-  --color-zen-800: 241 244 250;
-  --color-zen-900: 247 249 253;
-  --color-sage-50: 12 24 26;
-  --color-sage-100: 20 44 50;
-  --color-sage-200: 80 190 198;
-  --color-sage-300: 108 206 212;
-  --color-sage-400: 138 218 224;
-  --color-sage-500: 166 228 232;
-  --color-sage-600: 192 236 240;
-  --color-sage-700: 214 244 246;
-  --color-sage-800: 230 249 250;
-  --color-sage-900: 242 252 253;
-  --color-warm-50: 22 16 32;
-  --color-warm-100: 42 30 58;
-  --color-warm-200: 166 130 204;
-  --color-warm-300: 184 154 216;
-  --color-warm-400: 200 176 226;
-  --color-warm-500: 214 196 234;
-  --color-warm-600: 226 212 242;
-  --color-warm-700: 236 226 248;
-  --color-warm-800: 243 236 251;
-  --color-warm-900: 249 246 253;
+  /* zen: cool silver-blue — 50/100 = dark surfaces; 200+ = text/UI (bright) */
+  --color-zen-50: 16 19 30;
+  --color-zen-100: 26 30 48;
+  --color-zen-200: 170 180 214;
+  --color-zen-300: 183 193 222;
+  --color-zen-400: 197 207 232;
+  --color-zen-500: 210 218 240;
+  --color-zen-600: 221 228 245;
+  --color-zen-700: 231 236 249;
+  --color-zen-800: 239 242 252;
+  --color-zen-900: 246 249 253;
+  /* sage: teal/cyan — 50/100 = dark teal surfaces; 200+ = bright teal accents */
+  --color-sage-50: 10 22 24;
+  --color-sage-100: 16 38 44;
+  --color-sage-200: 72 180 190;
+  --color-sage-300: 100 202 210;
+  --color-sage-400: 132 218 226;
+  --color-sage-500: 160 228 236;
+  --color-sage-600: 185 238 244;
+  --color-sage-700: 208 245 250;
+  --color-sage-800: 228 250 253;
+  --color-sage-900: 244 252 254;
+  /* warm: amethyst — 50/100 = dark purple surfaces; 200+ = bright purple accents */
+  --color-warm-50: 18 14 28;
+  --color-warm-100: 32 24 52;
+  --color-warm-200: 158 126 200;
+  --color-warm-300: 176 148 214;
+  --color-warm-400: 193 168 226;
+  --color-warm-500: 208 186 236;
+  --color-warm-600: 220 204 244;
+  --color-warm-700: 230 220 249;
+  --color-warm-800: 239 233 252;
+  --color-warm-900: 248 244 254;
 }
 
 :root[data-theme='forest-dark'] {
   color-scheme: dark;
   --color-surface: 12 17 14;
-  --color-zen-50: 18 25 20;
-  --color-zen-100: 32 44 36;
-  --color-zen-200: 184 202 190;
-  --color-zen-300: 146 168 154;
-  --color-zen-400: 200 214 204;
-  --color-zen-500: 214 226 218;
-  --color-zen-600: 226 234 228;
-  --color-zen-700: 234 240 236;
-  --color-zen-800: 241 246 243;
-  --color-zen-900: 248 250 249;
-  --color-sage-50: 14 26 18;
-  --color-sage-100: 24 48 32;
-  --color-sage-200: 96 192 138;
-  --color-sage-300: 124 208 162;
-  --color-sage-400: 152 222 184;
-  --color-sage-500: 176 232 202;
-  --color-sage-600: 198 240 218;
-  --color-sage-700: 218 246 230;
-  --color-sage-800: 234 250 240;
-  --color-sage-900: 246 253 248;
-  --color-warm-50: 26 20 12;
-  --color-warm-100: 48 36 18;
-  --color-warm-200: 202 156 74;
-  --color-warm-300: 216 176 98;
-  --color-warm-400: 226 194 122;
-  --color-warm-500: 234 210 148;
-  --color-warm-600: 240 224 174;
-  --color-warm-700: 246 234 196;
-  --color-warm-800: 250 242 216;
-  --color-warm-900: 252 248 234;
+  /* zen: warm sage-silver — 50/100 = dark surfaces; 200+ = text/UI (bright) */
+  --color-zen-50: 16 23 18;
+  --color-zen-100: 26 38 30;
+  --color-zen-200: 162 178 167;
+  --color-zen-300: 176 192 180;
+  --color-zen-400: 190 205 194;
+  --color-zen-500: 203 217 207;
+  --color-zen-600: 215 228 219;
+  --color-zen-700: 225 237 229;
+  --color-zen-800: 236 244 238;
+  --color-zen-900: 248 252 250;
+  /* sage: emerald — 50/100 = dark green surfaces; 200+ = bright emerald accents */
+  --color-sage-50: 12 24 16;
+  --color-sage-100: 20 44 28;
+  --color-sage-200: 82 182 118;
+  --color-sage-300: 110 202 148;
+  --color-sage-400: 138 218 174;
+  --color-sage-500: 164 230 196;
+  --color-sage-600: 188 240 214;
+  --color-sage-700: 210 247 230;
+  --color-sage-800: 229 251 241;
+  --color-sage-900: 244 253 248;
+  /* warm: amber/gold — 50/100 = dark amber surfaces; 200+ = bright amber accents */
+  --color-warm-50: 24 18 10;
+  --color-warm-100: 44 32 14;
+  --color-warm-200: 190 150 74;
+  --color-warm-300: 205 166 94;
+  --color-warm-400: 218 183 116;
+  --color-warm-500: 229 198 140;
+  --color-warm-600: 238 214 164;
+  --color-warm-700: 244 226 188;
+  --color-warm-800: 249 238 212;
+  --color-warm-900: 253 248 234;
 }
 
 @layer base {
@@ -170,4 +176,79 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/*
+ * Dark-mode button / filled-accent background corrections.
+ *
+ * Shades 500-700 are near-white text colours in both dark themes.
+ * Solid interactive elements (buttons, banners) that use these shades
+ * with white text would become unreadable without an override.
+ *
+ * Each filled shade is remapped to its -200 accent at reduced opacity,
+ * which composites over the very dark surface and produces a saturated
+ * but dark background — keeping white text clearly legible.
+ *
+ *   -500 / -600  →  accent-200 @ 45 %  (default state)
+ *   -700         →  accent-200 @ 58 %  (hover-up / pressed)
+ *   hover:-500   →  accent-200 @ 35 %  (hover-down variant)
+ *   hover:-600   →  accent-200 @ 45 %  (hover partner for -500 base)
+ *   hover:-700   →  accent-200 @ 58 %  (hover partner for -600 base)
+ *
+ * Specificity: [attr + class] = (0,2,0) beats Tailwind's plain [class] = (0,1,0).
+ * These rules live outside @layer so they also win over any in-layer utility.
+ */
+
+/* sage (teal / emerald) */
+[data-theme$='dark'] .bg-sage-500,
+[data-theme$='dark'] .bg-sage-600 {
+  background-color: rgb(var(--color-sage-200) / 0.45);
+}
+[data-theme$='dark'] .bg-sage-700 {
+  background-color: rgb(var(--color-sage-200) / 0.58);
+}
+[data-theme$='dark'] .hover\:bg-sage-500:hover {
+  background-color: rgb(var(--color-sage-200) / 0.35);
+}
+[data-theme$='dark'] .hover\:bg-sage-600:hover {
+  background-color: rgb(var(--color-sage-200) / 0.45);
+}
+[data-theme$='dark'] .hover\:bg-sage-700:hover {
+  background-color: rgb(var(--color-sage-200) / 0.58);
+}
+
+/* zen (silver-blue / sage-silver) */
+[data-theme$='dark'] .bg-zen-500,
+[data-theme$='dark'] .bg-zen-600 {
+  background-color: rgb(var(--color-zen-200) / 0.45);
+}
+[data-theme$='dark'] .bg-zen-700 {
+  background-color: rgb(var(--color-zen-200) / 0.58);
+}
+[data-theme$='dark'] .hover\:bg-zen-500:hover {
+  background-color: rgb(var(--color-zen-200) / 0.35);
+}
+[data-theme$='dark'] .hover\:bg-zen-600:hover {
+  background-color: rgb(var(--color-zen-200) / 0.45);
+}
+[data-theme$='dark'] .hover\:bg-zen-700:hover {
+  background-color: rgb(var(--color-zen-200) / 0.58);
+}
+
+/* warm (amethyst / amber) */
+[data-theme$='dark'] .bg-warm-500,
+[data-theme$='dark'] .bg-warm-600 {
+  background-color: rgb(var(--color-warm-200) / 0.45);
+}
+[data-theme$='dark'] .bg-warm-700 {
+  background-color: rgb(var(--color-warm-200) / 0.58);
+}
+[data-theme$='dark'] .hover\:bg-warm-500:hover {
+  background-color: rgb(var(--color-warm-200) / 0.35);
+}
+[data-theme$='dark'] .hover\:bg-warm-600:hover {
+  background-color: rgb(var(--color-warm-200) / 0.45);
+}
+[data-theme$='dark'] .hover\:bg-warm-700:hover {
+  background-color: rgb(var(--color-warm-200) / 0.58);
 }
