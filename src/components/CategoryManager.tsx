@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tag, Plus, X, Edit2 } from 'lucide-react';
 import type { Category } from '@/types';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 
 interface CategoryManagerProps {
   categories: Category[];
@@ -17,19 +18,6 @@ const PRESET_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
   '#f59e0b', '#10b981', '#06b6d4', '#6b7280'
 ];
-
-function extractMessage(error: unknown, fallback: string) {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && error && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message;
-    }
-  }
-  return fallback;
-}
 
 export default function CategoryManager({
   categories,
@@ -73,7 +61,7 @@ export default function CategoryManager({
       setError(null);
     } catch (insertError) {
       console.error('Error inserting category', insertError);
-      setError(extractMessage(insertError, 'Unable to save category. Please try again.'));
+      setError(extractErrorMessage(insertError, 'Unable to save category. Please try again.'));
     } finally {
       setIsSaving(false);
     }
@@ -106,7 +94,7 @@ export default function CategoryManager({
       return true;
     } catch (updateError) {
       console.error('Error updating category', updateError);
-      setError(extractMessage(updateError, 'Unable to update category. Please try again.'));
+      setError(extractErrorMessage(updateError, 'Unable to update category. Please try again.'));
       setEditingId(id);
       return false;
     }
@@ -119,7 +107,7 @@ export default function CategoryManager({
         setError(null);
       } catch (deleteError) {
         console.error('Error deleting category', deleteError);
-        setError(extractMessage(deleteError, 'Unable to delete category. Please try again.'));
+        setError(extractErrorMessage(deleteError, 'Unable to delete category. Please try again.'));
       }
     }
   };
@@ -160,6 +148,7 @@ export default function CategoryManager({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Category name"
+                maxLength={100}
                 className="w-full px-3 py-2 rounded-lg border-2 border-zen-200 focus:border-sage-500 outline-none text-sm"
                 autoFocus
               />
@@ -225,6 +214,7 @@ export default function CategoryManager({
                     });
                   }
                 }}
+                maxLength={100}
                 className="flex-1 px-2 py-1 rounded border border-sage-300 outline-none text-sm"
                 autoFocus
               />

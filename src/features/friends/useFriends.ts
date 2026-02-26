@@ -3,6 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import type { Friend, FriendRequest } from '@/types';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 
 export type FriendsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -88,19 +89,6 @@ function mapRequestRow(row: FriendRequestRow): FriendRequest {
     created_at: row.created_at ?? undefined,
     responded_at: row.responded_at ?? undefined,
   } satisfies FriendRequest;
-}
-
-function extractErrorMessage(error: unknown, fallback: string): string {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && 'message' in (error as Record<string, unknown>)) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-  return fallback;
 }
 
 export async function fetchFriendsData(userId: string): Promise<{

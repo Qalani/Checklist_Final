@@ -107,8 +107,16 @@ export async function pullLatest(
 
   const dexieTable = getDexieTable(table);
 
+  const ids = data.map((r) => r.id as string);
+  const locals = await dexieTable.bulkGet(ids);
+  const localMap = new Map<string, Record<string, unknown>>(
+    locals
+      .filter((l): l is Record<string, unknown> => l !== undefined)
+      .map((l) => [l.id as string, l]),
+  );
+
   for (const remote of data) {
-    const local = await dexieTable.get(remote.id as string);
+    const local = localMap.get(remote.id as string);
     const resolved = local
       ? resolveConflict(
           local as { updated_at?: string },
@@ -138,7 +146,10 @@ export async function pushQueue(): Promise<void> {
   const entries = await getAll();
 
   for (const entry of entries) {
-    if (entry.retries >= MAX_RETRIES) continue;
+    if (entry.retries >= MAX_RETRIES) {
+      await remove(entry.id!);
+      continue;
+    }
 
     try {
       const { table_name, operation, payload } = entry;

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 import type { List, ListItem, ListMember } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -55,19 +56,6 @@ export interface UseListsResult extends ListsState {
   rotatePublicShare: (listId: string) => Promise<{ token: string } | ErrorResult>;
   disablePublicShare: (listId: string) => Promise<void | ErrorResult>;
   refresh: (force?: boolean) => Promise<void>;
-}
-
-function extractErrorMessage(error: unknown, fallback: string) {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && 'message' in (error as Record<string, unknown>)) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-  return fallback;
 }
 
 interface ListMembershipRow {

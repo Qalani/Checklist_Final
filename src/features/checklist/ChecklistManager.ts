@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type {
@@ -25,19 +26,6 @@ type CategoryInput = {
   name: string;
   color: string;
 };
-
-function extractErrorMessage(error: unknown, fallback: string) {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && error && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message;
-    }
-  }
-  return fallback;
-}
 
 function sortCategories(categories: Category[]): Category[] {
   return [...categories].sort((a, b) => {
@@ -640,6 +628,13 @@ export class ChecklistManager {
       throw new Error('You must be signed in to update categories.');
     }
 
+    const duplicate = this.snapshot.categories.find(
+      (c) => c.id !== id && c.name.toLowerCase() === updates.name.toLowerCase(),
+    );
+    if (duplicate) {
+      throw new Error(`A category named "${updates.name}" already exists.`);
+    }
+
     const previousCategory = this.snapshot.categories.find((category) => category.id === id);
     const previousCategorySnapshot = previousCategory
       ? { name: previousCategory.name, color: previousCategory.color }
@@ -850,6 +845,10 @@ export class ChecklistManager {
       channel.subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error(`Supabase realtime channel error for ${table}`);
+          this.setSnapshot((prev) => ({
+            ...prev,
+            error: 'Live updates paused — changes will sync when connection is restored.',
+          }));
         }
 
         if (status === 'CLOSED') {

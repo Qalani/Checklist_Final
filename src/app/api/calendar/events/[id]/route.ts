@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
+
+const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 5_000;
+const MAX_LOCATION_LENGTH = 500;
 
 
 function parseOptionalIsoDate(value: unknown, label: string): Date {
@@ -38,6 +43,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: message }, { status });
   }
 
+  const rateLimit = checkRateLimit(userId, 'api/calendar/events/PATCH', { maxRequests: 60 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait before updating more events.' },
+      { status: 429, headers: rateLimitHeaders(60, rateLimit) },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -57,6 +70,9 @@ export async function PATCH(request: Request) {
     if (typeof title !== 'string' || !title.trim()) {
       return NextResponse.json({ error: 'Title must be a non-empty string.' }, { status: 400 });
     }
+    if (title.trim().length > MAX_TITLE_LENGTH) {
+      return NextResponse.json({ error: `Event title must be ${MAX_TITLE_LENGTH} characters or fewer.` }, { status: 400 });
+    }
     updates.title = title.trim();
   }
 
@@ -65,7 +81,11 @@ export async function PATCH(request: Request) {
     if (description === null || typeof description === 'undefined') {
       updates.description = null;
     } else if (typeof description === 'string') {
-      updates.description = description.trim() ? description.trim() : null;
+      const trimmed = description.trim();
+      if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
+        return NextResponse.json({ error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer.` }, { status: 400 });
+      }
+      updates.description = trimmed || null;
     } else {
       return NextResponse.json({ error: 'Description must be a string or null.' }, { status: 400 });
     }
@@ -76,7 +96,11 @@ export async function PATCH(request: Request) {
     if (location === null || typeof location === 'undefined') {
       updates.location = null;
     } else if (typeof location === 'string') {
-      updates.location = location.trim() ? location.trim() : null;
+      const trimmed = location.trim();
+      if (trimmed.length > MAX_LOCATION_LENGTH) {
+        return NextResponse.json({ error: `Location must be ${MAX_LOCATION_LENGTH} characters or fewer.` }, { status: 400 });
+      }
+      updates.location = trimmed || null;
     } else {
       return NextResponse.json({ error: 'Location must be a string or null.' }, { status: 400 });
     }
