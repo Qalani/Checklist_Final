@@ -71,7 +71,7 @@ function parseMonthdaysInput(value: string): number[] {
   return value
     .split(',')
     .map((part) => Number.parseInt(part.trim(), 10))
-    .filter((day) => Number.isInteger(day) && day >= 1 && day <= 31);
+    .filter((day) => Number.isInteger(day) && day >= 1 && day <= 28);
 }
 
 function extractMessage(error: unknown, fallback: string) {
@@ -680,7 +680,7 @@ export default function TaskForm({
                 placeholder="e.g. 1, 15, 30"
                 className="w-full px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               />
-              <p className="text-xs text-zen-500 mt-1">Separate days with commas (1-31).</p>
+              <p className="text-xs text-zen-500 mt-1">Separate days with commas (1–28). Days must be valid for all months.</p>
             </div>
           )}
 

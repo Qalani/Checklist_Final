@@ -850,6 +850,10 @@ export class ChecklistManager {
       channel.subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error(`Supabase realtime channel error for ${table}`);
+          this.setSnapshot((prev) => ({
+            ...prev,
+            error: 'Live updates paused — changes will sync when connection is restored.',
+          }));
         }
 
         if (status === 'CLOSED') {

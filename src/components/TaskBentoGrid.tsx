@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -36,6 +36,7 @@ import {
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
 import TaskForm from './TaskForm';
+import ConfirmDialog from './ConfirmDialog';
 import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
 
 interface TaskBentoGridProps {
@@ -98,6 +99,8 @@ function SortableTaskCard({
   editingContent?: ReactNode;
   enableReorder: boolean;
 }) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !enableReorder,
@@ -269,9 +272,7 @@ function SortableTaskCard({
                     if (!canDelete) {
                       return;
                     }
-                    if (confirm('Delete this task?')) {
-                      onDelete();
-                    }
+                    setShowDeleteConfirm(true);
                   }}
                   className={`p-2 rounded-xl border transition-colors ${
                     canDelete
@@ -369,6 +370,18 @@ function SortableTaskCard({
           </>
         )}
       </motion.div>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete this task?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

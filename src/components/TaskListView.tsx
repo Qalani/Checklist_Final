@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
+import ConfirmDialog from './ConfirmDialog';
 import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
 import { SyncStatusBadge } from './SyncStatusBadge';
 
@@ -126,6 +127,7 @@ function SortableTaskItem({
 
   const [particleBurst, setParticleBurst] = useState<ParticleSpec[]>([]);
   const [burstKey, setBurstKey] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     let timeout: number | undefined;
@@ -422,9 +424,7 @@ function SortableTaskItem({
                     if (!canDelete) {
                       return;
                     }
-                    if (confirm('Delete this task?')) {
-                      onDelete();
-                    }
+                    setShowDeleteConfirm(true);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     canDelete
@@ -440,6 +440,18 @@ function SortableTaskItem({
           </div>
         </div>
       </motion.div>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete this task?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }
