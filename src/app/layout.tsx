@@ -5,6 +5,7 @@ import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { PushNotificationInitializer } from "@/components/PushNotificationInitializer";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Zen Workspace - Composed Productivity Hub",
@@ -30,7 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme={DEFAULT_THEME_ID}>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </ThemeProvider>
         <ServiceWorkerRegistration />
         <PushNotificationInitializer />
         <OfflineIndicator />

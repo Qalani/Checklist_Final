@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Bell, Clock, RefreshCcw, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import ConfirmDialog from '@/components/ConfirmDialog';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ZenPageHeader from '@/components/ZenPageHeader';
@@ -81,6 +82,7 @@ export default function ZenRemindersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
+  const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
 
   const timezone = useMemo(() => {
     try {
@@ -190,7 +192,7 @@ export default function ZenRemindersPage() {
     }
   };
 
-  const handleDeleteReminder = useCallback(
+  const confirmDeleteReminder = useCallback(
     async (id: string) => {
       const result = await deleteReminder(id);
       if (result && 'error' in result && result.error) {
@@ -394,9 +396,7 @@ export default function ZenRemindersPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => {
-                            void handleDeleteReminder(reminder.id);
-                          }}
+                          onClick={() => setReminderToDelete(reminder.id)}
                           className="inline-flex items-center gap-2 rounded-full border border-zen-200/80 px-3 py-1 text-xs font-semibold text-zen-600 transition-colors hover:border-zen-400 hover:text-zen-700 dark:border-zen-700/40 dark:text-zen-200 dark:hover:border-zen-500 dark:hover:text-zen-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -439,6 +439,19 @@ export default function ZenRemindersPage() {
           </div>
         </main>
       </div>
+      <ConfirmDialog
+        open={reminderToDelete !== null}
+        title="Remove reminder?"
+        description="This reminder will be permanently deleted."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (reminderToDelete) {
+            void confirmDeleteReminder(reminderToDelete);
+          }
+          setReminderToDelete(null);
+        }}
+        onCancel={() => setReminderToDelete(null)}
+      />
     </div>
   );
 }

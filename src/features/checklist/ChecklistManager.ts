@@ -628,6 +628,13 @@ export class ChecklistManager {
       throw new Error('You must be signed in to update categories.');
     }
 
+    const duplicate = this.snapshot.categories.find(
+      (c) => c.id !== id && c.name.toLowerCase() === updates.name.toLowerCase(),
+    );
+    if (duplicate) {
+      throw new Error(`A category named "${updates.name}" already exists.`);
+    }
+
     const previousCategory = this.snapshot.categories.find((category) => category.id === id);
     const previousCategorySnapshot = previousCategory
       ? { name: previousCategory.name, color: previousCategory.color }
