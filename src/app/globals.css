@@ -83,77 +83,77 @@ body {
 :root[data-theme='midnight-dark'] {
   color-scheme: dark;
   --color-surface: 12 14 22;
-  /* zen: cool silver-blue — 50 = darkest surface → 900 = near-white text */
+  /* zen: cool silver-blue — 50/100 = dark surfaces; 200+ = text/UI (bright) */
   --color-zen-50: 16 19 30;
   --color-zen-100: 26 30 48;
-  --color-zen-200: 42 50 78;
-  --color-zen-300: 68 82 120;
-  --color-zen-400: 102 122 168;
-  --color-zen-500: 142 164 205;
-  --color-zen-600: 180 200 228;
-  --color-zen-700: 210 222 240;
-  --color-zen-800: 232 238 249;
+  --color-zen-200: 170 180 214;
+  --color-zen-300: 183 193 222;
+  --color-zen-400: 197 207 232;
+  --color-zen-500: 210 218 240;
+  --color-zen-600: 221 228 245;
+  --color-zen-700: 231 236 249;
+  --color-zen-800: 239 242 252;
   --color-zen-900: 246 249 253;
-  /* sage: teal/cyan accent — dark teal bg → bright teal → near-white */
+  /* sage: teal/cyan — 50/100 = dark teal surfaces; 200+ = bright teal accents */
   --color-sage-50: 10 22 24;
   --color-sage-100: 16 38 44;
-  --color-sage-200: 28 62 72;
-  --color-sage-300: 48 100 115;
-  --color-sage-400: 74 152 168;
-  --color-sage-500: 104 190 202;
-  --color-sage-600: 138 218 226;
-  --color-sage-700: 172 234 242;
-  --color-sage-800: 208 245 250;
-  --color-sage-900: 238 252 254;
-  /* warm: amethyst/purple accent — dark purple bg → vivid purple → near-white */
+  --color-sage-200: 72 180 190;
+  --color-sage-300: 100 202 210;
+  --color-sage-400: 132 218 226;
+  --color-sage-500: 160 228 236;
+  --color-sage-600: 185 238 244;
+  --color-sage-700: 208 245 250;
+  --color-sage-800: 228 250 253;
+  --color-sage-900: 244 252 254;
+  /* warm: amethyst — 50/100 = dark purple surfaces; 200+ = bright purple accents */
   --color-warm-50: 18 14 28;
   --color-warm-100: 32 24 52;
-  --color-warm-200: 52 38 88;
-  --color-warm-300: 86 62 140;
-  --color-warm-400: 126 96 184;
-  --color-warm-500: 164 130 212;
-  --color-warm-600: 196 168 230;
-  --color-warm-700: 220 200 242;
-  --color-warm-800: 238 226 250;
-  --color-warm-900: 250 244 254;
+  --color-warm-200: 158 126 200;
+  --color-warm-300: 176 148 214;
+  --color-warm-400: 193 168 226;
+  --color-warm-500: 208 186 236;
+  --color-warm-600: 220 204 244;
+  --color-warm-700: 230 220 249;
+  --color-warm-800: 239 233 252;
+  --color-warm-900: 248 244 254;
 }
 
 :root[data-theme='forest-dark'] {
   color-scheme: dark;
   --color-surface: 12 17 14;
-  /* zen: warm sage-silver — 50 = darkest surface → 900 = near-white text */
+  /* zen: warm sage-silver — 50/100 = dark surfaces; 200+ = text/UI (bright) */
   --color-zen-50: 16 23 18;
   --color-zen-100: 26 38 30;
-  --color-zen-200: 42 62 48;
-  --color-zen-300: 68 98 78;
-  --color-zen-400: 104 142 114;
-  --color-zen-500: 148 182 158;
-  --color-zen-600: 188 214 196;
-  --color-zen-700: 216 234 222;
-  --color-zen-800: 236 246 240;
+  --color-zen-200: 162 178 167;
+  --color-zen-300: 176 192 180;
+  --color-zen-400: 190 205 194;
+  --color-zen-500: 203 217 207;
+  --color-zen-600: 215 228 219;
+  --color-zen-700: 225 237 229;
+  --color-zen-800: 236 244 238;
   --color-zen-900: 248 252 250;
-  /* sage: emerald accent — dark green bg → vivid emerald → near-white */
+  /* sage: emerald — 50/100 = dark green surfaces; 200+ = bright emerald accents */
   --color-sage-50: 12 24 16;
   --color-sage-100: 20 44 28;
-  --color-sage-200: 34 72 46;
-  --color-sage-300: 56 112 76;
-  --color-sage-400: 84 162 112;
-  --color-sage-500: 112 200 150;
-  --color-sage-600: 148 226 184;
-  --color-sage-700: 182 242 212;
-  --color-sage-800: 216 250 234;
-  --color-sage-900: 242 253 246;
-  /* warm: amber/gold accent — dark amber bg → rich amber → near-white */
+  --color-sage-200: 82 182 118;
+  --color-sage-300: 110 202 148;
+  --color-sage-400: 138 218 174;
+  --color-sage-500: 164 230 196;
+  --color-sage-600: 188 240 214;
+  --color-sage-700: 210 247 230;
+  --color-sage-800: 229 251 241;
+  --color-sage-900: 244 253 248;
+  /* warm: amber/gold — 50/100 = dark amber surfaces; 200+ = bright amber accents */
   --color-warm-50: 24 18 10;
   --color-warm-100: 44 32 14;
-  --color-warm-200: 72 50 20;
-  --color-warm-300: 114 80 32;
-  --color-warm-400: 162 118 56;
-  --color-warm-500: 202 158 86;
-  --color-warm-600: 222 186 126;
-  --color-warm-700: 238 210 162;
-  --color-warm-800: 248 232 198;
-  --color-warm-900: 253 247 234;
+  --color-warm-200: 190 150 74;
+  --color-warm-300: 205 166 94;
+  --color-warm-400: 218 183 116;
+  --color-warm-500: 229 198 140;
+  --color-warm-600: 238 214 164;
+  --color-warm-700: 244 226 188;
+  --color-warm-800: 249 238 212;
+  --color-warm-900: 253 248 234;
 }
 
 @layer base {
