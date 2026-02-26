@@ -177,3 +177,78 @@ body {
     text-wrap: balance;
   }
 }
+
+/*
+ * Dark-mode button / filled-accent background corrections.
+ *
+ * Shades 500-700 are near-white text colours in both dark themes.
+ * Solid interactive elements (buttons, banners) that use these shades
+ * with white text would become unreadable without an override.
+ *
+ * Each filled shade is remapped to its -200 accent at reduced opacity,
+ * which composites over the very dark surface and produces a saturated
+ * but dark background — keeping white text clearly legible.
+ *
+ *   -500 / -600  →  accent-200 @ 45 %  (default state)
+ *   -700         →  accent-200 @ 58 %  (hover-up / pressed)
+ *   hover:-500   →  accent-200 @ 35 %  (hover-down variant)
+ *   hover:-600   →  accent-200 @ 45 %  (hover partner for -500 base)
+ *   hover:-700   →  accent-200 @ 58 %  (hover partner for -600 base)
+ *
+ * Specificity: [attr + class] = (0,2,0) beats Tailwind's plain [class] = (0,1,0).
+ * These rules live outside @layer so they also win over any in-layer utility.
+ */
+
+/* sage (teal / emerald) */
+[data-theme$='dark'] .bg-sage-500,
+[data-theme$='dark'] .bg-sage-600 {
+  background-color: rgb(var(--color-sage-200) / 0.45);
+}
+[data-theme$='dark'] .bg-sage-700 {
+  background-color: rgb(var(--color-sage-200) / 0.58);
+}
+[data-theme$='dark'] .hover\:bg-sage-500:hover {
+  background-color: rgb(var(--color-sage-200) / 0.35);
+}
+[data-theme$='dark'] .hover\:bg-sage-600:hover {
+  background-color: rgb(var(--color-sage-200) / 0.45);
+}
+[data-theme$='dark'] .hover\:bg-sage-700:hover {
+  background-color: rgb(var(--color-sage-200) / 0.58);
+}
+
+/* zen (silver-blue / sage-silver) */
+[data-theme$='dark'] .bg-zen-500,
+[data-theme$='dark'] .bg-zen-600 {
+  background-color: rgb(var(--color-zen-200) / 0.45);
+}
+[data-theme$='dark'] .bg-zen-700 {
+  background-color: rgb(var(--color-zen-200) / 0.58);
+}
+[data-theme$='dark'] .hover\:bg-zen-500:hover {
+  background-color: rgb(var(--color-zen-200) / 0.35);
+}
+[data-theme$='dark'] .hover\:bg-zen-600:hover {
+  background-color: rgb(var(--color-zen-200) / 0.45);
+}
+[data-theme$='dark'] .hover\:bg-zen-700:hover {
+  background-color: rgb(var(--color-zen-200) / 0.58);
+}
+
+/* warm (amethyst / amber) */
+[data-theme$='dark'] .bg-warm-500,
+[data-theme$='dark'] .bg-warm-600 {
+  background-color: rgb(var(--color-warm-200) / 0.45);
+}
+[data-theme$='dark'] .bg-warm-700 {
+  background-color: rgb(var(--color-warm-200) / 0.58);
+}
+[data-theme$='dark'] .hover\:bg-warm-500:hover {
+  background-color: rgb(var(--color-warm-200) / 0.35);
+}
+[data-theme$='dark'] .hover\:bg-warm-600:hover {
+  background-color: rgb(var(--color-warm-200) / 0.45);
+}
+[data-theme$='dark'] .hover\:bg-warm-700:hover {
+  background-color: rgb(var(--color-warm-200) / 0.58);
+}
