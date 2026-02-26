@@ -3,6 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 import { isOnline } from '@/lib/network-status';
 import type { Note } from '@/types';
 import { computeNoteMetadata } from './noteUtils';
@@ -48,19 +49,6 @@ interface UseNotesResult extends NotesState {
   ) => Promise<{ note: Note } | ErrorResult | void>;
   deleteNote: (id: string) => Promise<void | ErrorResult>;
   refresh: (force?: boolean) => Promise<void>;
-}
-
-function extractErrorMessage(error: unknown, fallback: string) {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && 'message' in (error as Record<string, unknown>)) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-  return fallback;
 }
 
 function mapRowToNote(row: NoteRow): Note {

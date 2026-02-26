@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -34,6 +35,14 @@ export async function POST(request: Request) {
     const status = error instanceof Error && 'status' in error ? (error as { status?: number }).status ?? 401 : 401;
     const message = error instanceof Error ? error.message : 'Unauthorized.';
     return NextResponse.json({ error: message }, { status });
+  }
+
+  const rateLimit = checkRateLimit(userId, 'api/calendar/events/POST', { maxRequests: 30 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait before creating more events.' },
+      { status: 429, headers: rateLimitHeaders(30, rateLimit) },
+    );
   }
 
   let body: unknown;

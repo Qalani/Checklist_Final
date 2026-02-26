@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -53,6 +54,14 @@ export async function POST(request: Request) {
     const status = error instanceof Error && 'status' in error ? (error as { status?: number }).status ?? 401 : 401;
     const message = error instanceof Error ? error.message : 'Unauthorized.';
     return NextResponse.json({ error: message }, { status });
+  }
+
+  const rateLimit = checkRateLimit(userId, 'api/calendar/events/import/POST', { maxRequests: 5 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many import requests. Please wait before importing again.' },
+      { status: 429, headers: rateLimitHeaders(5, rateLimit) },
+    );
   }
 
   let formData: FormData;

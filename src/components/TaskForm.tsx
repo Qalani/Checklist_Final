@@ -11,6 +11,7 @@ import {
   getUpcomingReminderOccurrences,
   normalizeReminderRecurrence,
 } from '@/utils/reminders';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 import RichTextTextarea from './RichTextTextarea';
 
 interface TaskFormProps {
@@ -72,19 +73,6 @@ function parseMonthdaysInput(value: string): number[] {
     .split(',')
     .map((part) => Number.parseInt(part.trim(), 10))
     .filter((day) => Number.isInteger(day) && day >= 1 && day <= 28);
-}
-
-function extractMessage(error: unknown, fallback: string) {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && error && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message;
-    }
-  }
-  return fallback;
 }
 
 export default function TaskForm({
@@ -326,7 +314,7 @@ export default function TaskForm({
       setCategoryError(null);
     } catch (error) {
       console.error('Error creating category', error);
-      setCategoryError(extractMessage(error, 'Unable to save category. Please try again.'));
+      setCategoryError(extractErrorMessage(error, 'Unable to save category. Please try again.'));
     } finally {
       setIsSavingCategory(false);
     }
@@ -469,6 +457,7 @@ export default function TaskForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What needs to be done?"
+          maxLength={500}
           className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
           autoFocus
         />
@@ -756,6 +745,7 @@ export default function TaskForm({
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="e.g. Wellness"
+                  maxLength={100}
                   className="w-full px-3 py-2 rounded-xl border-2 border-sage-200 focus:border-sage-500 focus:ring-0 outline-none text-sm"
                 />
               </div>

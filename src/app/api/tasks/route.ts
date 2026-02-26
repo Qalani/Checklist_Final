@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 10_000;
@@ -19,6 +20,14 @@ export async function POST(request: Request) {
     const status = error instanceof Error && 'status' in error ? (error as { status?: number }).status ?? 401 : 401;
     const message = error instanceof Error ? error.message : 'Unauthorized.';
     return NextResponse.json({ error: message }, { status });
+  }
+
+  const rateLimit = checkRateLimit(userId, 'api/tasks/POST', { maxRequests: 30 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait before creating more tasks.' },
+      { status: 429, headers: rateLimitHeaders(30, rateLimit) },
+    );
   }
 
   let body: unknown;

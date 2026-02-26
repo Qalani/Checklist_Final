@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
+import { extractErrorMessage } from '@/utils/extract-error-message';
 import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type {
@@ -25,19 +26,6 @@ type CategoryInput = {
   name: string;
   color: string;
 };
-
-function extractErrorMessage(error: unknown, fallback: string) {
-  if (!error) return fallback;
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && error && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message;
-    }
-  }
-  return fallback;
-}
 
 function sortCategories(categories: Category[]): Category[] {
   return [...categories].sort((a, b) => {

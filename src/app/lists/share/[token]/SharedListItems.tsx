@@ -22,6 +22,16 @@ function getStorageKey(token: string) {
   return `${STORAGE_PREFIX}:${token}`;
 }
 
+/** Defence-in-depth: confirm the extracted URL uses only http or https. */
+function isSafeUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 type Overrides = Record<string, boolean>;
 
 type StoredValue = {
@@ -132,11 +142,23 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
     const parts: ReactNode[] = [];
     let lastIndex = 0;
 
-    matches.forEach((match) => {
+    for (const match of matches) {
       const fullStart = match.index ?? 0;
       const leading = match[1] ?? '';
       const url = match[2];
       const start = fullStart + leading.length;
+
+      // Treat URLs that fail scheme validation as plain text
+      if (!isSafeUrl(url)) {
+        const matchEnd = fullStart + (match[0] ?? '').length;
+        if (matchEnd > lastIndex) {
+          parts.push(
+            <span key={`text-${parts.length}`}>{content.slice(lastIndex, matchEnd)}</span>,
+          );
+          lastIndex = matchEnd;
+        }
+        continue;
+      }
 
       if (start > lastIndex) {
         parts.push(
@@ -159,7 +181,7 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
       );
 
       lastIndex = start + url.length;
-    });
+    }
 
     if (lastIndex < content.length) {
       parts.push(<span key={`text-${parts.length}`}>{content.slice(lastIndex)}</span>);
