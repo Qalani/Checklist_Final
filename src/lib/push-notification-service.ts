@@ -63,7 +63,9 @@ export async function registerForPushNotifications(userId: string): Promise<void
   // Capacitor suppresses the system notification in this case, so we log it;
   // you can extend this to show an in-app toast.
   await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-    console.info('[PushNotifications] foreground notification:', notification.title);
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[PushNotifications] foreground notification:', notification.title);
+    }
   });
 
   // User tapped a notification — navigate to the Reminders page.

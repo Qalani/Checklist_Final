@@ -4,6 +4,7 @@ import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;

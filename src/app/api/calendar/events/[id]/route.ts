@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
 
+export const maxDuration = 30;
+
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5_000;
 const MAX_LOCATION_LENGTH = 500;
