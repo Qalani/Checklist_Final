@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
+
+export const maxDuration = 30;
 import type { Task, Note, ZenReminder, CalendarEvent } from '@/types';
 import { getUpcomingReminderOccurrences, shouldScheduleReminder } from '@/utils/reminders';
 import type {

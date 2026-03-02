@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
 
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   if (!supabaseAdmin) {
     return NextResponse.json({ error: 'Supabase is not configured on the server.' }, { status: 500 });

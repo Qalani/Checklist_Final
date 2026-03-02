@@ -24,7 +24,12 @@ import type {
 const FullCalendarViewNoSSR = dynamic<CalendarViewProps>(async () => {
   const mod = await import('@/components/calendar/FullCalendarView');
   return mod.FullCalendarView;
-}, { ssr: false });
+}, {
+  ssr: false,
+  loading: () => (
+    <div className="animate-pulse rounded-xl bg-white/5 h-[600px] w-full" aria-busy="true" aria-label="Loading calendar" />
+  ),
+});
 
 type RangeState = { start: Date; end: Date };
 

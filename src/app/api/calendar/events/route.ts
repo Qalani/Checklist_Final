@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
+import { withTimeout, TimeoutError } from '@/lib/api/with-timeout';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
+
+const QUERY_TIMEOUT_MS = 10_000;
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5_000;
@@ -118,26 +122,36 @@ export async function POST(request: Request) {
 
   const normalizedAllDay = typeof allDay === 'boolean' ? allDay : false;
 
-  const { data, error } = await supabaseAdmin
-    .from('calendar_events')
-    .insert({
-      user_id: userId,
-      title: title.trim(),
-      description: normalizedDescription,
-      location: normalizedLocation,
-      start_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      all_day: normalizedAllDay,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json(
-      { error: error.message || 'Unable to create event. Please try again.' },
-      { status: 400 },
+  try {
+    const { data, error } = await withTimeout(
+      supabaseAdmin
+        .from('calendar_events')
+        .insert({
+          user_id: userId,
+          title: title.trim(),
+          description: normalizedDescription,
+          location: normalizedLocation,
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString(),
+          all_day: normalizedAllDay,
+        })
+        .select()
+        .single(),
+      QUERY_TIMEOUT_MS,
     );
-  }
 
-  return NextResponse.json({ event: data }, { status: 201 });
+    if (error) {
+      return NextResponse.json(
+        { error: 'Unable to create event. Please try again.' },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json({ event: data }, { status: 201 });
+  } catch (err) {
+    if (err instanceof TimeoutError) {
+      return NextResponse.json({ error: 'Request timed out. Please try again.' }, { status: 504 });
+    }
+    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
+  }
 }

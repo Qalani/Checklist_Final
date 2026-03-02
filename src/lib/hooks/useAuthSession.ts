@@ -60,18 +60,30 @@ async function seedLocalDb(userId: string): Promise<void> {
   seedInProgress.add(userId);
 
   try {
-    const isSeeded = localStorage.getItem(seededKey(userId)) === 'true';
-    const since = isSeeded
-      ? (localStorage.getItem(lastSyncKey(userId)) ?? EPOCH)
-      : EPOCH;
+    // localStorage may be unavailable in private-browsing or sandboxed contexts;
+    // fall back to a full seed from epoch so the app still works.
+    let isSeeded = false;
+    let since = EPOCH;
+    try {
+      isSeeded = localStorage.getItem(seededKey(userId)) === 'true';
+      since = isSeeded ? (localStorage.getItem(lastSyncKey(userId)) ?? EPOCH) : EPOCH;
+    } catch {
+      // Proceed with full seed from epoch
+    }
 
     for (const table of ALL_TABLES) {
       await pullLatest(table, userId, since);
     }
 
-    // Mark this device as fully seeded and record the sync timestamp
-    localStorage.setItem(seededKey(userId), 'true');
-    localStorage.setItem(lastSyncKey(userId), new Date().toISOString());
+    // Mark this device as fully seeded and record the sync timestamp.
+    // Silently skip if localStorage is unavailable — the app remains functional
+    // but will re-seed from the server on the next page load.
+    try {
+      localStorage.setItem(seededKey(userId), 'true');
+      localStorage.setItem(lastSyncKey(userId), new Date().toISOString());
+    } catch {
+      // Intentionally ignored
+    }
   } finally {
     seedInProgress.delete(userId);
   }
