@@ -1,237 +1,191 @@
 # Zen Workspace App — Comprehensive Audit Report
 
 **Date:** 2026-03-02
-**Scope:** Full codebase audit covering security, performance, code quality, testing, accessibility, CI/CD, and dependencies.
+**Scope:** Full codebase audit covering security, correctness, performance, configuration, testing, and maintainability.
 
 ---
 
 ## Executive Summary
 
-Zen Workspace is a well-architected Next.js 15 + Supabase productivity app with Capacitor mobile support and offline-first design. The codebase shows solid fundamentals (TypeScript strict mode, feature-based structure, error boundaries, RLS policies) but has **actionable gaps in 7 areas** ranked below by severity.
+Zen Workspace is a well-architected Next.js 15 + Supabase productivity app with Capacitor mobile support and offline-first design. The codebase shows solid fundamentals (TypeScript strict mode, feature-based structure, error boundaries, RLS policies, rate limiting) but has **critical bugs and actionable gaps** ranked below by severity.
 
 ---
 
-## 1. CRITICAL — Security Vulnerabilities in Dependencies
+## CRITICAL — Bugs That Break Features
 
-**Impact: HIGH | Effort: LOW**
+### 1. `force-static` on authenticated calendar API route (BROKEN FEATURE)
 
-`next@15.5.9` has two known HIGH-severity vulnerabilities:
-- DoS via Image Optimizer `remotePatterns` configuration
-- HTTP request deserialization DoS when using React Server Components
+**File:** `src/app/api/calendar/route.ts:18`
 
-Additional dependency vulnerabilities:
-- `glob` (via sucrase) — command injection via `-c/--cmd`
-- `minimatch` — 3 distinct ReDoS vulnerabilities affecting `@capacitor/cli` and `@typescript-eslint`
-- `ajv` — ReDoS with `$data` option
-- `js-yaml` — prototype pollution in merge
-- `mdast-util-to-hast` — unsanitized class attribute
-
-**Action:**
-```bash
-# Upgrade Next.js to patched version
-npm install next@latest
-
-# Fix remaining vulnerabilities
-npm audit fix
+```ts
+export const dynamic = 'force-static';
 ```
 
+This tells Next.js to pre-render this route at build time as a static response. However, the route exports a `GET` handler that authenticates users via Bearer tokens and queries Supabase for per-user calendar data. With `force-static`, the handler **never executes at runtime** — Next.js serves a cached static response instead. This completely breaks the calendar feature for all users.
+
+**Fix:** Remove `export const dynamic = 'force-static'` (or change to `'force-dynamic'`).
+
 ---
 
-## 2. CRITICAL — CI/CD Pipeline Has No Quality Gates
+### 2. Sync engine silently deletes failed entries (DATA LOSS)
 
-**Impact: HIGH | Effort: LOW**
+**File:** `src/lib/sync-engine.ts:149-151`
 
-The `build-apk.yml` workflow builds and ships an APK **without running any checks**:
-- No linting (`npm run lint`)
-- No type-checking (`npx tsc --noEmit`)
-- No unit tests (`npm test`)
-- No security audit (`npm audit`)
-
-A single broken import or type error can ship to users.
-
-**Action:** Add these steps before the build step in `.github/workflows/build-apk.yml`:
-```yaml
-- name: Lint
-  run: npm run lint
-
-- name: Type check
-  run: npx tsc --noEmit
-
-- name: Unit tests
-  run: npm test
-
-- name: Security audit
-  run: npm audit --audit-level=high
+```ts
+if (entry.retries >= MAX_RETRIES) {
+  await remove(entry.id!);  // Permanently deletes user data!
+  continue;
+}
 ```
 
+The code comment at line 143 says entries that reach MAX_RETRIES should be "skipped and left in the queue for manual inspection / future recovery." But the code **deletes them instead**. When a user makes changes offline and the sync fails 3 times (e.g., transient server issue), their queued writes are permanently and silently lost.
+
+**Fix:** Remove the `await remove(entry.id!)` call — just `continue` to skip the entry while preserving it for later recovery.
+
 ---
 
-## 3. HIGH — Exposed Supabase Project Reference
+### 3. Tailwind content paths missing `src/features/` (BROKEN STYLES IN PROD)
 
-**Impact: HIGH | Effort: LOW**
+**File:** `tailwind.config.ts:5-9`
 
-`.mcp.json` is committed to the repository and contains:
-```json
-"url": "https://mcp.supabase.com/mcp?project_ref=sqnudxrcezzwigcmzvde"
+```ts
+content: [
+  "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+  "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+  "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+],
 ```
 
-This exposes the Supabase project identifier publicly. While the anon key is already public by design, coupling it with the project ref makes targeted attacks easier.
+The `src/features/` directory contains 20+ `.tsx` files with Tailwind classes (dashboard widgets, feature cards, home components, etc.), but is **not scanned** by Tailwind. In production builds, Tailwind purges all unused classes — so every Tailwind class used exclusively in `src/features/` components will be **removed**, causing broken layouts in production.
 
-**Action:** Add `.mcp.json` to `.gitignore` and remove it from git tracking, or move the project ref to an environment variable.
-
----
-
-## 4. HIGH — Minimal Test Coverage (~3-5%)
-
-**Impact: HIGH | Effort: MEDIUM**
-
-Only **4 test files** exist for an app with 95+ source files:
-
-| Test File | Lines | Covers |
-|-----------|-------|--------|
-| `dashboardPersistence.test.ts` | 72 | Dashboard layout |
-| `homeSelectors.test.ts` | 91 | Home selectors |
-| `syncEngine.test.ts` | 303 | Sync conflict resolution |
-| `dashboard.spec.ts` | E2E | Dashboard smoke test |
-
-**Critical untested areas:**
-- All API routes (`/api/tasks`, `/api/calendar`, `/api/categories`)
-- Core hooks (`useChecklist`, `useLists`, `useNotes`, `useReminders`)
-- Authentication flows (`AuthPanel`, `useAuthSession`)
-- Offline sync queue (`sync-queue.ts`)
-- Form validation (`TaskForm`, `CategoryManager`)
-
-**Priority test targets (highest ROI):**
-1. API route handlers — validate auth checks, rate limiting, error responses
-2. `ChecklistManager.ts` (1,006 lines) — core business logic
-3. `useLists.ts` (1,289 lines) — list CRUD and sharing logic
-4. `sync-engine.ts` — data integrity under conflict scenarios
+**Fix:** Add `"./src/features/**/*.{js,ts,jsx,tsx,mdx}"` to the content array.
 
 ---
 
-## 5. HIGH — Monolithic Files Need Decomposition
+## HIGH — Security & Robustness
 
-**Impact: MEDIUM | Effort: MEDIUM**
+### 4. Missing Content-Security-Policy and HSTS headers
 
-Five files exceed 800 lines, mixing UI, state, and business logic:
+**File:** `next.config.js:17-21`
 
-| File | Lines | Issue |
-|------|-------|-------|
-| `src/app/lists/page.tsx` | 1,468 | Page with forms, dialogs, drag-drop, sharing all inline |
-| `src/features/lists/useLists.ts` | 1,289 | Every list operation in a single hook |
-| `src/app/tasks/page.tsx` | 1,108 | Monolithic task page |
+The config sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy` — but is missing the two most important headers:
+
+| Missing Header | Risk |
+|----------------|------|
+| `Content-Security-Policy` | No browser-enforced XSS protection — injected scripts execute freely |
+| `Strict-Transport-Security` | No HSTS — users can be downgraded to HTTP via MITM attacks |
+
+**Fix:** Add both headers to the `next.config.js` headers array.
+
+---
+
+### 5. No input length validation on categories API
+
+**File:** `src/app/api/categories/route.ts:45-51`
+
+The handler validates that `name` and `color` are non-empty strings but enforces **no maximum length**. The tasks route correctly has `MAX_TITLE_LENGTH = 500` and `MAX_DESCRIPTION_LENGTH = 10_000`, but categories has no equivalent. A malicious user can POST multi-megabyte strings.
+
+**Fix:** Add `MAX_NAME_LENGTH` and `MAX_COLOR_LENGTH` constants with length validation.
+
+---
+
+### 6. No query timeout on categories API
+
+**File:** `src/app/api/categories/route.ts:53-61`
+
+The `/api/tasks` and `/api/calendar/events` routes wrap their Supabase calls in `withTimeout(query, QUERY_TIMEOUT_MS)` to prevent hung queries from blocking the serverless function for its full `maxDuration` (30s). The categories route does **not** use this pattern, meaning a single hung Supabase connection blocks the function until it times out.
+
+**Fix:** Wrap the Supabase insert call in `withTimeout(...)`.
+
+---
+
+### 7. `@capacitor/cli` in production dependencies
+
+**File:** `package.json:21`
+
+`@capacitor/cli` is a development-only build tool but is listed under `dependencies` instead of `devDependencies`. This adds unnecessary weight to production installs.
+
+**Fix:** Move to `devDependencies`.
+
+---
+
+### 8. Exposed Supabase project reference in `.mcp.json`
+
+**File:** `.mcp.json` (committed to git)
+
+Contains the Supabase project ref (`sqnudxrcezzwigcmzvde`) in the repository. While the anon key is public by design, coupling it with the project identifier in a public repo makes targeted API abuse easier.
+
+**Fix:** Add `.mcp.json` to `.gitignore`.
+
+---
+
+## MEDIUM — Code Quality & Performance
+
+### 9. Monolithic files need decomposition
+
+Five files exceed 800 lines, mixing UI, state, data-fetching, and business logic:
+
+| File | Lines | Concern |
+|------|-------|---------|
+| `src/app/lists/page.tsx` | ~1,468 | Page + forms + dialogs + DnD + sharing |
+| `src/features/lists/useLists.ts` | 1,289 | All list CRUD/sharing/realtime in one hook |
+| `src/app/tasks/page.tsx` | ~1,108 | Monolithic task page |
 | `src/features/checklist/ChecklistManager.ts` | 1,006 | All task CRUD in one class |
-| `src/components/TaskForm.tsx` | 853 | Large form component |
+| `src/components/TaskForm.tsx` | 853 | Large form with many state variables |
 
-**Action:** Extract sub-components and split hooks:
-- `lists/page.tsx` → `ListHeader`, `ListSidebar`, `ListShareDialog`, `ListItemsView`
-- `useLists.ts` → `useListCrud`, `useListSharing`, `useListSync`, `useListFilters`
-- `tasks/page.tsx` → `TaskHeader`, `TaskFilters`, `TaskViewSwitcher`
-- `ChecklistManager.ts` → `TaskCrudService`, `TaskSyncService`, `TaskFilterService`
+**Recommendation:** Extract sub-hooks and sub-components to improve testability and readability.
 
 ---
 
-## 6. MEDIUM — Missing Security Headers
+### 10. Minimal test coverage (~3-5%)
 
-**Impact: MEDIUM | Effort: LOW**
+Only 4 test files for 90+ source files:
 
-`next.config.js` sets good baseline headers but is missing:
+| Test | Covers |
+|------|--------|
+| `syncEngine.test.ts` | Conflict resolution |
+| `dashboardPersistence.test.ts` | Dashboard layout |
+| `homeSelectors.test.ts` | Home selectors |
+| `dashboard.spec.ts` (E2E) | Dashboard smoke |
 
-| Header | Purpose |
-|--------|---------|
-| `Strict-Transport-Security` | Enforce HTTPS (HSTS) |
-| `Content-Security-Policy` | Prevent XSS, data injection |
-
-**Action:** Add to the headers array in `next.config.js`:
-```js
-{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-{ key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;" },
-```
+**Untested critical paths:** API routes, auth flows, list/note/reminder hooks, calendar data assembly, offline sync queue, form validation.
 
 ---
 
-## 7. MEDIUM — `any` Type Usage Undermines Type Safety
+### 11. CI/CD pipeline has no quality gates
 
-**Impact: MEDIUM | Effort: LOW**
+The `build-apk.yml` workflow builds and ships an APK without running lint, type-check, or tests. A broken import or type error can ship directly to users.
 
-9 instances of `any` across 4 files, with TypeScript strict mode enabled:
-
-| File | Line(s) | Usage |
-|------|---------|-------|
-| `src/types/ical-js.d.ts` | 2 | `const ICAL: any` — missing type declaration |
-| `src/lib/sync-engine.ts` | 44, 95, 158, 161 | `as any` casts on Supabase queries |
-| `src/features/calendar/useCalendarEvents.ts` | 200, 239 | `let ICAL: any` and `as any` cast |
-| `src/app/api/calendar/events/import/route.ts` | 90, 115 | `let ICAL: any` and `vevent: any` |
-
-**Action:**
-- Create a proper `ical.js` type declaration file with real types
-- Use Supabase's typed client generation (`supabase gen types`) to eliminate `as any` casts in sync-engine
+**Fix:** Add lint, typecheck, and test steps before the build step.
 
 ---
 
-## 8. MEDIUM — Performance Optimization Opportunities
+### 12. `any` type usage (9 instances)
 
-**Impact: MEDIUM | Effort: MEDIUM**
+TypeScript strict mode is enabled, but 9 `any` casts exist across sync-engine, calendar event import, and ical.js handling. These bypass type safety at critical data boundaries.
 
-### 8a. Missing `React.memo` on Expensive Components
-Components that render lists/grids re-render on every parent update:
-- `TaskBentoGrid.tsx` (497 lines) — renders many task cards
-- `ListItemsBoard.tsx` (393 lines) — drag-drop list with many items
-- `ProgressDashboard.tsx` — frequently updated stats
-
-### 8b. Bundle Size Concerns
-- `framer-motion` — large animation library (~30KB gzipped)
-- `@fullcalendar/*` — 6 packages imported; consider lazy-loading the calendar page
-- Both `date-fns` and FullCalendar's built-in date handling are loaded
-
-### 8c. Missing Code Splitting
-Large feature pages could use `next/dynamic` for lazy loading:
-```tsx
-const CalendarView = dynamic(() => import('@/components/calendar/FullCalendarView'), {
-  loading: () => <CalendarSkeleton />,
-  ssr: false,
-});
-```
+**Fix:** Generate Supabase types (`supabase gen types`) and create proper ical.js type declarations.
 
 ---
 
-## 9. LOW — 42 Console Statements in Production Code
+### 13. Performance opportunities
 
-**Impact: LOW | Effort: LOW**
-
-42 `console.log/warn/error` calls across 20 source files. These leak debug info in production and clutter browser devtools.
-
-**Action:** Add an ESLint rule and replace with a proper logger:
-```json
-// .eslintrc.json
-{ "rules": { "no-console": ["warn", { "allow": ["warn", "error"] }] } }
-```
+- **Missing `React.memo`** on expensive list-rendering components (`TaskBentoGrid`, `ListItemsBoard`)
+- **Heavy bundle:** `framer-motion` (~30KB gzip) + 6 `@fullcalendar/*` packages loaded eagerly
+- **No code splitting:** Calendar and dashboard could use `next/dynamic` lazy loading
+- **Duplicate date handling:** Both `date-fns` and FullCalendar's built-in dates are loaded
 
 ---
 
-## 10. LOW — Accessibility Gaps
+## LOW — Polish
 
-**Impact: LOW | Effort: LOW**
+### 14. 40 console statements in production code
 
-Only 24 `aria-label` attributes across 13 files. Many interactive icon-only buttons lack accessible names:
+40 `console.log/warn/error` calls across 19 source files leak implementation details in production.
 
-```tsx
-// Common pattern missing aria-label:
-<button onClick={onDelete}>
-  <Trash2 className="w-4 h-4" />
-</button>
+### 15. Accessibility gaps
 
-// Should be:
-<button onClick={onDelete} aria-label="Delete item">
-  <Trash2 className="w-4 h-4" />
-</button>
-```
-
-**Files needing accessibility review:**
-- `TaskBentoGrid.tsx` — icon buttons for task actions
-- `SettingsMenu.tsx` — menu toggle buttons
-- `CategoryManager.tsx` — edit/delete buttons
-- All dashboard widgets in `src/features/dashboard/widgets/`
+Only 24 `aria-label` attributes across 13 files. Many icon-only buttons lack accessible names for screen readers.
 
 ---
 
@@ -239,30 +193,28 @@ Only 24 `aria-label` attributes across 13 files. Many interactive icon-only butt
 
 These areas are already well-implemented:
 
-- **TypeScript strict mode** — enforces type safety across the codebase
-- **Error boundaries** — `ErrorBoundary.tsx` catches render crashes gracefully
-- **HTML sanitization** — `noteUtils.ts` uses whitelist-based tag/style filtering with JS protocol blocking
-- **Rate limiting** — API routes limit to 25-30 requests per endpoint
-- **Offline-first architecture** — Dexie + sync-engine with conflict resolution
+- **TypeScript strict mode** — no `@ts-ignore` or `@ts-expect-error` anywhere
+- **Error boundary** — catches render crashes with friendly recovery UI
+- **HTML sanitization** — whitelist-based tag/style filtering with protocol blocking
+- **Rate limiting** — per-user, per-endpoint limits on all mutation routes
+- **Offline-first** — Dexie + sync queue + background sync + online/offline detection
+- **Conflict resolution** — last-write-wins with timestamp comparison
 - **Row-Level Security** — Supabase RLS policies protect data at the database level
+- **Security headers** — X-Content-Type-Options, X-Frame-Options, Referrer-Policy
 - **Feature-based structure** — clean separation under `src/features/`
-- **No `@ts-ignore` or `@ts-expect-error`** — zero suppression comments
-- **Security headers** — X-Content-Type-Options, X-Frame-Options, Referrer-Policy configured
-- **Capacitor build architecture** — smart static export toggle with route exclusion
+- **Capacitor build architecture** — smart static-export toggle
 
 ---
 
-## Priority Action Plan
+## Fixes Applied in This Commit
 
-| # | Item | Severity | Effort | Action |
-|---|------|----------|--------|--------|
-| 1 | Upgrade Next.js + audit deps | CRITICAL | 15 min | `npm install next@latest && npm audit fix` |
-| 2 | Add CI quality gates | CRITICAL | 30 min | Add lint/typecheck/test steps to `build-apk.yml` |
-| 3 | Remove `.mcp.json` from git | HIGH | 5 min | `.gitignore` + `git rm --cached` |
-| 4 | Add tests for API routes + core hooks | HIGH | 2-3 days | Start with API routes, then hooks |
-| 5 | Split monolithic files | HIGH | 1-2 days | Start with `lists/page.tsx` and `useLists.ts` |
-| 6 | Add HSTS + CSP headers | MEDIUM | 30 min | Update `next.config.js` |
-| 7 | Eliminate `any` types | MEDIUM | 1 hr | Type ICAL, use Supabase codegen |
-| 8 | Add `React.memo` + lazy loading | MEDIUM | 2-3 hrs | Wrap expensive components, use `next/dynamic` |
-| 9 | Remove console statements | LOW | 30 min | ESLint rule + find/replace |
-| 10 | Add aria-labels to icon buttons | LOW | 1 hr | Audit all interactive elements |
+| # | Severity | Fix | File |
+|---|----------|-----|------|
+| 1 | Critical | Removed `force-static` from calendar API route | `src/app/api/calendar/route.ts` |
+| 2 | Critical | Fixed sync engine to preserve failed entries instead of deleting them | `src/lib/sync-engine.ts` |
+| 3 | Critical | Added `src/features/` to Tailwind content paths | `tailwind.config.ts` |
+| 4 | High | Added Content-Security-Policy and HSTS security headers | `next.config.js` |
+| 5 | High | Added input length validation to categories API | `src/app/api/categories/route.ts` |
+| 6 | High | Added query timeout to categories API | `src/app/api/categories/route.ts` |
+| 7 | High | Moved `@capacitor/cli` to devDependencies | `package.json` |
+| 8 | High | Added `.mcp.json` to `.gitignore` | `.gitignore` |
