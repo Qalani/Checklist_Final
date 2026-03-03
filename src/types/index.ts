@@ -97,6 +97,7 @@ export interface List {
   public_share_token?: string | null;
   public_share_enabled?: boolean;
   items?: ListItem[];
+  archived?: boolean;
 }
 
 export interface ListMember {

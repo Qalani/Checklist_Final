@@ -17,7 +17,7 @@ const NAV_ITEMS = [
 /**
  * Persistent global navigation rendered in the root layout.
  *
- * - Mobile  : fixed bottom tab bar with icon + label
+ * - Mobile  : floating rounded pill bar hovering above the bottom of the screen
  * - Desktop : fixed left sidebar with icon-only buttons (tooltip on hover)
  *
  * Hidden on public shared-list pages (/lists/share/*) which require no auth.
@@ -30,33 +30,37 @@ export function GlobalNav() {
 
   return (
     <>
-      {/* ── Mobile: bottom tab bar ─────────────────────────────────────── */}
-      <nav
-        aria-label="Main navigation"
-        className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-zen-200/70 bg-surface/90 backdrop-blur-xl lg:hidden dark:border-zen-700/40"
-      >
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = href === '/' ? pathname === '/' : (pathname?.startsWith(href) ?? false);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={isActive ? 'page' : undefined}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${
-                isActive
-                  ? 'text-sage-600 dark:text-sage-400'
-                  : 'text-zen-400 hover:text-zen-600 dark:text-zen-500 dark:hover:text-zen-300'
-              }`}
-            >
-              <Icon
-                className={`h-5 w-5 transition-transform ${isActive ? 'scale-110' : ''}`}
-                aria-hidden="true"
-              />
-              <span className="leading-none">{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* ── Mobile: floating pill nav bar ──────────────────────────────── */}
+      <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:hidden">
+        <nav
+          aria-label="Main navigation"
+          className="flex items-stretch rounded-full border border-zen-200/70 bg-surface/92 shadow-lift backdrop-blur-xl dark:border-zen-700/40"
+        >
+          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+            const isActive = href === '/' ? pathname === '/' : (pathname?.startsWith(href) ?? false);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2.5 text-[10px] font-medium transition-colors first:rounded-l-full last:rounded-r-full ${
+                  isActive
+                    ? 'text-sage-600 dark:text-sage-400'
+                    : 'text-zen-400 hover:text-zen-600 dark:text-zen-500 dark:hover:text-zen-300'
+                }`}
+              >
+                <span className={`rounded-full p-1 transition-colors ${isActive ? 'bg-sage-100/80 dark:bg-sage-900/40' : ''}`}>
+                  <Icon
+                    className={`h-4 w-4 transition-transform ${isActive ? 'scale-110' : ''}`}
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="leading-none">{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* ── Desktop: left icon sidebar ─────────────────────────────────── */}
       <nav

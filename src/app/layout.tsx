@@ -36,9 +36,9 @@ export default function RootLayout({
         <ThemeProvider>
           <GlobalNav />
           <QuickCreateFAB />
-          {/* pb-16 offsets the mobile bottom tab bar; lg:pl-16 offsets the desktop sidebar */}
+          {/* pb-28 offsets the floating mobile pill nav; lg:pl-16 offsets the desktop sidebar */}
           <ErrorBoundary>
-            <div className="pb-16 lg:pb-0 lg:pl-16">{children}</div>
+            <div className="pb-28 lg:pb-0 lg:pl-16">{children}</div>
           </ErrorBoundary>
         </ThemeProvider>
         <ServiceWorkerRegistration />
