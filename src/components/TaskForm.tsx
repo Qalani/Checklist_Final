@@ -41,8 +41,25 @@ const PRESET_COLORS = [
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PRESET_REMINDER_MINUTES = ['5', '15', '30', '60', '120', '1440'] as const;
 
+type ReminderUnit = 'minutes' | 'hours' | 'days' | 'weeks';
+
+const REMINDER_UNIT_MULTIPLIERS: Record<ReminderUnit, number> = {
+  minutes: 1,
+  hours: 60,
+  days: 1440,
+  weeks: 10080,
+};
+
 function isPresetReminderValue(value: string): value is (typeof PRESET_REMINDER_MINUTES)[number] {
   return PRESET_REMINDER_MINUTES.includes(value as (typeof PRESET_REMINDER_MINUTES)[number]);
+}
+
+/** Decompose a raw-minutes value into the largest clean unit + amount. */
+function decomposeMinutes(minutes: number): { amount: number; unit: ReminderUnit } {
+  if (minutes % 10080 === 0) return { amount: minutes / 10080, unit: 'weeks' };
+  if (minutes % 1440 === 0) return { amount: minutes / 1440, unit: 'days' };
+  if (minutes % 60 === 0) return { amount: minutes / 60, unit: 'hours' };
+  return { amount: minutes, unit: 'minutes' };
 }
 
 function toLocalInputValue(value?: string | null): string {
@@ -101,9 +118,18 @@ export default function TaskForm({
       ? String(task.reminder_minutes_before)
       : '';
   const [reminderMinutes, setReminderMinutes] = useState(initialReminderValue);
-  const [useCustomReminder, setUseCustomReminder] = useState(
-    initialReminderValue !== '' && !isPresetReminderValue(initialReminderValue),
-  );
+  const isInitialCustom = initialReminderValue !== '' && !isPresetReminderValue(initialReminderValue);
+  const [useCustomReminder, setUseCustomReminder] = useState(isInitialCustom);
+  const initialDecomposed = useMemo(() => {
+    if (!isInitialCustom) return { amount: '', unit: 'minutes' as ReminderUnit };
+    const mins = parseInt(initialReminderValue, 10);
+    if (Number.isNaN(mins)) return { amount: '', unit: 'minutes' as ReminderUnit };
+    const d = decomposeMinutes(mins);
+    return { amount: String(d.amount), unit: d.unit };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [customReminderAmount, setCustomReminderAmount] = useState(initialDecomposed.amount);
+  const [customReminderUnit, setCustomReminderUnit] = useState<ReminderUnit>(initialDecomposed.unit);
   const existingRecurrence = task?.reminder_recurrence ?? null;
   const [reminderFrequency, setReminderFrequency] = useState<ReminderFrequency>(existingRecurrence?.frequency ?? 'once');
   const [reminderInterval, setReminderInterval] = useState<number>(existingRecurrence?.interval ?? 1);
@@ -132,12 +158,15 @@ export default function TaskForm({
   const parsedSnoozedUntil = useMemo(() => parseDateTimeLocal(reminderSnoozedUntil), [reminderSnoozedUntil]);
   const snoozedUntilISO = useMemo(() => (parsedSnoozedUntil ? parsedSnoozedUntil.toISOString() : null), [parsedSnoozedUntil]);
   const reminderMinutesValue = useMemo(() => {
-    if (!reminderMinutes) {
-      return null;
+    if (useCustomReminder) {
+      const amount = Number.parseInt(customReminderAmount, 10);
+      if (Number.isNaN(amount) || amount < 1) return null;
+      return amount * (REMINDER_UNIT_MULTIPLIERS[customReminderUnit as ReminderUnit] ?? 1);
     }
+    if (!reminderMinutes) return null;
     const parsed = Number.parseInt(reminderMinutes, 10);
     return Number.isNaN(parsed) || parsed < 0 ? null : parsed;
-  }, [reminderMinutes]);
+  }, [useCustomReminder, customReminderAmount, customReminderUnit, reminderMinutes]);
   const originalDueTimestamp = useMemo(() => {
     if (!task?.due_date) {
       return null;
@@ -210,7 +239,7 @@ export default function TaskForm({
     return describeReminderRecurrence(recurrencePreview) ?? 'Repeats';
   }, [dueDateISO, reminderMinutesValue, reminderFrequency, recurrencePreview]);
   const snoozedUntilDate = useMemo(() => (snoozedUntilISO ? new Date(snoozedUntilISO) : null), [snoozedUntilISO]);
-  const scheduleDisabled = !dueDate || !reminderMinutes;
+  const scheduleDisabled = !dueDate || reminderMinutesValue == null;
 
   useEffect(() => {
     return () => {
@@ -233,17 +262,18 @@ export default function TaskForm({
   }, [categories, category, isCreatingCategory, task]);
 
   useEffect(() => {
-    if (!dueDate && reminderMinutes) {
+    if (!dueDate && (reminderMinutes || customReminderAmount)) {
       setReminderMinutes('');
+      setCustomReminderAmount('');
     }
-  }, [dueDate, reminderMinutes]);
+  }, [dueDate, reminderMinutes, customReminderAmount]);
 
   useEffect(() => {
-    if (!reminderMinutes) {
+    if (reminderMinutesValue == null) {
       setReminderFrequency('once');
       setReminderSnoozedUntil('');
     }
-  }, [reminderMinutes]);
+  }, [reminderMinutesValue]);
 
   useEffect(() => {
     if (reminderFrequency === 'weekly' && reminderWeekdays.length === 0) {
@@ -331,7 +361,7 @@ export default function TaskForm({
 
     setFormError(null);
 
-    if (reminderMinutes && !dueDate) {
+    if ((reminderMinutes || customReminderAmount) && !dueDate) {
       setFormError('Add a due date before setting a reminder.');
       return;
     }
@@ -542,12 +572,12 @@ export default function TaskForm({
               const value = e.target.value;
               if (value === 'custom') {
                 setUseCustomReminder(true);
-                if (isPresetReminderValue(reminderMinutes)) {
-                  setReminderMinutes('');
-                }
+                setReminderMinutes('');
                 return;
               }
               setUseCustomReminder(false);
+              setCustomReminderAmount('');
+              setCustomReminderUnit('minutes');
               setReminderMinutes(value);
             }}
             disabled={!dueDate}
@@ -567,13 +597,23 @@ export default function TaskForm({
               <input
                 type="number"
                 min={1}
-                value={reminderMinutes}
-                onChange={(e) => setReminderMinutes(e.target.value.replace(/[^0-9]/g, ''))}
+                value={customReminderAmount}
+                onChange={(e) => setCustomReminderAmount(e.target.value.replace(/[^0-9]/g, ''))}
                 disabled={!dueDate}
-                placeholder="Minutes before due time"
-                className="w-40 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                placeholder="Amount"
+                className="w-24 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               />
-              <span className="text-sm text-zen-500">minutes before</span>
+              <select
+                value={customReminderUnit}
+                onChange={(e) => setCustomReminderUnit(e.target.value as ReminderUnit)}
+                disabled={!dueDate}
+                className="flex-1 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="minutes">minutes before</option>
+                <option value="hours">hours before</option>
+                <option value="days">days before</option>
+                <option value="weeks">weeks before</option>
+              </select>
             </div>
           )}
         </div>

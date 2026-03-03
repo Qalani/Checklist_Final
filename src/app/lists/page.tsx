@@ -21,6 +21,8 @@ import {
   Globe2,
   Link as LinkIcon,
   ArrowUpRight,
+  Archive,
+  ArchiveX,
 } from 'lucide-react';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
@@ -130,6 +132,8 @@ export default function ListsPage() {
     enablePublicShare,
     rotatePublicShare,
     disablePublicShare,
+    archiveList,
+    unarchiveList,
   } = useLists(user?.id ?? null);
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM);
   const [editingList, setEditingList] = useState<List | null>(null);
@@ -154,6 +158,8 @@ export default function ListsPage() {
   const [editingItemsListId, setEditingItemsListId] = useState<string | null>(null);
   const [listSort, setListSort] = useState<ListSortOption>('created-oldest');
   const [newListItems, setNewListItems] = useState<List['items']>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [listActionMessage, setListActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -346,6 +352,9 @@ export default function ListsPage() {
     return sorted;
   }, [listSort, lists]);
 
+  const activeLists = useMemo(() => sortedLists.filter((l: List) => !l.archived), [sortedLists]);
+  const archivedLists = useMemo(() => sortedLists.filter((l: List) => l.archived), [sortedLists]);
+
   const selectedListSortOption =
     LIST_SORT_OPTIONS.find(option => option.value === listSort) ?? LIST_SORT_OPTIONS[0];
   const listSortStatusText = selectedListSortOption.description;
@@ -514,6 +523,26 @@ export default function ListsPage() {
     const result = await deleteList(list.id);
     if (result && 'error' in result && result.error) {
       setFormError(result.error);
+    }
+  };
+
+  const handleArchive = async (list: List) => {
+    const result = await archiveList(list.id);
+    if (result && 'error' in result) {
+      setListActionMessage({ type: 'error', text: result.error });
+    } else {
+      setListActionMessage({ type: 'success', text: `"${list.name}" archived.` });
+      setTimeout(() => setListActionMessage(null), 3000);
+    }
+  };
+
+  const handleUnarchive = async (list: List) => {
+    const result = await unarchiveList(list.id);
+    if (result && 'error' in result) {
+      setListActionMessage({ type: 'error', text: result.error });
+    } else {
+      setListActionMessage({ type: 'success', text: `"${list.name}" restored.` });
+      setTimeout(() => setListActionMessage(null), 3000);
     }
   };
 
@@ -954,7 +983,7 @@ export default function ListsPage() {
                     className="h-40 rounded-3xl bg-surface/70 border border-zen-200 shadow-soft animate-pulse"
                   />
                 ))
-              ) : sortedLists.length === 0 ? (
+              ) : activeLists.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-3 rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
                   <ListIcon className="w-12 h-12 mx-auto text-sage-400" />
                   <div className="space-y-2">
@@ -973,7 +1002,7 @@ export default function ListsPage() {
                   </button>
                 </div>
               ) : (
-                sortedLists.map(list => {
+                activeLists.map(list => {
                   const role = resolveRole(list);
                   const canEditList = role === 'owner' || role === 'editor';
                   const canDeleteList = role === 'owner';
@@ -1108,6 +1137,15 @@ export default function ListsPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  onClick={() => void handleArchive(list)}
+                                  className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  disabled={!canDeleteList}
+                                  title={canDeleteList ? 'Archive list' : 'Only owners can archive this list'}
+                                >
+                                  <Archive className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleDelete(list)}
                                   className="p-2 rounded-xl border border-red-200 text-red-500 hover:text-red-600 hover:border-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                   disabled={!canDeleteList}
@@ -1138,9 +1176,78 @@ export default function ListsPage() {
                 })
               )}
             </div>
+
+            {/* Archived lists section */}
+            {archivedLists.length > 0 && (
+              <div className="mt-8">
+                <button
+                  type="button"
+                  onClick={() => setShowArchived((v: boolean) => !v)}
+                  className="flex items-center gap-2 text-sm font-semibold text-zen-500 hover:text-zen-700 transition-colors mb-4"
+                >
+                  <Archive className="w-4 h-4" />
+                  {showArchived ? 'Hide' : 'Show'} archived lists ({archivedLists.length})
+                </button>
+
+                {showArchived && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 opacity-70">
+                    {archivedLists.map(list => (
+                      <div
+                        key={list.id}
+                        className="rounded-3xl border border-zen-200/60 bg-surface/60 p-5 flex flex-col gap-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-zen-700 truncate">{list.name}</h3>
+                            {list.description && (
+                              <p className="text-xs text-zen-500 mt-1 line-clamp-2">{list.description}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => void handleUnarchive(list)}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zen-200 text-xs font-medium text-zen-600 hover:text-zen-800 hover:border-zen-300 transition-colors"
+                              title="Restore list"
+                            >
+                              <ArchiveX className="w-3.5 h-3.5" />
+                              Restore
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(list)}
+                              className="p-1.5 rounded-xl border border-red-200 text-red-400 hover:text-red-600 hover:border-red-300 transition-colors"
+                              title="Delete permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zen-400">{(list.items?.length ?? 0)} items</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         </main>
       </div>
+
+      {/* Action message toast */}
+      {listActionMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-32 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lift ${
+            listActionMessage.type === 'success'
+              ? 'border-sage-200 bg-surface text-sage-700'
+              : 'border-red-200 bg-surface text-red-600'
+          }`}
+        >
+          {listActionMessage.text}
+        </div>
+      )}
 
       <AnimatePresence>
         {sharingList && (

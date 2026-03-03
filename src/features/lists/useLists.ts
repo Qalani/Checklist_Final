@@ -55,6 +55,8 @@ export interface UseListsResult extends ListsState {
   enablePublicShare: (listId: string) => Promise<{ token: string } | ErrorResult>;
   rotatePublicShare: (listId: string) => Promise<{ token: string } | ErrorResult>;
   disablePublicShare: (listId: string) => Promise<void | ErrorResult>;
+  archiveList: (id: string) => Promise<void | ErrorResult>;
+  unarchiveList: (id: string) => Promise<void | ErrorResult>;
   refresh: (force?: boolean) => Promise<void>;
 }
 
@@ -1268,6 +1270,56 @@ export function useLists(userId: string | null): UseListsResult {
     [userId],
   );
 
+  const archiveList = useCallback(
+    async (id: string): Promise<void | ErrorResult> => {
+      if (!userId) return { error: 'You must be signed in to archive lists.' };
+      const existing = listsRef.current.find(l => l.id === id);
+      if (!existing) return { error: 'List not found.' };
+      if (existing.access_role !== 'owner') return { error: 'Only owners can archive a list.' };
+
+      if (!isOnline()) {
+        const updated: List = { ...existing, archived: true };
+        await db.lists.put(updated);
+        await enqueue({ table_name: 'lists', operation: 'UPDATE', payload: { id, archived: true } });
+        setState(prev => ({ ...prev, lists: prev.lists.map(l => l.id === id ? { ...l, archived: true } : l) }));
+        return;
+      }
+      try {
+        const { error } = await supabase.from('lists').update({ archived: true }).eq('id', id);
+        if (error) throw new Error(error.message || 'Unable to archive list.');
+        setState(prev => ({ ...prev, lists: prev.lists.map(l => l.id === id ? { ...l, archived: true } : l) }));
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to archive list.') };
+      }
+    },
+    [userId],
+  );
+
+  const unarchiveList = useCallback(
+    async (id: string): Promise<void | ErrorResult> => {
+      if (!userId) return { error: 'You must be signed in to unarchive lists.' };
+      const existing = listsRef.current.find(l => l.id === id);
+      if (!existing) return { error: 'List not found.' };
+      if (existing.access_role !== 'owner') return { error: 'Only owners can unarchive a list.' };
+
+      if (!isOnline()) {
+        const updated: List = { ...existing, archived: false };
+        await db.lists.put(updated);
+        await enqueue({ table_name: 'lists', operation: 'UPDATE', payload: { id, archived: false } });
+        setState(prev => ({ ...prev, lists: prev.lists.map(l => l.id === id ? { ...l, archived: false } : l) }));
+        return;
+      }
+      try {
+        const { error } = await supabase.from('lists').update({ archived: false }).eq('id', id);
+        if (error) throw new Error(error.message || 'Unable to unarchive list.');
+        setState(prev => ({ ...prev, lists: prev.lists.map(l => l.id === id ? { ...l, archived: false } : l) }));
+      } catch (error) {
+        return { error: extractErrorMessage(error, 'Unable to unarchive list.') };
+      }
+    },
+    [userId],
+  );
+
   return {
     ...state,
     createList,
@@ -1284,6 +1336,8 @@ export function useLists(userId: string | null): UseListsResult {
     enablePublicShare,
     rotatePublicShare,
     disablePublicShare,
+    archiveList,
+    unarchiveList,
     refresh: (force) => runRefresh(force),
   };
 }
