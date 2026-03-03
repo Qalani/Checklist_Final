@@ -3,6 +3,7 @@ import type { Friend, List, Note, Task, ZenReminder } from '@/types';
 export interface TaskOverview {
   openTasks: number;
   completedTasks: number;
+  overdueTasks: number;
   nextDueTask: Task | null;
 }
 
@@ -30,12 +31,17 @@ export function selectTaskOverview(tasks: Task[], demoMode: boolean): TaskOvervi
     return {
       openTasks: 4,
       completedTasks: 18,
+      overdueTasks: 1,
       nextDueTask: { title: 'Design system sync', due_date: demoDate.toISOString() } as Task,
     };
   }
 
+  const now = Date.now();
   const openTasks = tasks.filter(task => !task.completed).length;
   const completedTasks = tasks.filter(task => task.completed).length;
+  const overdueTasks = tasks.filter(
+    task => !task.completed && task.due_date && new Date(task.due_date).getTime() < now,
+  ).length;
   const nextDueTask =
     tasks
       .filter(task => !task.completed && task.due_date)
@@ -44,6 +50,7 @@ export function selectTaskOverview(tasks: Task[], demoMode: boolean): TaskOvervi
   return {
     openTasks,
     completedTasks,
+    overdueTasks,
     nextDueTask,
   };
 }

@@ -9,8 +9,10 @@ export interface FeatureCardProps {
   description: string;
   href: string;
   icon: ComponentType<{ className?: string }>;
+  loading?: boolean;
   primary: string;
   secondary?: string;
+  footerText?: string;
   accentGradient: string;
   accentText: string;
   badgeBg: string;
@@ -54,14 +56,28 @@ export function FeatureCard({ card }: { card: FeatureCardProps }) {
             <ArrowRight className="h-5 w-5 text-zen-300 transition-transform group-hover:translate-x-1 dark:text-zen-400" />
           </div>
           <dl className="grid gap-2 text-sm">
-            <div className="text-lg font-semibold text-zen-900">{card.primary}</div>
-            {card.secondary ? <div className="text-xs text-zen-500 dark:text-zen-300">{card.secondary}</div> : null}
+            {card.loading ? (
+              <>
+                <div className="h-6 w-3/4 animate-pulse rounded-lg bg-zen-200/60 dark:bg-zen-700/40" />
+                <div className="h-3.5 w-1/2 animate-pulse rounded-md bg-zen-200/40 dark:bg-zen-700/30" />
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-semibold text-zen-900">{card.primary}</div>
+                {card.secondary ? <div className="text-xs text-zen-500 dark:text-zen-300">{card.secondary}</div> : null}
+              </>
+            )}
           </dl>
         </div>
         <div
-          className={`border-t border-zen-200/50 px-6 py-4 text-sm text-zen-600 transition-colors dark:border-zen-700/40 dark:text-zen-200 ${card.footerBg} ${card.footerHoverBg}`}
+          className={`flex items-center justify-between border-t border-zen-200/50 px-6 py-4 text-sm text-zen-600 transition-colors dark:border-zen-700/40 dark:text-zen-200 ${card.footerBg} ${card.footerHoverBg}`}
         >
-          Tap to explore {card.title}
+          {card.loading ? (
+            <div className="h-3.5 w-2/5 animate-pulse rounded-md bg-zen-200/60 dark:bg-zen-700/40" />
+          ) : (
+            <span>{card.footerText ?? `Open ${card.title}`}</span>
+          )}
+          <ArrowRight className="h-4 w-4 opacity-40 transition-transform group-hover:translate-x-0.5" />
         </div>
       </motion.article>
     </Link>
