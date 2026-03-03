@@ -147,7 +147,8 @@ export async function pushQueue(): Promise<void> {
 
   for (const entry of entries) {
     if (entry.retries >= MAX_RETRIES) {
-      await remove(entry.id!);
+      // Leave the entry in the queue for manual inspection / future recovery
+      // instead of silently deleting user data.
       continue;
     }
 

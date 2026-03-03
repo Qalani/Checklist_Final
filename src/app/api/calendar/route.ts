@@ -15,7 +15,6 @@ import type {
   CalendarZenReminderMetadata,
 } from '@/features/calendar/types';
 
-export const dynamic = 'force-static';
 export const runtime = 'nodejs';
 
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
