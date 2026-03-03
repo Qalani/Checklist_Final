@@ -305,7 +305,10 @@ function SortableTaskItem({
               </h3>
 
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />
+              <Flag
+                className={`w-4 h-4 ${priorityColors[task.priority]}`}
+                aria-label={`Priority: ${task.priority}`}
+              />
               <button
                 onClick={onExpand}
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-zen-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"

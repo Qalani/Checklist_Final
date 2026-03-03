@@ -91,9 +91,10 @@ export function QuickCreateFAB() {
     });
   }, [open, mode, user?.id]);
 
-  // Focus title on open
+  // Focus title on open — use requestAnimationFrame so the element is guaranteed
+  // to be visible and mounted before we attempt to focus it.
   useEffect(() => {
-    if (open) setTimeout(() => titleRef.current?.focus(), 50);
+    if (open) requestAnimationFrame(() => titleRef.current?.focus());
   }, [open]);
 
   const handleOpen = useCallback(() => {

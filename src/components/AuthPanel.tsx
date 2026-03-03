@@ -58,6 +58,18 @@ export default function AuthPanel() {
       return;
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (mode === 'sign_up' && password.trim().length < 8) {
+      setError('Password must be at least 8 characters.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       if (mode === 'sign_up') {
         const { error } = await supabase.auth.signUp({
@@ -227,30 +239,36 @@ export default function AuthPanel() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-zen-700 mb-2">
+          <label htmlFor="auth-email" className="block text-sm font-medium text-zen-700 mb-2">
             Email
           </label>
           <input
+            id="auth-email"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
             placeholder="you@example.com"
             required
+            aria-invalid={!!error}
+            aria-describedby={error ? 'auth-error' : undefined}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zen-700 mb-2">
+          <label htmlFor="auth-password" className="block text-sm font-medium text-zen-700 mb-2">
             Password
           </label>
           <input
+            id="auth-password"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="w-full px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
             placeholder="••••••••"
             required
+            aria-invalid={!!error}
+            aria-describedby={error ? 'auth-error' : undefined}
           />
           {mode === 'sign_in' && (
             <div className="mt-2 text-right">
@@ -267,7 +285,7 @@ export default function AuthPanel() {
         </div>
 
         {error && (
-          <div className="px-4 py-3 rounded-xl bg-red-50 text-red-700 text-sm">
+          <div id="auth-error" role="alert" className="px-4 py-3 rounded-xl bg-red-50 text-red-700 text-sm">
             {error}
           </div>
         )}
