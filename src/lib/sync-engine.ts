@@ -64,12 +64,12 @@ function getDexieTable(name: SyncableTable): Table<any, string> {
  * When updated_at is absent on either side the remote record wins,
  * which is the safe default for append-only tables (categories, lists, etc.).
  */
-export function resolveConflict<T extends { updated_at?: string }>(
+export function resolveConflict<T extends Record<string, unknown>>(
   local: T,
   remote: T,
 ): T {
-  const localMs = local.updated_at ? new Date(local.updated_at).getTime() : 0;
-  const remoteMs = remote.updated_at ? new Date(remote.updated_at).getTime() : 0;
+  const localMs = typeof local.updated_at === 'string' ? new Date(local.updated_at).getTime() : 0;
+  const remoteMs = typeof remote.updated_at === 'string' ? new Date(remote.updated_at).getTime() : 0;
   return remoteMs >= localMs ? remote : local;
 }
 
@@ -119,8 +119,8 @@ export async function pullLatest(
     const local = localMap.get(remote.id as string);
     const resolved = local
       ? resolveConflict(
-          local as { updated_at?: string },
-          remote as { updated_at?: string },
+          local as Record<string, unknown>,
+          remote as Record<string, unknown>,
         )
       : remote;
     await dexieTable.put(resolved);

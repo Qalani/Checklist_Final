@@ -26,6 +26,15 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+
       - name: Build Next.js static export
         run: npm run build:capacitor
         env:

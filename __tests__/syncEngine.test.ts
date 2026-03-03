@@ -254,7 +254,7 @@ describe('pushQueue', () => {
     expect(mockRemove).toHaveBeenCalledWith('q2');
   });
 
-  it('removes exhausted entries (MAX_RETRIES = 3) without a Supabase call', async () => {
+  it('skips exhausted entries (MAX_RETRIES = 3) without a Supabase call or removal', async () => {
     const entry = {
       id: 'q3',
       retries: 3,
@@ -263,12 +263,11 @@ describe('pushQueue', () => {
       payload: { id: 't3' },
     };
     mockGetAll.mockResolvedValue([entry]);
-    mockRemove.mockResolvedValue(undefined);
 
     await pushQueue();
 
     expect(mockFrom).not.toHaveBeenCalled();
-    expect(mockRemove).toHaveBeenCalledWith('q3');
+    expect(mockRemove).not.toHaveBeenCalled();
   });
 
   it('increments retry counter when Supabase returns an error', async () => {
