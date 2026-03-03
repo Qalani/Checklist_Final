@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme-context";
+
+const inter = Inter({ subsets: ["latin"] });
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
@@ -32,13 +35,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-theme={DEFAULT_THEME_ID}>
-      <body>
+      <body className={inter.className}>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-sage-600 focus:text-white focus:rounded-xl"
+        >
+          Skip to main content
+        </a>
         <ThemeProvider>
           <GlobalNav />
           <QuickCreateFAB />
           {/* pb-28 offsets the floating mobile pill nav; lg:pl-16 offsets the desktop sidebar */}
           <ErrorBoundary>
-            <div className="pb-28 lg:pb-0 lg:pl-16">{children}</div>
+            <div id="main-content" className="pb-28 lg:pb-0 lg:pl-16">{children}</div>
           </ErrorBoundary>
         </ThemeProvider>
         <ServiceWorkerRegistration />

@@ -593,27 +593,30 @@ export default function TaskForm({
             <option value="custom">Custom...</option>
           </select>
           {useCustomReminder && (
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="number"
-                min={1}
-                value={customReminderAmount}
-                onChange={(e) => setCustomReminderAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                disabled={!dueDate}
-                placeholder="Amount"
-                className="w-24 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-              <select
-                value={customReminderUnit}
-                onChange={(e) => setCustomReminderUnit(e.target.value as ReminderUnit)}
-                disabled={!dueDate}
-                className="flex-1 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <option value="minutes">minutes before</option>
-                <option value="hours">hours before</option>
-                <option value="days">days before</option>
-                <option value="weeks">weeks before</option>
-              </select>
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={customReminderAmount}
+                  onChange={(e) => setCustomReminderAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                  disabled={!dueDate}
+                  placeholder="Amount"
+                  className="w-24 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+                <select
+                  value={customReminderUnit}
+                  onChange={(e) => setCustomReminderUnit(e.target.value as ReminderUnit)}
+                  disabled={!dueDate}
+                  className="flex-1 px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="minutes">minutes before</option>
+                  <option value="hours">hours before</option>
+                  <option value="days">days before</option>
+                  <option value="weeks">weeks before</option>
+                </select>
+              </div>
+              <p className="text-xs text-zen-500">Enter a whole number, e.g. 30 minutes or 2 hours before the due date.</p>
             </div>
           )}
         </div>
