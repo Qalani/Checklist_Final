@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CheckCircle2, FileText, List, Plus, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { fetchCategories } from '@/features/checklist/ChecklistManager';
@@ -35,7 +36,7 @@ function getPageMode(pathname: string | null): PageMode | null {
   return 'task'; // /tasks, /calendar, and any other authenticated page
 }
 
-const MODE_META: Record<PageMode, { label: string; icon: (props: { className?: string }) => JSX.Element | null }> = {
+const MODE_META: Record<PageMode, { label: string; icon: LucideIcon }> = {
   task: { label: 'New task', icon: CheckCircle2 },
   list: { label: 'New list', icon: List },
   note: { label: 'New note', icon: FileText },
