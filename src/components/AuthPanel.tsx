@@ -115,13 +115,11 @@ export default function AuthPanel() {
         const normalized = message.toLowerCase();
         if (normalized.includes('redirect_uri_mismatch')) {
           setError(
-            'Google rejected the redirect URI. Confirm that the Supabase callback and every domain in '
-              + '`NEXT_PUBLIC_SITE_URL` are listed under Authorized redirect URIs in your Google credential.'
+            'Google sign-in is temporarily unavailable. Please try again later or sign in with email instead.'
           );
         } else if (normalized.includes('app_not_configured_for_user') || normalized.includes('access_denied')) {
           setError(
-            'This Google app is still in Testing mode. Add your account under Test users or publish the consent screen before '
-              + 'sharing the sign-in link.'
+            'Google sign-in is not available for your account right now. Please try again later or sign in with email instead.'
           );
         } else {
           setError(message);
@@ -214,9 +212,7 @@ export default function AuthPanel() {
           {isOAuthLoading ? 'Signing in...' : 'Continue with Google'}
         </button>
         <p className="text-xs text-zen-500 text-center leading-relaxed">
-          While Google keeps the consent screen in Testing mode, project owners/editors and anyone who previously granted
-          consent can still sign in even if they are not listed under Test users. Revoke their access from Google Account
-          settings or move the consent screen to Production when you need to open the app to a wider audience.
+          Sign in securely with your Google account. We only request basic profile information to set up your workspace.
         </p>
       </div>
 
