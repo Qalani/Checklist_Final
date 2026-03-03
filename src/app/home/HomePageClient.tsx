@@ -55,48 +55,67 @@ export default function HomePageClient() {
   const remindersLoading = remindersOverview.loading;
 
   const featureCards = useMemo<FeatureCardProps[]>(
-    () => [
-      {
-        key: 'calendar',
-        title: 'Calendar',
-        description: 'Visualise tasks, reminders, and notes on a shared timeline.',
-        href: '/calendar',
-        icon: CalendarDays,
-        primary: tasksLoading
-          ? 'Syncing…'
-          : tasksOverview.nextDueTask
+    () => {
+      // Compute a human-readable "time until" string for an upcoming reminder
+      const upcomingReminderFooter = (() => {
+        if (!remindersOverview.upcomingReminder?.remind_at) return undefined;
+        const msUntil = new Date(remindersOverview.upcomingReminder.remind_at).getTime() - Date.now();
+        if (msUntil <= 0) return undefined;
+        const minsUntil = Math.round(msUntil / 60_000);
+        if (minsUntil < 60) return `Next reminder in ${minsUntil}m`;
+        const hoursUntil = Math.round(minsUntil / 60);
+        return `Next reminder in ${hoursUntil}h`;
+      })();
+
+      const tasksFooter = (() => {
+        if (tasksLoading) return undefined;
+        if (tasksOverview.overdueTasks > 0) {
+          return `${tasksOverview.overdueTasks} task${tasksOverview.overdueTasks === 1 ? '' : 's'} overdue`;
+        }
+        return tasksOverview.openTasks === 0 ? 'All caught up' : 'All tasks on track';
+      })();
+
+      return [
+        {
+          key: 'calendar',
+          title: 'Calendar',
+          description: 'Visualise tasks, reminders, and notes on a shared timeline.',
+          href: '/calendar',
+          icon: CalendarDays,
+          loading: tasksLoading,
+          primary: tasksOverview.nextDueTask
             ? `Next: ${tasksOverview.nextDueTask.title}`
             : 'No upcoming due dates',
-        secondary:
-          tasksOverview.nextDueTask?.due_date
-            ? new Date(tasksOverview.nextDueTask.due_date).toLocaleString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : 'Stay in control at a glance',
-        accentGradient: 'bg-gradient-to-br from-zen-500 to-warm-500',
-        accentText: 'text-white',
-        badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
-        badgeText: 'text-zen-600 dark:text-zen-900',
-        footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
-        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
-      },
-      {
-        key: 'reminders',
-        title: 'Zen Reminders',
-        description: 'Schedule gentle nudges to pause, breathe, and reset throughout your day.',
-        href: '/reminders',
-        icon: Bell,
-        primary: remindersLoading
-          ? 'Syncing…'
-          : remindersOverview.upcomingReminder
+          secondary:
+            tasksOverview.nextDueTask?.due_date
+              ? new Date(tasksOverview.nextDueTask.due_date).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : 'Stay in control at a glance',
+          footerText: tasksLoading ? undefined : tasksOverview.overdueTasks > 0
+            ? `${tasksOverview.overdueTasks} task${tasksOverview.overdueTasks === 1 ? '' : 's'} need attention`
+            : 'View full timeline',
+          accentGradient: 'bg-gradient-to-br from-zen-500 to-warm-500',
+          accentText: 'text-white',
+          badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-zen-600 dark:text-zen-900',
+          footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
+        },
+        {
+          key: 'reminders',
+          title: 'Zen Reminders',
+          description: 'Schedule gentle nudges to pause, breathe, and reset throughout your day.',
+          href: '/reminders',
+          icon: Bell,
+          loading: remindersLoading,
+          primary: remindersOverview.upcomingReminder
             ? `Next: ${remindersOverview.upcomingReminder.title}`
             : 'No reminders scheduled',
-        secondary: remindersLoading
-          ? ''
-          : remindersOverview.upcomingReminder?.remind_at
+          secondary: remindersOverview.upcomingReminder?.remind_at
             ? new Date(remindersOverview.upcomingReminder.remind_at).toLocaleString(undefined, {
                 month: 'short',
                 day: 'numeric',
@@ -104,74 +123,86 @@ export default function HomePageClient() {
                 minute: '2-digit',
               })
             : `${remindersOverview.totalReminders} saved reminders`,
-        accentGradient: 'bg-gradient-to-br from-sage-500 to-zen-500',
-        accentText: 'text-white',
-        badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
-        badgeText: 'text-sage-700 dark:text-zen-900',
-        footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
-        footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
-      },
-      {
-        key: 'tasks',
-        title: 'Tasks',
-        description: 'Orchestrate priorities with calm confidence and crystal-clear visibility.',
-        href: '/tasks',
-        icon: CheckSquare,
-        primary: tasksLoading ? 'Syncing…' : `${tasksOverview.openTasks} active tasks`,
-        secondary: tasksLoading ? '' : `${tasksOverview.completedTasks} completed`,
-        accentGradient: 'bg-gradient-to-br from-zen-500 to-zen-600',
-        accentText: 'text-white',
-        badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
-        badgeText: 'text-zen-600 dark:text-zen-900',
-        footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
-        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
-      },
-      {
-        key: 'lists',
-        title: 'Lists',
-        description: 'Design polished rituals, runbooks, and checklists that evolve with your goals.',
-        href: '/lists',
-        icon: ListTodo,
-        primary: listsLoading ? 'Syncing…' : `${listsOverview.totalLists} curated lists`,
-        secondary: '',
-        accentGradient: 'bg-gradient-to-br from-sage-400 to-sage-500',
-        accentText: 'text-zen-900',
-        badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
-        badgeText: 'text-sage-700 dark:text-zen-900',
-        footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
-        footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
-      },
-      {
-        key: 'notes',
-        title: 'Notes',
-        description: 'Capture layered insights, decisions, and reflections in a soothing editor.',
-        href: '/notes',
-        icon: StickyNote,
-        primary: notesLoading ? 'Syncing…' : `${notesOverview.totalNotes} saved notes`,
-        secondary: '',
-        accentGradient: 'bg-gradient-to-br from-warm-400 to-warm-500',
-        accentText: 'text-white',
-        badgeBg: 'bg-warm-100/80 dark:bg-zen-800/40',
-        badgeText: 'text-warm-600 dark:text-zen-900',
-        footerBg: 'bg-warm-50/80 dark:bg-zen-800/25',
-        footerHoverBg: 'group-hover:bg-warm-100/80 dark:group-hover:bg-zen-900/25',
-      },
-      {
-        key: 'friends',
-        title: 'Friends',
-        description: 'Nurture accountability and momentum with the people who keep you grounded.',
-        href: '/friends',
-        icon: Users,
-        primary: friendsLoading ? 'Syncing…' : `${friendsOverview.totalFriends} connected friends`,
-        secondary: '',
-        accentGradient: 'bg-gradient-to-br from-zen-500 to-sage-500',
-        accentText: 'text-white',
-        badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
-        badgeText: 'text-zen-600 dark:text-zen-900',
-        footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
-        footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
-      },
-    ],
+          footerText: remindersLoading ? undefined : upcomingReminderFooter ?? (
+            remindersOverview.totalReminders === 0 ? 'Schedule your first reminder' : 'No upcoming reminders'
+          ),
+          accentGradient: 'bg-gradient-to-br from-sage-500 to-zen-500',
+          accentText: 'text-white',
+          badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-sage-700 dark:text-zen-900',
+          footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
+        },
+        {
+          key: 'tasks',
+          title: 'Tasks',
+          description: 'Orchestrate priorities with calm confidence and crystal-clear visibility.',
+          href: '/tasks',
+          icon: CheckSquare,
+          loading: tasksLoading,
+          primary: `${tasksOverview.openTasks} active tasks`,
+          secondary: `${tasksOverview.completedTasks} completed`,
+          footerText: tasksFooter,
+          accentGradient: 'bg-gradient-to-br from-zen-500 to-zen-600',
+          accentText: 'text-white',
+          badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-zen-600 dark:text-zen-900',
+          footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
+        },
+        {
+          key: 'lists',
+          title: 'Lists',
+          description: 'Design polished rituals, runbooks, and checklists that evolve with your goals.',
+          href: '/lists',
+          icon: ListTodo,
+          loading: listsLoading,
+          primary: `${listsOverview.totalLists} curated lists`,
+          secondary: '',
+          footerText: listsLoading ? undefined : listsOverview.totalLists === 0 ? 'Create your first list' : undefined,
+          accentGradient: 'bg-gradient-to-br from-sage-400 to-sage-500',
+          accentText: 'text-zen-900',
+          badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-sage-700 dark:text-zen-900',
+          footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
+        },
+        {
+          key: 'notes',
+          title: 'Notes',
+          description: 'Capture layered insights, decisions, and reflections in a soothing editor.',
+          href: '/notes',
+          icon: StickyNote,
+          loading: notesLoading,
+          primary: `${notesOverview.totalNotes} saved notes`,
+          secondary: '',
+          footerText: notesLoading ? undefined : notesOverview.totalNotes === 0 ? 'Write your first note' : undefined,
+          accentGradient: 'bg-gradient-to-br from-warm-400 to-warm-500',
+          accentText: 'text-white',
+          badgeBg: 'bg-warm-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-warm-600 dark:text-zen-900',
+          footerBg: 'bg-warm-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-warm-100/80 dark:group-hover:bg-zen-900/25',
+        },
+        {
+          key: 'friends',
+          title: 'Friends',
+          description: 'Nurture accountability and momentum with the people who keep you grounded.',
+          href: '/friends',
+          icon: Users,
+          loading: friendsLoading,
+          primary: `${friendsOverview.totalFriends} connected friends`,
+          secondary: '',
+          footerText: friendsLoading ? undefined : friendsOverview.totalFriends === 0 ? 'Invite someone to connect' : undefined,
+          accentGradient: 'bg-gradient-to-br from-zen-500 to-sage-500',
+          accentText: 'text-white',
+          badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-zen-600 dark:text-zen-900',
+          footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
+        },
+      ];
+    },
     [
       friendsLoading,
       friendsOverview.totalFriends,
@@ -186,6 +217,7 @@ export default function HomePageClient() {
       tasksOverview.completedTasks,
       tasksOverview.nextDueTask,
       tasksOverview.openTasks,
+      tasksOverview.overdueTasks,
     ],
   );
 

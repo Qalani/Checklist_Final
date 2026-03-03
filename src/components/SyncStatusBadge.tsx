@@ -27,7 +27,7 @@ export function SyncStatusBadge({ tableName, id }: SyncStatusBadgeProps) {
     return (
       <span
         title="Change queued — will sync when online"
-        className="inline-flex items-center gap-1 rounded-md bg-warm-50 px-1.5 py-0.5 text-[10px] font-medium text-warm-600 shrink-0"
+        className="inline-flex items-center gap-1 rounded-md bg-warm-50 px-2 py-1 text-xs font-medium text-warm-600 shrink-0"
       >
         <Clock className="w-3 h-3" />
         Pending
@@ -37,20 +37,20 @@ export function SyncStatusBadge({ tableName, id }: SyncStatusBadgeProps) {
 
   // status === 'error'
   return (
-    <span className="inline-flex items-center gap-1 shrink-0">
+    <span className="inline-flex items-center gap-1.5 shrink-0">
       <span
         title="Sync failed — max retries reached"
-        className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600"
+        className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-600"
       >
-        <AlertTriangle className="w-3 h-3" />
+        <AlertTriangle className="w-3.5 h-3.5" />
         Sync error
       </span>
       {entry && (
         <button
           type="button"
           onClick={() => void retryEntry(entry)}
-          className="rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 transition-colors hover:bg-red-200"
-          title="Re-enqueue this item for sync"
+          aria-label="Retry sync for this item"
+          className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
         >
           Retry
         </button>
