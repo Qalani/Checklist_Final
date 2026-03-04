@@ -3,7 +3,7 @@ import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
 import { extractErrorMessage } from '@/utils/extract-error-message';
-import type { ReminderRecurrence, Task, TaskCollaborator } from '@/types';
+import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type {
   RealtimeChannel,

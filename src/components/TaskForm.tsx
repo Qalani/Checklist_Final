@@ -1,18 +1,28 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { X, Save, PlusCircle } from 'lucide-react';
-import type { Task, Category, ReminderFrequency } from '@/types';
+import { X, Save } from 'lucide-react';
+import type { Task, Category } from '@/types';
 import {
-  describeReminderRecurrence,
-  formatReminderDate,
   getNextReminderOccurrence,
-  getUpcomingReminderOccurrences,
   normalizeReminderRecurrence,
 } from '@/utils/reminders';
 import { extractErrorMessage } from '@/utils/extract-error-message';
 import RichTextTextarea from './RichTextTextarea';
+import {
+  PRESET_COLORS,
+  REMINDER_UNIT_MULTIPLIERS,
+  isPresetReminderValue,
+  decomposeMinutes,
+  toLocalInputValue,
+  parseDateTimeLocal,
+  parseMonthdaysInput,
+} from '@/utils/dateTimeLocal';
+import type { ReminderUnit } from '@/utils/dateTimeLocal';
+import { useReminderRecurrence } from '@/features/checklist/hooks/useReminderRecurrence';
+import ReminderSchedulePanel from './form/ReminderSchedulePanel';
+import CategoryCreationForm from './form/CategoryCreationForm';
 
 interface TaskFormProps {
   task: Task | null;
@@ -21,75 +31,6 @@ interface TaskFormProps {
   onClose: () => void;
   onSave: (task: Partial<Task>) => Promise<{ error?: string } | void>;
   mode?: 'modal' | 'inline';
-}
-
-const PRESET_COLORS = [
-  '#5a7a5a',
-  '#7a957a',
-  '#a89478',
-  '#8b7961',
-  '#6366f1',
-  '#8b5cf6',
-  '#ec4899',
-  '#f43f5e',
-  '#f59e0b',
-  '#10b981',
-  '#06b6d4',
-  '#6b7280',
-];
-
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const PRESET_REMINDER_MINUTES = ['5', '15', '30', '60', '120', '1440'] as const;
-
-type ReminderUnit = 'minutes' | 'hours' | 'days' | 'weeks';
-
-const REMINDER_UNIT_MULTIPLIERS: Record<ReminderUnit, number> = {
-  minutes: 1,
-  hours: 60,
-  days: 1440,
-  weeks: 10080,
-};
-
-function isPresetReminderValue(value: string): value is (typeof PRESET_REMINDER_MINUTES)[number] {
-  return PRESET_REMINDER_MINUTES.includes(value as (typeof PRESET_REMINDER_MINUTES)[number]);
-}
-
-/** Decompose a raw-minutes value into the largest clean unit + amount. */
-function decomposeMinutes(minutes: number): { amount: number; unit: ReminderUnit } {
-  if (minutes % 10080 === 0) return { amount: minutes / 10080, unit: 'weeks' };
-  if (minutes % 1440 === 0) return { amount: minutes / 1440, unit: 'days' };
-  if (minutes % 60 === 0) return { amount: minutes / 60, unit: 'hours' };
-  return { amount: minutes, unit: 'minutes' };
-}
-
-function toLocalInputValue(value?: string | null): string {
-  if (!value) {
-    return '';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  const offsetMinutes = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offsetMinutes * 60_000);
-  return local.toISOString().slice(0, 16);
-}
-
-function parseDateTimeLocal(value: string): Date | null {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function parseMonthdaysInput(value: string): number[] {
-  return value
-    .split(',')
-    .map((part) => Number.parseInt(part.trim(), 10))
-    .filter((day) => Number.isInteger(day) && day >= 1 && day <= 28);
 }
 
 export default function TaskForm({
@@ -130,33 +71,10 @@ export default function TaskForm({
   }, []);
   const [customReminderAmount, setCustomReminderAmount] = useState(initialDecomposed.amount);
   const [customReminderUnit, setCustomReminderUnit] = useState<ReminderUnit>(initialDecomposed.unit);
-  const existingRecurrence = task?.reminder_recurrence ?? null;
-  const [reminderFrequency, setReminderFrequency] = useState<ReminderFrequency>(existingRecurrence?.frequency ?? 'once');
-  const [reminderInterval, setReminderInterval] = useState<number>(existingRecurrence?.interval ?? 1);
-  const [reminderWeekdays, setReminderWeekdays] = useState<number[]>(existingRecurrence?.weekdays ?? []);
-  const [reminderMonthdaysInput, setReminderMonthdaysInput] = useState(
-    existingRecurrence?.monthdays && existingRecurrence.monthdays.length > 0
-      ? existingRecurrence.monthdays.join(', ')
-      : '',
-  );
-  const [reminderSnoozedUntil, setReminderSnoozedUntil] = useState(() => toLocalInputValue(task?.reminder_snoozed_until ?? null));
-  const defaultTimezone = useMemo(() => {
-    if (typeof Intl === 'undefined') {
-      return 'UTC';
-    }
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone;
-    } catch (error) {
-      return 'UTC';
-    }
-  }, []);
-  const [reminderTimezone] = useState<string>(task?.reminder_timezone ?? defaultTimezone);
   const isMountedRef = useRef(true);
   const parsedDueDate = useMemo(() => parseDateTimeLocal(dueDate), [dueDate]);
   const dueDateISO = useMemo(() => (parsedDueDate ? parsedDueDate.toISOString() : null), [parsedDueDate]);
   const dueDateTimestamp = parsedDueDate ? parsedDueDate.getTime() : null;
-  const parsedSnoozedUntil = useMemo(() => parseDateTimeLocal(reminderSnoozedUntil), [reminderSnoozedUntil]);
-  const snoozedUntilISO = useMemo(() => (parsedSnoozedUntil ? parsedSnoozedUntil.toISOString() : null), [parsedSnoozedUntil]);
   const reminderMinutesValue = useMemo(() => {
     if (useCustomReminder) {
       const amount = Number.parseInt(customReminderAmount, 10);
@@ -190,56 +108,45 @@ export default function TaskForm({
     }
     return originalDueTimestamp === dueDateTimestamp && originalReminderMinutes === reminderMinutesValue;
   }, [originalDueTimestamp, dueDateTimestamp, originalReminderMinutes, reminderMinutesValue]);
-  const recurrencePreview = useMemo(() => {
-    if (!dueDateISO || reminderMinutesValue == null) {
-      return null;
+
+  const defaultTimezone = useMemo(() => {
+    if (typeof Intl === 'undefined') {
+      return 'UTC';
     }
-    if (reminderFrequency === 'once') {
-      return null;
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (error) {
+      return 'UTC';
     }
-    const baseStart = new Date(new Date(dueDateISO).getTime() - reminderMinutesValue * 60_000);
-    return normalizeReminderRecurrence({
-      frequency: reminderFrequency,
-      interval: reminderInterval,
-      weekdays: reminderFrequency === 'weekly' ? reminderWeekdays : undefined,
-      monthdays: reminderFrequency === 'monthly' ? parseMonthdaysInput(reminderMonthdaysInput) : undefined,
-      start_at: baseStart.toISOString(),
-    });
-  }, [dueDateISO, reminderFrequency, reminderInterval, reminderMinutesValue, reminderMonthdaysInput, reminderWeekdays]);
-  const upcomingReminders = useMemo(() => {
-    if (!dueDateISO || reminderMinutesValue == null) {
-      if (shouldUseStoredNext && initialNextTrigger) {
-        const parsed = new Date(initialNextTrigger);
-        return Number.isNaN(parsed.getTime()) ? [] : [parsed];
-      }
-      return [];
-    }
-    const config = {
-      due_date: dueDateISO,
-      reminder_minutes_before: reminderMinutesValue,
-      reminder_recurrence: recurrencePreview,
-      reminder_next_trigger_at: shouldUseStoredNext ? initialNextTrigger : null,
-      reminder_snoozed_until: snoozedUntilISO,
-      reminder_timezone: reminderTimezone,
-    };
-    return getUpcomingReminderOccurrences(config, { limit: 3 });
-  }, [
+  }, []);
+
+  const {
+    reminderFrequency,
+    setReminderFrequency,
+    reminderInterval,
+    setReminderInterval,
+    reminderWeekdays,
+    reminderMonthdaysInput,
+    setReminderMonthdaysInput,
+    reminderSnoozedUntil,
+    setReminderSnoozedUntil,
+    reminderTimezone,
+    snoozedUntilISO,
+    recurrencePreview,
+    upcomingReminders,
+    recurrenceDescription,
+    snoozedUntilDate,
+    scheduleDisabled,
+    toggleWeekday,
+  } = useReminderRecurrence({
+    task,
+    parsedDueDate,
     dueDateISO,
     reminderMinutesValue,
-    recurrencePreview,
     shouldUseStoredNext,
     initialNextTrigger,
-    snoozedUntilISO,
-    reminderTimezone,
-  ]);
-  const recurrenceDescription = useMemo(() => {
-    if (!dueDateISO || reminderMinutesValue == null || reminderFrequency === 'once') {
-      return 'One-time reminder';
-    }
-    return describeReminderRecurrence(recurrencePreview) ?? 'Repeats';
-  }, [dueDateISO, reminderMinutesValue, reminderFrequency, recurrencePreview]);
-  const snoozedUntilDate = useMemo(() => (snoozedUntilISO ? new Date(snoozedUntilISO) : null), [snoozedUntilISO]);
-  const scheduleDisabled = !dueDate || reminderMinutesValue == null;
+    defaultTimezone,
+  });
 
   useEffect(() => {
     return () => {
@@ -267,39 +174,6 @@ export default function TaskForm({
       setCustomReminderAmount('');
     }
   }, [dueDate, reminderMinutes, customReminderAmount]);
-
-  useEffect(() => {
-    if (reminderMinutesValue == null) {
-      setReminderFrequency('once');
-      setReminderSnoozedUntil('');
-    }
-  }, [reminderMinutesValue]);
-
-  useEffect(() => {
-    if (reminderFrequency === 'weekly' && reminderWeekdays.length === 0) {
-      const fallback = parsedDueDate ? parsedDueDate.getDay() : 1;
-      setReminderWeekdays([fallback]);
-    }
-  }, [parsedDueDate, reminderFrequency, reminderWeekdays.length]);
-
-  useEffect(() => {
-    if (
-      reminderFrequency === 'monthly' &&
-      reminderMonthdaysInput.trim().length === 0 &&
-      parsedDueDate
-    ) {
-      setReminderMonthdaysInput(String(parsedDueDate.getDate()));
-    }
-  }, [parsedDueDate, reminderFrequency, reminderMonthdaysInput]);
-
-  const toggleWeekday = (day: number) => {
-    setReminderWeekdays((current) => {
-      if (current.includes(day)) {
-        return current.filter((value) => value !== day);
-      }
-      return [...current, day].sort((a, b) => a - b);
-    });
-  };
 
   const handleCategorySelection = (value: string) => {
     if (value === '__create__') {
@@ -350,7 +224,7 @@ export default function TaskForm({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     if (isCreatingCategory || !category) return;
@@ -621,140 +495,23 @@ export default function TaskForm({
           )}
         </div>
 
-        <div className="rounded-2xl border border-zen-200 bg-zen-50/60 p-4 space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-zen-700">Reminder schedule</p>
-              <p className="text-xs text-zen-500">
-                {scheduleDisabled ? 'Set a due date and reminder to enable recurrence.' : recurrenceDescription}
-              </p>
-            </div>
-            <select
-              value={reminderFrequency}
-              onChange={(e) => setReminderFrequency(e.target.value as ReminderFrequency)}
-              disabled={scheduleDisabled}
-              className="px-3 py-2 rounded-xl border-2 border-zen-200 text-sm font-medium focus:border-sage-500 focus:ring-0 outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <option value="once">One-time</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-
-          {reminderFrequency !== 'once' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-zen-600 mb-1">
-                  Repeat every
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={reminderInterval}
-                  disabled={scheduleDisabled}
-                  onChange={(e) => {
-                    const parsed = Number.parseInt(e.target.value, 10);
-                    setReminderInterval(Number.isNaN(parsed) || parsed < 1 ? 1 : parsed);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-                <p className="text-xs text-zen-500 mt-1">
-                  {reminderFrequency === 'daily' && 'Days between reminders.'}
-                  {reminderFrequency === 'weekly' && 'Weeks between reminder cycles.'}
-                  {reminderFrequency === 'monthly' && 'Months between reminder cycles.'}
-                </p>
-              </div>
-              <div className="text-xs text-zen-500 flex items-end">
-                {!scheduleDisabled && recurrenceDescription !== 'One-time reminder' && (
-                  <span>{recurrenceDescription}</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {reminderFrequency === 'weekly' && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zen-600 mb-2">Days of week</p>
-              <div className="flex flex-wrap gap-2">
-                {WEEKDAY_LABELS.map((label, index) => {
-                  const active = reminderWeekdays.includes(index);
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => toggleWeekday(index)}
-                      disabled={scheduleDisabled}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                        active
-                          ? 'bg-sage-600 text-white border-sage-500'
-                          : 'border-zen-200 text-zen-600 hover:bg-zen-100'
-                      } ${scheduleDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {reminderFrequency === 'monthly' && (
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-zen-600 mb-1">
-                Days of month
-              </label>
-              <input
-                type="text"
-                value={reminderMonthdaysInput}
-                onChange={(e) => setReminderMonthdaysInput(e.target.value)}
-                disabled={scheduleDisabled}
-                placeholder="e.g. 1, 15, 30"
-                className="w-full px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-              <p className="text-xs text-zen-500 mt-1">Separate days with commas (1–28). Days must be valid for all months.</p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-zen-600 mb-1">
-              Snooze until (optional)
-            </label>
-            <input
-              type="datetime-local"
-              value={reminderSnoozedUntil}
-              onChange={(e) => setReminderSnoozedUntil(e.target.value)}
-              disabled={scheduleDisabled}
-              className="w-full px-3 py-2 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-            />
-            {snoozedUntilDate && !scheduleDisabled && (
-              <p className="text-xs text-zen-500 mt-1">
-                Snoozed until {formatReminderDate(snoozedUntilDate, reminderTimezone)}
-              </p>
-            )}
-          </div>
-
-          <p className="text-xs text-zen-500">
-            Reminders use the {reminderTimezone} timezone.
-          </p>
-
-          {!scheduleDisabled && (
-            <div className="rounded-xl border border-zen-200 bg-white/80 p-3">
-              <p className="text-xs font-semibold text-zen-700">Upcoming reminders</p>
-              {upcomingReminders.length > 0 ? (
-                <ul className="mt-2 space-y-1 text-xs text-zen-600">
-                  {upcomingReminders.map((occurrence, index) => (
-                    <li key={`${occurrence.toISOString()}-${index}`}>
-                      {index === 0 ? 'Next' : `Then ${index + 1}`}: {formatReminderDate(occurrence, reminderTimezone)}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-zen-500 mt-1">No upcoming reminders scheduled.</p>
-              )}
-            </div>
-          )}
-        </div>
+        <ReminderSchedulePanel
+          scheduleDisabled={scheduleDisabled}
+          reminderFrequency={reminderFrequency}
+          setReminderFrequency={setReminderFrequency}
+          reminderInterval={reminderInterval}
+          setReminderInterval={setReminderInterval}
+          reminderWeekdays={reminderWeekdays}
+          toggleWeekday={toggleWeekday}
+          reminderMonthdaysInput={reminderMonthdaysInput}
+          setReminderMonthdaysInput={setReminderMonthdaysInput}
+          reminderSnoozedUntil={reminderSnoozedUntil}
+          setReminderSnoozedUntil={setReminderSnoozedUntil}
+          reminderTimezone={reminderTimezone}
+          recurrenceDescription={recurrenceDescription}
+          snoozedUntilDate={snoozedUntilDate}
+          upcomingReminders={upcomingReminders}
+        />
       </div>
 
       <div className="space-y-3">
@@ -777,54 +534,15 @@ export default function TaskForm({
         </div>
 
         {isCreatingCategory && (
-          <div className="rounded-2xl border border-dashed border-sage-300 bg-sage-50/50 p-4 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-sage-700 mb-1">
-                  New category name
-                </label>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="e.g. Wellness"
-                  maxLength={100}
-                  className="w-full px-3 py-2 rounded-xl border-2 border-sage-200 focus:border-sage-500 focus:ring-0 outline-none text-sm"
-                />
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-sage-700 mb-2">
-                Color
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {PRESET_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setNewCategoryColor(color)}
-                    className={`w-8 h-8 rounded-xl transition-all ${
-                      newCategoryColor === color ? 'ring-2 ring-offset-2 ring-sage-600' : ''
-                    }`}
-                    style={{ backgroundColor: color }}
-                    aria-label={`Select color ${color}`}
-                  />
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleCreateCategory}
-              disabled={isSavingCategory}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sage-600 text-white text-sm font-medium hover:bg-sage-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              <PlusCircle className="w-4 h-4" />
-              {isSavingCategory ? 'Creating...' : 'Create Category'}
-            </button>
-            {categoryError && (
-              <p className="text-sm text-red-600 text-center">{categoryError}</p>
-            )}
-          </div>
+          <CategoryCreationForm
+            newCategoryName={newCategoryName}
+            setNewCategoryName={setNewCategoryName}
+            newCategoryColor={newCategoryColor}
+            setNewCategoryColor={setNewCategoryColor}
+            isSavingCategory={isSavingCategory}
+            categoryError={categoryError}
+            handleCreateCategory={handleCreateCategory}
+          />
         )}
       </div>
 
