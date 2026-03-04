@@ -217,7 +217,7 @@ export async function GET(request: Request) {
             ...(reminderMetadata ? { reminder: reminderMetadata } : {}),
           };
           events.push({
-            id: `task-due:${task.id}:${task.due_date}`,
+            id: `task-due_${task.id}_${String(task.due_date).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
             entityId: task.id,
             type: 'task_due',
             title: task.title,
@@ -251,7 +251,7 @@ export async function GET(request: Request) {
             ...(reminderMetadata ? { reminder: reminderMetadata } : {}),
           };
           events.push({
-            id: `task-reminder:${task.id}:${occurrence.toISOString()}`,
+            id: `task-reminder_${task.id}_${occurrence.toISOString().replace(/[^a-zA-Z0-9_-]/g, '_')}`,
             entityId: task.id,
             type: 'task_reminder',
             title: `${task.title} reminder`,
@@ -294,7 +294,7 @@ export async function GET(request: Request) {
         };
 
         events.push({
-          id: `event:${calendarEvent.id}:${calendarEvent.start_time}`,
+          id: `event_${calendarEvent.id}_${String(calendarEvent.start_time).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
           entityId: calendarEvent.id,
           type: 'event',
           title: calendarEvent.title,
@@ -331,7 +331,7 @@ export async function GET(request: Request) {
       } satisfies CalendarNoteMetadata;
 
       events.push({
-        id: `note:${note.id}:${noteStart.toISOString()}`,
+        id: `note_${note.id}_${noteStart.toISOString().replace(/[^a-zA-Z0-9_-]/g, '_')}`,
         entityId: note.id,
         type: 'note',
         title: note.title,
@@ -365,7 +365,7 @@ export async function GET(request: Request) {
       } satisfies CalendarZenReminderMetadata;
 
       events.push({
-        id: `zen-reminder:${reminder.id}:${reminder.remind_at}`,
+        id: `zen-reminder_${reminder.id}_${String(reminder.remind_at).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
         entityId: reminder.id,
         type: 'zen_reminder',
         title: reminder.title,
