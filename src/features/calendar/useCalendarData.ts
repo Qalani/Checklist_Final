@@ -145,7 +145,7 @@ async function fetchCalendarPayload(
           ...(reminderMetadata ? { reminder: reminderMetadata } : {}),
         };
         events.push({
-          id: `task-due:${task.id}:${task.due_date}`,
+          id: `task-due_${task.id}_${String(task.due_date).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
           entityId: task.id,
           type: 'task_due',
           title: task.title,
@@ -176,7 +176,7 @@ async function fetchCalendarPayload(
           ...(reminderMetadata ? { reminder: reminderMetadata } : {}),
         };
         events.push({
-          id: `task-reminder:${task.id}:${occurrence.toISOString()}`,
+          id: `task-reminder_${task.id}_${occurrence.toISOString().replace(/[^a-zA-Z0-9_-]/g, '_')}`,
           entityId: task.id,
           type: 'task_reminder',
           title: `${task.title} reminder`,
@@ -214,7 +214,7 @@ async function fetchCalendarPayload(
       };
 
       events.push({
-        id: `event:${calendarEvent.id}:${calendarEvent.start_time}`,
+        id: `event_${calendarEvent.id}_${String(calendarEvent.start_time).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
         entityId: calendarEvent.id,
         type: 'event',
         title: calendarEvent.title,
@@ -245,7 +245,7 @@ async function fetchCalendarPayload(
     };
 
     events.push({
-      id: `note:${note.id}:${noteStart.toISOString()}`,
+      id: `note_${note.id}_${noteStart.toISOString().replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       entityId: note.id,
       type: 'note',
       title: note.title,
@@ -274,7 +274,7 @@ async function fetchCalendarPayload(
     };
 
     events.push({
-      id: `zen-reminder:${reminder.id}:${reminder.remind_at}`,
+      id: `zen-reminder_${reminder.id}_${String(reminder.remind_at).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       entityId: reminder.id,
       type: 'zen_reminder',
       title: reminder.title,
