@@ -90,7 +90,7 @@ export default function TaskShareModal({
               <Share2 className="w-3 h-3" />
               Collaborative task
             </div>
-            <h2 className="text-xl font-semibold text-zen-900">Manage "{sharingTask.title}"</h2>
+            <h2 className="text-xl font-semibold text-zen-900">Manage &quot;{sharingTask.title}&quot;</h2>
             <p className="text-sm text-zen-600">
               {resolveRole(sharingTask) === 'owner'
                 ? 'Invite trusted friends to contribute or update their access.'

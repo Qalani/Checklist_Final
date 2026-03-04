@@ -13,6 +13,7 @@ import { loadMembers, inviteMember, updateMemberRole, removeMember } from './lis
 import { enablePublicShare, rotatePublicShare, disablePublicShare, archiveList, unarchiveList } from './listPublicShare';
 
 export type { ListsStatus, UseListsResult };
+export { fetchLists } from './listFetch';
 
 const INITIAL_STATE: ListsState = {
   status: 'idle',
