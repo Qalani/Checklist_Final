@@ -29,6 +29,11 @@
     "@fullcalendar/list": "^6.1.15",
     "@fullcalendar/react": "^6.1.15",
     "@fullcalendar/timegrid": "^6.1.15",
+    "@schedule-x/calendar": "^4.1.0",
+    "@schedule-x/calendar-controls": "^4.1.0",
+    "@schedule-x/events-service": "^4.1.0",
+    "@schedule-x/react": "^4.1.0",
+    "@schedule-x/theme-default": "^4.1.0",
     "@supabase/supabase-js": "^2.39.0",
     "date-fns": "^4.1.0",
     "dexie": "^4.3.0",
@@ -42,7 +47,8 @@
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "swr": "^2.2.0"
+    "swr": "^2.2.0",
+    "temporal-polyfill": "^0.3.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.1.0",

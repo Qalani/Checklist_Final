@@ -1,0 +1,182 @@
+/* ─── Schedule-X theme overrides ──────────────────────────────────────────── */
+
+/* Hide default schedule-x header – we use our own toolbar */
+.sx__calendar-header {
+  display: none !important;
+}
+
+/* Body wrapper */
+.sx-body {
+  padding: 0.5rem;
+}
+
+/* Root calendar element */
+.sx__calendar {
+  --sx-color-background: transparent;
+  --sx-color-text: #0f172a;
+  --sx-color-text-subtle: #475569;
+  --sx-color-border: rgba(148, 163, 184, 0.28);
+  --sx-color-today-bg: rgba(59, 130, 246, 0.1);
+  font-family: inherit;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+[data-theme$='dark'] .sx__calendar {
+  --sx-color-background: transparent;
+  --sx-color-text: #e2e8f0;
+  --sx-color-text-subtle: #94a3b8;
+  --sx-color-border: rgba(71, 85, 105, 0.55);
+  --sx-color-today-bg: rgba(59, 130, 246, 0.16);
+}
+
+/* Remove border from the outer calendar wrapper */
+.sx__calendar-wrapper,
+.sx__month-grid-wrapper,
+.sx__time-grid-wrapper,
+.sx__week-grid-wrapper,
+.sx__day-grid-wrapper {
+  border: none;
+  background: transparent;
+}
+
+/* Column headers (day names) */
+.sx__week-grid__day-column-header,
+.sx__month-grid__day-name,
+.sx__time-grid__day-column-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sx-color-text-subtle);
+  padding: 0.6rem 0.25rem;
+  border-bottom: 1px solid var(--sx-color-border);
+}
+
+/* Day cells */
+.sx__month-grid-day {
+  border-color: var(--sx-color-border);
+}
+
+.sx__month-grid-day__header-day-number {
+  font-weight: 700;
+  color: var(--sx-color-text-subtle);
+}
+
+/* Today highlight */
+.sx__month-grid-day.sx__month-grid-day--current-month.sx__is-today .sx__month-grid-day__header-day-number {
+  color: #3b82f6;
+}
+
+/* Events */
+.sx__event {
+  border-radius: 0.75rem;
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+
+.sx__event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+}
+
+.sx__event:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
+.sx__event-title {
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.sx__time-grid-event__time,
+.sx__month-grid-event__time {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  font-weight: 500;
+}
+
+/* Time grid (week / day) */
+.sx__time-grid-slot-label {
+  font-size: 0.72rem;
+  color: var(--sx-color-text-subtle);
+  font-weight: 600;
+}
+
+/* Now indicator */
+.sx__now-indicator {
+  border-color: rgba(59, 130, 246, 0.85);
+}
+
+.sx__now-indicator-dot {
+  background-color: rgba(59, 130, 246, 0.85);
+}
+
+/* "More events" link */
+.sx__month-grid-day__events-more {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #3b82f6;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+/* Scrollbar styling for time grid */
+.sx__time-grid-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sx__time-grid-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sx__time-grid-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+/* Dark mode adjustments */
+[data-theme$='dark'] .sx__event {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme$='dark'] .sx__event:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme$='dark'] .sx__month-grid-day__header-day-number {
+  color: #94a3b8;
+}
+
+[data-theme$='dark'] .sx__now-indicator {
+  border-color: rgba(96, 165, 250, 0.85);
+}
+
+[data-theme$='dark'] .sx__now-indicator-dot {
+  background-color: rgba(96, 165, 250, 0.85);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .sx-body {
+    padding: 0.25rem;
+  }
+
+  .sx__event {
+    font-size: 0.72rem;
+  }
+
+  .sx__event-title {
+    font-size: 0.72rem;
+  }
+}

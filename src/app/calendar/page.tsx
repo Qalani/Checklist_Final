@@ -10,7 +10,7 @@ import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ZenPageHeader from '@/components/ZenPageHeader';
 import AccountSummary from '@/components/AccountSummary';
-import type { CalendarViewType, CalendarViewEvent, CalendarViewProps } from '@/components/calendar/FullCalendarView';
+import type { CalendarViewType, CalendarViewEvent, CalendarViewProps } from '@/components/calendar/ScheduleXCalendarView';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useCalendarData } from '@/features/calendar/useCalendarData';
 import type {
@@ -22,8 +22,8 @@ import type {
 } from '@/features/calendar/types';
 
 const FullCalendarViewNoSSR = dynamic<CalendarViewProps>(async () => {
-  const mod = await import('@/components/calendar/FullCalendarView');
-  return mod.FullCalendarView;
+  const mod = await import('@/components/calendar/ScheduleXCalendarView');
+  return mod.ScheduleXCalendarView;
 }, {
   ssr: false,
   loading: () => (
