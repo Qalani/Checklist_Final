@@ -311,6 +311,7 @@ function SortableTaskItem({
               />
               <button
                 onClick={onExpand}
+                aria-label="View task options"
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-zen-100 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <MoreHorizontal className="w-4 h-4 text-zen-500" />
