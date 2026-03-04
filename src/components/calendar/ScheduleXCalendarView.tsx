@@ -151,7 +151,6 @@ export function ScheduleXCalendarView({
       selectedDate: Temporal.PlainDate.from(date.toISOString().slice(0, 10)),
       events: initialSXEvents as SXCalendarEvent[],
       calendars: CALENDARS,
-      plugins: [controlsPlugin, eventsPlugin],
       callbacks: {
         onRangeUpdate(range) {
           const rangeStart = new Date(range.start.toInstant().epochMilliseconds);
