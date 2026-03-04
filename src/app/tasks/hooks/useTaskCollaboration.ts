@@ -33,7 +33,7 @@ function orderCollaborators(collaborators: TaskCollaborator[]): TaskCollaborator
 
 interface UseTaskCollaborationOptions {
   friends: Friend[];
-  user: { id: string; email: string } | null | undefined;
+  user: { id: string; email?: string } | null | undefined;
   loadTaskCollaborators: (taskId: string) => Promise<{ collaborators: TaskCollaborator[] } | { error: string }>;
   inviteTaskCollaborator: (taskId: string, email: string, role: 'viewer' | 'editor') => Promise<{ collaborator: TaskCollaborator } | { error: string }>;
   updateTaskCollaboratorRole: (collaboratorId: string, role: 'viewer' | 'editor') => Promise<{ collaborator: TaskCollaborator } | { error: string }>;
