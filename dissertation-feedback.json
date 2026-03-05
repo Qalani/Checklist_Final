@@ -1,0 +1,133 @@
+[
+  {
+    "name": "Introduction",
+    "description": "Improvements needed for the introduction section of the dissertation.",
+    "items": [
+      { "content": "Explicitly state the research gap more clearly", "completed": false },
+      { "content": "Identify gap: limited long-term monitoring of water hyacinth dynamics using multi-sensor satellite data", "completed": false },
+      { "content": "Identify gap: limited comparisons between threshold-based and machine learning classifiers for floating vegetation detection", "completed": false },
+      { "content": "Identify gap: limited understanding of hydroclimatic drivers of hyacinth expansion", "completed": false },
+      { "content": "Explicitly explain how the dissertation addresses each identified gap", "completed": false },
+      { "content": "Add 1–2 sentences linking the research gap to the research questions", "completed": false }
+    ]
+  },
+  {
+    "name": "Research Questions",
+    "description": "Refinements needed for the research questions section.",
+    "items": [
+      { "content": "Add justification for the 2015–2025 time period (Sentinel-2 archive begins 2015)", "completed": false },
+      { "content": "Note that Sentinel-1 provides consistent SAR coverage over the study period", "completed": false },
+      { "content": "Note that the period enables decadal-scale analysis of invasion dynamics", "completed": false },
+      { "content": "Refine wording for clarity and specificity — refer to spatial extent or temporal variability of hyacinth", "completed": false },
+      { "content": "Consider adding a third methodological research question comparing classification methods (optional)", "completed": false }
+    ]
+  },
+  {
+    "name": "Study Site Justification",
+    "description": "This section is currently missing — add ~100 words explaining why the Winam Gulf is appropriate.",
+    "items": [
+      { "content": "Describe the history of severe water hyacinth invasions in the Winam Gulf", "completed": false },
+      { "content": "Explain the sheltered hydrodynamic conditions that allow floating plants to accumulate", "completed": false },
+      { "content": "Note the importance of Lake Victoria for regional fisheries and livelihoods", "completed": false },
+      { "content": "Reference evidence of nutrient enrichment and anthropogenic pressure", "completed": false },
+      { "content": "Confirm availability of remote sensing and environmental datasets for the site", "completed": false }
+    ]
+  },
+  {
+    "name": "Methods – Data and Pre-processing",
+    "description": "Clarifications needed in the data and pre-processing section.",
+    "items": [
+      { "content": "Briefly justify why Sentinel-1 and Sentinel-2 together provide complementary capabilities", "completed": false },
+      { "content": "Clarify whether data will be composited monthly, seasonally, or per scene", "completed": false },
+      { "content": "Briefly explain why NDVI, NDMI, and AWEI were selected as indices", "completed": false }
+    ]
+  },
+  {
+    "name": "Methods – Random Forest Classifier",
+    "description": "Replace the JUSTIFICATION FOR INCLUSION OF RANDOM FOREST placeholder with a proper rationale.",
+    "items": [
+      { "content": "Explain that Random Forest handles non-linear relationships in remote sensing data", "completed": false },
+      { "content": "Note that it performs well with high-dimensional spectral features", "completed": false },
+      { "content": "Note that it is robust to noise and overfitting", "completed": false },
+      { "content": "Cite its widespread use in land-cover and vegetation classification studies", "completed": false }
+    ]
+  },
+  {
+    "name": "Methods – Accuracy Assessment",
+    "description": "Clarify the validation methodology and revise evaluation metrics.",
+    "items": [
+      { "content": "Specify how training and validation data will be split (e.g. 70/30 split)", "completed": false },
+      { "content": "State whether cross-validation will be used", "completed": false },
+      { "content": "Describe the number or type of validation points if known", "completed": false },
+      { "content": "Include Overall Accuracy as an evaluation metric", "completed": false },
+      { "content": "Include User's Accuracy as an evaluation metric", "completed": false },
+      { "content": "Include Producer's Accuracy as an evaluation metric", "completed": false },
+      { "content": "Include F1-score as an evaluation metric", "completed": false },
+      { "content": "Include Kappa coefficient as an evaluation metric", "completed": false },
+      { "content": "Remove or justify RMSE and correlation — less standard for classification tasks", "completed": false }
+    ]
+  },
+  {
+    "name": "Methods – Environmental Drivers Analysis",
+    "description": "Improve clarity of the modelling workflow.",
+    "items": [
+      { "content": "Describe stage 1: exploratory correlation analysis", "completed": false },
+      { "content": "Describe stage 2: lagged correlation tests", "completed": false },
+      { "content": "Describe stage 3: variable selection using VIF or PCA", "completed": false },
+      { "content": "Describe stage 4: predictive modelling", "completed": false },
+      { "content": "Describe stage 5: model evaluation", "completed": false },
+      { "content": "Clarify temporal resolution of datasets (e.g. monthly aggregation)", "completed": false },
+      { "content": "Briefly explain why both statistical and machine learning models will be used", "completed": false }
+    ]
+  },
+  {
+    "name": "Figures and Workflow Diagrams",
+    "description": "Figures are strong but could be better integrated into the text.",
+    "items": [
+      { "content": "Add one explanatory sentence for each figure in the main text", "completed": false },
+      { "content": "Clarify how each workflow diagram supports the research questions", "completed": false },
+      { "content": "Ensure all figure captions clearly summarise what the diagram shows", "completed": false }
+    ]
+  },
+  {
+    "name": "Timeline Section",
+    "description": "The timeline section is currently very minimal — expand and replace the placeholder Gantt chart caption.",
+    "items": [
+      { "content": "Add sentences explaining the literature review and methodological design phase", "completed": false },
+      { "content": "Add sentences explaining the data acquisition and preprocessing phase", "completed": false },
+      { "content": "Add sentences explaining the classification and environmental modelling phase", "completed": false },
+      { "content": "Add sentences explaining the writing and revision phase", "completed": false },
+      { "content": "Replace the placeholder figure caption for the Gantt chart with a real caption", "completed": false }
+    ]
+  },
+  {
+    "name": "Literature and Referencing",
+    "description": "Minor improvements to citations and the bibliography.",
+    "items": [
+      { "content": "Add references supporting machine learning classification in remote sensing", "completed": false },
+      { "content": "Fill all placeholder citations marked as CITE", "completed": false },
+      { "content": "Check that every in-text citation appears in the bibliography", "completed": false }
+    ]
+  },
+  {
+    "name": "Writing and Clarity",
+    "description": "General writing improvements to improve readability.",
+    "items": [
+      { "content": "Remove all ***CITE*** placeholder markers", "completed": false },
+      { "content": "Remove all ***REASONS*** placeholder markers", "completed": false },
+      { "content": "Remove all ***JUSTIFICATION*** placeholder markers", "completed": false },
+      { "content": "Slightly reduce overly technical explanations where unnecessary", "completed": false },
+      { "content": "Ensure each paragraph has a clear topic sentence", "completed": false }
+    ]
+  },
+  {
+    "name": "Word Count Strategy",
+    "description": "Use the remaining ~350 words to strengthen key areas.",
+    "items": [
+      { "content": "Add ~150 words to the research gap section", "completed": false },
+      { "content": "Add ~100 words to the site justification section", "completed": false },
+      { "content": "Add ~80 words to the Random Forest justification", "completed": false },
+      { "content": "Add ~40 words to the timeline explanation", "completed": false }
+    ]
+  }
+]
