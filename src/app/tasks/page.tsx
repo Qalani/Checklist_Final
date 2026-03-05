@@ -7,6 +7,7 @@ import {
   Circle,
   Plus,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import TaskBentoGrid from '@/components/TaskBentoGrid';
 import TaskForm from '@/components/TaskForm';
@@ -25,6 +26,7 @@ import { useFriends } from '@/features/friends/useFriends';
 import { useTaskCollaboration } from './hooks/useTaskCollaboration';
 import { useTaskReminders } from './hooks/useTaskReminders';
 import TaskShareModal from './components/TaskShareModal';
+import ImportTasksModal from '@/components/ImportTasksModal';
 
 type TaskSortOption = 'custom' | 'due-asc' | 'due-desc' | 'priority' | 'title';
 
@@ -46,6 +48,7 @@ export default function HomePage() {
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [taskSort, setTaskSort] = useState<TaskSortOption>('custom');
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -66,6 +69,7 @@ export default function HomePage() {
     inviteTaskCollaborator,
     updateTaskCollaboratorRole,
     removeTaskCollaborator,
+    refresh: refreshTasks,
   } = useChecklist(user?.id ?? null);
 
   const {
@@ -300,6 +304,13 @@ export default function HomePage() {
             <>
               <ThemeSwitcher />
               <button
+                onClick={() => setShowImportModal(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-4 py-2 font-medium text-zen-600 shadow-soft transition-all hover:border-zen-300 hover:text-zen-800 sm:w-auto"
+              >
+                <Upload className="h-4 w-4" />
+                Import
+              </button>
+              <button
                 onClick={() => {
                   setEditingTask(null);
                   setInlineEditingTaskId(null);
@@ -520,6 +531,12 @@ export default function HomePage() {
           )}
         </AnimatePresence>
       </div>
+
+      <ImportTasksModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImported={() => void refreshTasks(true)}
+      />
     </div>
   );
 }

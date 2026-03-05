@@ -11,6 +11,7 @@ import {
   CheckSquare,
   Users,
   Archive,
+  Upload,
 } from 'lucide-react';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
@@ -28,6 +29,7 @@ import { useListsPageHandlers } from './hooks/useListsPageHandlers';
 import ListFormModal from './components/ListFormModal';
 import ArchivedListsSection from './components/ArchivedListsSection';
 import SharingModal from './components/SharingModal';
+import ImportListsModal from '@/components/ImportListsModal';
 
 type FormState = {
   name: string;
@@ -134,6 +136,7 @@ export default function ListsPage() {
   const [newListItems, setNewListItems] = useState<List['items']>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [listActionMessage, setListActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { friends } = useFriends(user?.id ?? null);
 
@@ -389,6 +392,14 @@ export default function ListsPage() {
                   >
                     <Plus className="w-4 h-4" />
                     New list
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-zen-200 bg-surface/80 text-sm font-medium text-zen-600 hover:text-zen-800 hover:border-zen-300 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import
                   </button>
                   <button
                     type="button"
@@ -717,6 +728,12 @@ export default function ListsPage() {
         handleDisablePublicShare={handleDisablePublicShare}
         handleCopyShareLink={handleCopyShareLink}
         handlePreviewShareLink={handlePreviewShareLink}
+      />
+
+      <ImportListsModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImported={() => void refresh(true)}
       />
     </div>
   );
