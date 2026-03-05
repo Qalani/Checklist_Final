@@ -41,6 +41,11 @@
   background: transparent;
 }
 
+/* Ensure the month grid fills available height */
+.sx__month-grid-wrapper {
+  min-height: 680px;
+}
+
 /* Column headers (day names) */
 .sx__week-grid__day-column-header,
 .sx__month-grid__day-name,
@@ -57,6 +62,7 @@
 /* Day cells */
 .sx__month-grid-day {
   border-color: var(--sx-color-border);
+  min-height: 130px;
 }
 
 .sx__month-grid-day__header-day-number {
@@ -178,5 +184,13 @@
 
   .sx__event-title {
     font-size: 0.72rem;
+  }
+
+  .sx__month-grid-day {
+    min-height: 80px;
+  }
+
+  .sx__month-grid-wrapper {
+    min-height: 0;
   }
 }

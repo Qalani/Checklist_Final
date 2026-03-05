@@ -27,7 +27,7 @@ const FullCalendarViewNoSSR = dynamic<CalendarViewProps>(async () => {
 }, {
   ssr: false,
   loading: () => (
-    <div className="animate-pulse rounded-xl bg-white/5 h-[600px] w-full" aria-busy="true" aria-label="Loading calendar" />
+    <div className="animate-pulse rounded-xl bg-white/5 h-[780px] w-full" aria-busy="true" aria-label="Loading calendar" />
   ),
 });
 
