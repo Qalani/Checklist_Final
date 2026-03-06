@@ -742,7 +742,7 @@ export default function ListsPage() {
                   );
                 })}
               </div>
-            )
+            )}
 
           </section>
         </main>
