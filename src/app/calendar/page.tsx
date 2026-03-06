@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, startOfMonth, endOfMonth, compareAsc } from 'date-fns';
-import { Calendar as CalendarIcon, ExternalLink, Filter, RefreshCcw, X } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronDown, ExternalLink, Filter, RefreshCcw, X } from 'lucide-react';
 
 import ParallaxBackground from '@/components/ParallaxBackground';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
@@ -194,6 +194,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [range, setRange] = useState<RangeState>(() => ({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) }));
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventRecord | null>(null);
+  const [highlightsExpanded, setHighlightsExpanded] = useState(true);
 
   useEffect(() => {
     if (!authChecked) {
@@ -348,43 +349,56 @@ export default function CalendarPage() {
               onEventClick={handleEventClick}
             />
           </div>
-          <aside className="space-y-4 rounded-3xl border border-zen-200/70 bg-white/85 p-6 shadow-xl backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/70">
-            <div className="flex items-center justify-between gap-2">
+          <aside className="rounded-3xl border border-zen-200/70 bg-white/85 shadow-xl backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/70">
+            <div className="flex items-center justify-between gap-2 p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">Up next</p>
                 <h2 className="text-lg font-semibold text-zen-900 dark:text-zen-50">Upcoming highlights</h2>
               </div>
-              <div className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-900/60 dark:text-zen-100">
-                {upcomingHighlights.length} items
+              <div className="flex items-center gap-2">
+                <div className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-900/60 dark:text-zen-100">
+                  {upcomingHighlights.length} items
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHighlightsExpanded((prev) => !prev)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zen-200/70 bg-white/70 text-zen-500 shadow-sm transition hover:border-zen-300 hover:text-zen-700 dark:border-zen-700/60 dark:bg-zen-900/50 dark:text-zen-300 dark:hover:text-zen-50"
+                  aria-label={highlightsExpanded ? 'Collapse upcoming highlights' : 'Expand upcoming highlights'}
+                  aria-expanded={highlightsExpanded}
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${highlightsExpanded ? '' : '-rotate-90'}`} />
+                </button>
               </div>
             </div>
-            <div className="space-y-3">
-              {upcomingHighlights.length === 0 ? (
-                <p className="text-sm text-zen-500 dark:text-zen-300">No upcoming events in this range yet.</p>
-              ) : (
-                upcomingHighlights.map((event) => (
-                  <button
-                    key={event.id}
-                    type="button"
-                    onClick={() => handleEventClick(event)}
-                    className="w-full rounded-2xl border border-zen-200/70 bg-gradient-to-br from-white via-zen-50 to-zen-100 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zen-300 hover:shadow-md dark:border-zen-800/60 dark:from-zen-900 dark:via-zen-900/90 dark:to-zen-800"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-zen-400 dark:text-zen-500">
-                          {event.type.replace('_', ' ')} · {event.scope}
+            {highlightsExpanded && (
+              <div className="space-y-3 px-6 pb-6">
+                {upcomingHighlights.length === 0 ? (
+                  <p className="text-sm text-zen-500 dark:text-zen-300">No upcoming events in this range yet.</p>
+                ) : (
+                  upcomingHighlights.map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => handleEventClick(event)}
+                      className="w-full rounded-2xl border border-zen-200/70 bg-gradient-to-br from-white via-zen-50 to-zen-100 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zen-300 hover:shadow-md dark:border-zen-800/60 dark:from-zen-900 dark:via-zen-900/90 dark:to-zen-800"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-zen-400 dark:text-zen-500">
+                            {event.type.replace('_', ' ')} · {event.scope}
+                          </span>
+                          <span className="text-base font-semibold text-zen-900 dark:text-zen-50">{event.title}</span>
+                          <span className="text-sm font-medium text-zen-600 dark:text-zen-200">{formatEventTime(event)}</span>
+                        </div>
+                        <span className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-800/70 dark:text-zen-100">
+                          {event.allDay ? 'All day' : 'Timed'}
                         </span>
-                        <span className="text-base font-semibold text-zen-900 dark:text-zen-50">{event.title}</span>
-                        <span className="text-sm font-medium text-zen-600 dark:text-zen-200">{formatEventTime(event)}</span>
                       </div>
-                      <span className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-800/70 dark:text-zen-100">
-                        {event.allDay ? 'All day' : 'Timed'}
-                      </span>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </aside>
         </section>
       </main>

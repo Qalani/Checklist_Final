@@ -55,6 +55,7 @@ export interface ListMembershipRow {
     description: string | null;
     created_at: string | null;
     user_id: string;
+    archived: boolean | null;
     public_share: { token: string }[] | null;
   } | null;
 }

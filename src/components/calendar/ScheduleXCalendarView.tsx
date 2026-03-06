@@ -230,14 +230,18 @@ export function ScheduleXCalendarView({
             {title || 'Calendar'}
           </div>
         </div>
-        <div className="calendar-toolbar-views" role="tablist" aria-label="Change calendar view">
+        <div className="flex items-center gap-1 rounded-xl border border-zen-200 bg-white/70 p-1 shadow-soft dark:border-zen-700/60 dark:bg-zen-900/50" role="tablist" aria-label="Change calendar view">
           {VIEW_OPTIONS.map((option) => (
             <button
               key={option.value}
               type="button"
               role="tab"
               aria-selected={activeView === option.value}
-              className={`calendar-view-button ${activeView === option.value ? 'is-active' : ''}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                activeView === option.value
+                  ? 'bg-sage-100 text-sage-700 shadow-soft dark:bg-sage-900/30 dark:text-sage-300'
+                  : 'text-zen-600 hover:bg-zen-100 dark:text-zen-300 dark:hover:bg-zen-800'
+              }`}
               onClick={() => changeView(option.value)}
             >
               {option.label}
