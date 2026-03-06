@@ -490,30 +490,32 @@ export default function ListsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {status === 'loading' && lists.length === 0 ? (
-                Array.from({ length: 3 }).map((_, index) => (
+            {status === 'loading' && lists.length === 0 ? (
+              <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
+                {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-40 rounded-3xl bg-surface/70 border border-zen-200 shadow-soft animate-pulse"
+                    className="break-inside-avoid mb-6 h-40 rounded-3xl bg-surface/70 border border-zen-200 shadow-soft animate-pulse"
                   />
-                ))
-              ) : listTab === 'archived' ? (
-                archivedLists.length === 0 ? (
-                  <div className="md:col-span-2 xl:col-span-3 rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
-                    <Archive className="w-12 h-12 mx-auto text-sage-400" />
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-semibold text-zen-900">No archived lists</h3>
-                      <p className="text-zen-600 max-w-xl mx-auto">
-                        Lists you archive will appear here. You can restore them at any time.
-                      </p>
-                    </div>
+                ))}
+              </div>
+            ) : listTab === 'archived' ? (
+              archivedLists.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
+                  <Archive className="w-12 h-12 mx-auto text-sage-400" />
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-semibold text-zen-900">No archived lists</h3>
+                    <p className="text-zen-600 max-w-xl mx-auto">
+                      Lists you archive will appear here. You can restore them at any time.
+                    </p>
                   </div>
-                ) : (
-                  archivedLists.map(list => (
+                </div>
+              ) : (
+                <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
+                  {archivedLists.map(list => (
                     <div
                       key={list.id}
-                      className="rounded-3xl border border-zen-200/60 bg-surface/60 p-6 flex flex-col gap-3 opacity-70"
+                      className="break-inside-avoid mb-6 rounded-3xl border border-zen-200/60 bg-surface/60 p-6 flex flex-col gap-3 opacity-70"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -544,34 +546,36 @@ export default function ListsPage() {
                       </div>
                       <p className="text-xs text-zen-400">{(list.items?.length ?? 0)} items</p>
                     </div>
-                  ))
-                )
-              ) : activeLists.length === 0 ? (
-                <div className="md:col-span-2 xl:col-span-3 rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
-                  <ListIcon className="w-12 h-12 mx-auto text-sage-400" />
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-semibold text-zen-900">No lists yet</h3>
-                    <p className="text-zen-600 max-w-xl mx-auto">
-                      Start with a single idea. Whether it&apos;s a weekend reset, packing guide, or gratitude list, we&apos;ll keep it safe and beautifully arranged.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenCreate}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create your first list
-                  </button>
+                  ))}
                 </div>
-              ) : (
-                activeLists.map(list => {
+              )
+            ) : activeLists.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
+                <ListIcon className="w-12 h-12 mx-auto text-sage-400" />
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-zen-900">No lists yet</h3>
+                  <p className="text-zen-600 max-w-xl mx-auto">
+                    Start with a single idea. Whether it&apos;s a weekend reset, packing guide, or gratitude list, we&apos;ll keep it safe and beautifully arranged.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenCreate}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create your first list
+                </button>
+              </div>
+            ) : (
+              <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
+                {activeLists.map(list => {
                   const role = resolveRole(list);
                   const canEditList = role === 'owner' || role === 'editor';
                   const canDeleteList = role === 'owner';
                   const isEditingList = editingItemsListId === list.id;
                   const isInlineEditing = inlineEditingListId === list.id;
-                  const cardClassName = `rounded-3xl border shadow-soft p-6 flex flex-col gap-4 ${
+                  const cardClassName = `break-inside-avoid mb-6 rounded-3xl border shadow-soft p-6 flex flex-col gap-4 ${
                     isInlineEditing ? 'bg-surface border-sage-200 ring-1 ring-sage-100' : 'bg-surface/80 border-zen-200'
                   }`;
                   const metadata = (
@@ -736,9 +740,9 @@ export default function ListsPage() {
                       )}
                     </motion.div>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )
 
           </section>
         </main>
