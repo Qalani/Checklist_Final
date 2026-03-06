@@ -27,7 +27,6 @@ import { useFriends } from '@/features/friends/useFriends';
 import ListItemsBoard from '@/components/ListItemsBoard';
 import { useListsPageHandlers } from './hooks/useListsPageHandlers';
 import ListFormModal from './components/ListFormModal';
-import ArchivedListsSection from './components/ArchivedListsSection';
 import SharingModal from './components/SharingModal';
 import ImportListsModal from '@/components/ImportListsModal';
 
@@ -134,7 +133,7 @@ export default function ListsPage() {
   const [editingItemsListId, setEditingItemsListId] = useState<string | null>(null);
   const [listSort, setListSort] = useState<ListSortOption>('created-oldest');
   const [newListItems, setNewListItems] = useState<List['items']>([]);
-  const [showArchived, setShowArchived] = useState(false);
+  const [listTab, setListTab] = useState<'active' | 'archived'>('active');
   const [listActionMessage, setListActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
@@ -453,58 +452,130 @@ export default function ListsPage() {
               handleSubmit={handleSubmit}
             />
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-zen-500">{listSortStatusText}</p>
-              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zen-400 sm:text-[0.75rem]">
-                <span>Sort</span>
-                <select
-                  value={listSort}
-                  onChange={event => setListSort(event.target.value as ListSortOption)}
-                  className="rounded-lg border border-zen-200 bg-surface/90 px-3 py-1.5 text-sm font-medium text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none"
-                >
-                  {LIST_SORT_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-1 p-1 bg-surface/70 border border-zen-200 rounded-xl shadow-soft">
+                {[
+                  { key: 'active' as const, label: `Active (${activeLists.length})` },
+                  { key: 'archived' as const, label: `Archived (${archivedLists.length})` },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setListTab(tab.key)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      listTab === tab.key
+                        ? 'bg-sage-100 text-sage-700 shadow-soft'
+                        : 'text-zen-600 hover:bg-zen-100'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <p className="text-sm text-zen-500">{listSortStatusText}</p>
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zen-400 sm:text-[0.75rem]">
+                  <span>Sort</span>
+                  <select
+                    value={listSort}
+                    onChange={event => setListSort(event.target.value as ListSortOption)}
+                    className="rounded-lg border border-zen-200 bg-surface/90 px-3 py-1.5 text-sm font-medium text-zen-700 shadow-soft focus:border-sage-400 focus:outline-none"
+                  >
+                    {LIST_SORT_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {status === 'loading' && lists.length === 0 ? (
-                Array.from({ length: 3 }).map((_, index) => (
+            {status === 'loading' && lists.length === 0 ? (
+              <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
+                {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-40 rounded-3xl bg-surface/70 border border-zen-200 shadow-soft animate-pulse"
+                    className="break-inside-avoid mb-6 h-40 rounded-3xl bg-surface/70 border border-zen-200 shadow-soft animate-pulse"
                   />
-                ))
-              ) : activeLists.length === 0 ? (
-                <div className="md:col-span-2 xl:col-span-3 rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
-                  <ListIcon className="w-12 h-12 mx-auto text-sage-400" />
+                ))}
+              </div>
+            ) : listTab === 'archived' ? (
+              archivedLists.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
+                  <Archive className="w-12 h-12 mx-auto text-sage-400" />
                   <div className="space-y-2">
-                    <h3 className="text-xl font-semibold text-zen-900">No lists yet</h3>
+                    <h3 className="text-xl font-semibold text-zen-900">No archived lists</h3>
                     <p className="text-zen-600 max-w-xl mx-auto">
-                      Start with a single idea. Whether it&apos;s a weekend reset, packing guide, or gratitude list, we&apos;ll keep it safe and beautifully arranged.
+                      Lists you archive will appear here. You can restore them at any time.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenCreate}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create your first list
-                  </button>
                 </div>
               ) : (
-                activeLists.map(list => {
+                <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
+                  {archivedLists.map(list => (
+                    <div
+                      key={list.id}
+                      className="break-inside-avoid mb-6 rounded-3xl border border-zen-200/60 bg-surface/60 p-6 flex flex-col gap-3 opacity-70"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-zen-700 truncate">{list.name}</h3>
+                          {list.description && (
+                            <p className="text-xs text-zen-500 mt-1 line-clamp-2">{list.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => void handleUnarchive(list)}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zen-200 text-xs font-medium text-zen-600 hover:text-zen-800 hover:border-zen-300 transition-colors"
+                            title="Restore list"
+                          >
+                            <Upload className="w-3.5 h-3.5" />
+                            Restore
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(list)}
+                            className="p-1.5 rounded-xl border border-red-200 text-red-400 hover:text-red-600 hover:border-red-300 transition-colors"
+                            title="Delete permanently"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-zen-400">{(list.items?.length ?? 0)} items</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : activeLists.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-zen-200 bg-surface/50 p-12 text-center space-y-4">
+                <ListIcon className="w-12 h-12 mx-auto text-sage-400" />
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-zen-900">No lists yet</h3>
+                  <p className="text-zen-600 max-w-xl mx-auto">
+                    Start with a single idea. Whether it&apos;s a weekend reset, packing guide, or gratitude list, we&apos;ll keep it safe and beautifully arranged.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenCreate}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sage-500 text-white text-sm font-medium shadow-soft hover:bg-sage-600 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create your first list
+                </button>
+              </div>
+            ) : (
+              <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
+                {activeLists.map(list => {
                   const role = resolveRole(list);
                   const canEditList = role === 'owner' || role === 'editor';
                   const canDeleteList = role === 'owner';
                   const isEditingList = editingItemsListId === list.id;
                   const isInlineEditing = inlineEditingListId === list.id;
-                  const cardClassName = `rounded-3xl border shadow-soft p-6 flex flex-col gap-4 ${
+                  const cardClassName = `break-inside-avoid mb-6 rounded-3xl border shadow-soft p-6 flex flex-col gap-4 ${
                     isInlineEditing ? 'bg-surface border-sage-200 ring-1 ring-sage-100' : 'bg-surface/80 border-zen-200'
                   }`;
                   const metadata = (
@@ -669,17 +740,10 @@ export default function ListsPage() {
                       )}
                     </motion.div>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
 
-            <ArchivedListsSection
-              archivedLists={archivedLists}
-              showArchived={showArchived}
-              setShowArchived={setShowArchived}
-              handleUnarchive={handleUnarchive}
-              handleDelete={handleDelete}
-            />
           </section>
         </main>
       </div>

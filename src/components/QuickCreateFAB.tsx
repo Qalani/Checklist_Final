@@ -10,7 +10,8 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
-import type { Category } from '@/types';
+import type { Category, ListItem } from '@/types';
+import ListItemsBoard from '@/components/ListItemsBoard';
 
 type PageMode = 'task' | 'list' | 'note' | 'reminder';
 
@@ -78,6 +79,9 @@ export function QuickCreateFAB() {
   const [reminderDate, setReminderDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reminderTime, setReminderTime] = useState(() => new Date().toTimeString().slice(0, 5));
 
+  // List items (for list mode)
+  const [listItems, setListItems] = useState<ListItem[]>([]);
+
   const titleRef = useRef<HTMLInputElement>(null);
 
   const hidden = !user || !mode;
@@ -104,7 +108,38 @@ export function QuickCreateFAB() {
     setPriority('medium');
     setDueDate('');
     setReminderMinutes('');
+    setListItems([]);
     setError(null);
+  }, []);
+
+  const addListItem = useCallback(async (): Promise<string | null> => {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const newItem: ListItem = { id, list_id: '', content: '', completed: false, position: listItems.length, created_at: now, updated_at: now };
+    setListItems(prev => [...prev, newItem]);
+    return id;
+  }, [listItems.length]);
+
+  const updateListItemContent = useCallback(async (itemId: string, content: string) => {
+    setListItems(prev => prev.map(item => item.id === itemId ? { ...item, content } : item));
+  }, []);
+
+  const toggleListItem = useCallback(async (itemId: string, completed: boolean) => {
+    setListItems(prev => prev.map(item => item.id === itemId ? { ...item, completed } : item));
+  }, []);
+
+  const deleteListItem = useCallback(async (itemId: string) => {
+    setListItems(prev => prev.filter(item => item.id !== itemId));
+  }, []);
+
+  const reorderListItems = useCallback(async (orderedIds: string[]) => {
+    setListItems(prev => {
+      const map = new Map(prev.map(item => [item.id, item]));
+      return orderedIds.flatMap((id, idx) => {
+        const item = map.get(id);
+        return item ? [{ ...item, position: idx }] : [];
+      });
+    });
   }, []);
 
   const handleClose = useCallback(() => {
@@ -183,16 +218,31 @@ export function QuickCreateFAB() {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const listRecord = { id, name: trimmed, description: description.trim() || null, user_id: user.id, created_at: now };
+    const itemsToSave = listItems.filter(item => item.content.trim());
 
     if (!isOnline()) {
-      await db.lists.put({ ...listRecord, owner_id: user.id, access_role: 'owner' as const, public_share_token: null, public_share_enabled: false, items: [] });
+      const localItems = itemsToSave.map((item, idx) => ({ ...item, list_id: id, position: idx }));
+      await db.lists.put({ ...listRecord, owner_id: user.id, access_role: 'owner' as const, public_share_token: null, public_share_enabled: false, items: localItems });
       await enqueue({ table_name: 'lists', operation: 'INSERT', payload: listRecord });
     } else {
       const { error: insertError } = await supabase.from('lists').insert(listRecord);
       if (insertError) throw new Error(insertError.message);
+      if (itemsToSave.length > 0) {
+        const itemRows = itemsToSave.map((item, idx) => ({
+          id: item.id,
+          list_id: id,
+          content: item.content.trim(),
+          completed: item.completed,
+          position: idx,
+          created_at: now,
+          updated_at: now,
+        }));
+        const { error: itemsError } = await supabase.from('list_items').insert(itemRows);
+        if (itemsError) throw new Error(itemsError.message);
+      }
     }
     showSuccessToast('List created');
-  }, [title, description, user, showSuccessToast]);
+  }, [title, description, listItems, user, showSuccessToast]);
 
   const handleSubmitNote = useCallback(async () => {
     const trimmed = title.trim();
@@ -454,14 +504,30 @@ export function QuickCreateFAB() {
 
               {/* --- List-specific fields --- */}
               {mode === 'list' && (
-                <textarea
-                  placeholder="Description (optional)"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                  className="w-full resize-none rounded-xl border border-zen-200/80 bg-zen-50/50 px-3 py-2.5 text-sm text-zen-900 placeholder:text-zen-400 focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-300/40 dark:border-zen-700/50 dark:bg-zen-900/40 dark:text-zen-100"
-                  aria-label="List description"
-                />
+                <>
+                  <textarea
+                    placeholder="Description (optional)"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-zen-200/80 bg-zen-50/50 px-3 py-2.5 text-sm text-zen-900 placeholder:text-zen-400 focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-300/40 dark:border-zen-700/50 dark:bg-zen-900/40 dark:text-zen-100"
+                    aria-label="List description"
+                  />
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-zen-500">List items</p>
+                    <ListItemsBoard
+                      items={listItems}
+                      canEdit
+                      editing
+                      onAddItem={addListItem}
+                      onToggleItem={toggleListItem}
+                      onContentCommit={updateListItemContent}
+                      onDeleteItem={deleteListItem}
+                      onReorder={reorderListItems}
+                      error={null}
+                    />
+                  </div>
+                </>
               )}
 
               {/* --- Reminder-specific fields --- */}
