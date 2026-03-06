@@ -50,6 +50,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
           description,
           created_at,
           user_id,
+          archived,
           public_share:list_public_shares(token)
         )
       `,
@@ -77,6 +78,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
         user_id: list.user_id,
         owner_id: list.user_id,
         access_role: record.role,
+        archived: list.archived ?? false,
         public_share_token: shareRecord?.token ?? null,
         public_share_enabled: Boolean(shareRecord?.token),
         items: [],
