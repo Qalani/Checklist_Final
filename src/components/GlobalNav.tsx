@@ -43,15 +43,15 @@ export function GlobalNav() {
                 key={href}
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
-                className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2.5 text-[10px] font-medium transition-colors first:rounded-l-full last:rounded-r-full ${
+                className={`flex flex-col items-center justify-center gap-0.5 px-2.5 py-3 text-[11px] font-medium transition-colors first:rounded-l-full last:rounded-r-full min-w-[44px] min-h-[44px] ${
                   isActive
                     ? 'text-sage-600 dark:text-sage-400'
                     : 'text-zen-400 hover:text-zen-600 dark:text-zen-500 dark:hover:text-zen-300'
                 }`}
               >
-                <span className={`rounded-full p-1 transition-colors ${isActive ? 'bg-sage-100/80 dark:bg-sage-900/40' : ''}`}>
+                <span className={`rounded-full p-1.5 transition-colors ${isActive ? 'bg-sage-100/80 dark:bg-sage-900/40' : ''}`}>
                   <Icon
-                    className={`h-4 w-4 transition-transform ${isActive ? 'scale-110' : ''}`}
+                    className={`h-[18px] w-[18px] transition-transform ${isActive ? 'scale-110' : ''}`}
                     aria-hidden="true"
                   />
                 </span>

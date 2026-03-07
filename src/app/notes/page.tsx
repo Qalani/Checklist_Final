@@ -23,6 +23,7 @@ import { useNotes } from '@/features/notes/useNotes';
 import type { Note } from '@/types';
 import { extractPlainText } from '@/features/notes/noteUtils';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 function LoadingScreen() {
   return (
@@ -273,15 +274,9 @@ export default function NotesPage() {
     }
   };
 
-  const handleDeleteNote = async (note: Note | null) => {
-    if (!note) return;
-    const confirmation = typeof window !== 'undefined'
-      ? window.confirm(`Delete "${note.title || 'Untitled document'}"? This cannot be undone.`)
-      : true;
-    if (!confirmation) {
-      return;
-    }
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
 
+  const confirmDeleteNote = useCallback(async (note: Note) => {
     const result = await deleteNote(note.id);
     if (result && 'error' in result) {
       setSaveStatus('error');
@@ -293,7 +288,7 @@ export default function NotesPage() {
       const remaining = notes.filter(n => n.id !== note.id);
       setSelectedNoteId(remaining[0]?.id ?? null);
     }
-  };
+  }, [deleteNote, notes, selectedNoteId]);
 
   const filteredNotes = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -487,7 +482,7 @@ export default function NotesPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            void handleDeleteNote(activeNote);
+                            if (activeNote) setNoteToDelete(activeNote);
                           }}
                           className="inline-flex items-center gap-2 rounded-xl border border-zen-200 bg-surface px-3 py-2 text-sm font-medium text-zen-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                         >
@@ -537,6 +532,19 @@ export default function NotesPage() {
           </div>
         </main>
       </div>
+      <ConfirmDialog
+        open={noteToDelete !== null}
+        title="Delete this document?"
+        description={`"${noteToDelete?.title || 'Untitled document'}" will be permanently deleted.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (noteToDelete) {
+            void confirmDeleteNote(noteToDelete);
+          }
+          setNoteToDelete(null);
+        }}
+        onCancel={() => setNoteToDelete(null)}
+      />
     </div>
   );
 }
