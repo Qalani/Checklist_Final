@@ -10,6 +10,7 @@ import AuthPanel from '@/components/AuthPanel';
 import ParallaxBackground from '@/components/ParallaxBackground';
 import SettingsMenu from '@/components/SettingsMenu';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
+import ZenPageHeader from '@/components/ZenPageHeader';
 import DashboardHero from '@/features/dashboard/DashboardHero';
 import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
 import { useChecklist } from '@/features/checklist/useChecklist';
@@ -206,33 +207,26 @@ function ZenInsightsPageContent() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
-        <header className="sticky top-0 z-50 border-b border-zen-200/70 bg-surface/80 backdrop-blur-2xl shadow-soft">
-          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-zen-500 to-sage-500 text-white shadow-medium">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold text-zen-900">Zen Insights</h1>
-                <p className="text-sm text-zen-600">Curate dashboards and highlight meaningful metrics</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-start gap-3 lg:justify-end">
-              <SettingsMenu
-                userEmail={userEmail}
-                onSignOut={() => {
-                  if (!demoMode) {
-                    void signOut();
-                  }
-                }}
-                notificationPermission={notificationPermission}
-                onRequestNotificationPermission={() => {
-                  void requestNotificationPermission();
-                }}
-              />
-            </div>
-          </div>
-        </header>
+        <ZenPageHeader
+          title="Zen Insights"
+          subtitle="Curate dashboards and highlight meaningful metrics"
+          icon={Sparkles}
+          backHref="/"
+          actions={
+            <SettingsMenu
+              userEmail={userEmail}
+              onSignOut={() => {
+                if (!demoMode) {
+                  void signOut();
+                }
+              }}
+              notificationPermission={notificationPermission}
+              onRequestNotificationPermission={() => {
+                void requestNotificationPermission();
+              }}
+            />
+          }
+        />
 
         <main className="flex-1">
           <section className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
