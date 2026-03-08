@@ -226,33 +226,26 @@ export default function ZenRemindersPage() {
           backHref="/"
           backLabel="Overview"
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleRefresh}
-                className="inline-flex items-center gap-2 rounded-full border border-zen-200 bg-surface/80 px-3 py-1.5 text-xs font-semibold text-zen-600 transition-colors hover:border-zen-400 hover:text-zen-700 dark:border-zen-700/40 dark:text-zen-200"
+                className="inline-flex items-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-3 py-1.5 text-xs font-semibold text-zen-600 transition-colors hover:border-zen-400 hover:text-zen-700 dark:border-zen-700/40 dark:text-zen-200"
                 disabled={syncing}
               >
                 <RefreshCcw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
                 Sync
               </button>
               <ThemeSwitcher />
+              <AccountSummary
+                email={userEmail}
+                syncing={syncing || status === 'loading'}
+                onSignOut={signOut}
+              />
             </div>
           }
         />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <AccountSummary
-              email={userEmail}
-              statusText="Zen reminders"
-              syncing={syncing || status === 'loading'}
-              syncingLabel="Updating"
-              onSignOut={signOut}
-            />
-            <div className="rounded-full border border-zen-200/70 bg-surface/70 px-4 py-2 text-xs font-semibold text-zen-600 shadow-soft dark:border-zen-700/40 dark:text-zen-200">
-              Local timezone: {timezone}
-            </div>
-          </div>
 
           {bannerMessage ? (
             <div
@@ -294,7 +287,7 @@ export default function ZenRemindersPage() {
           ) : null}
 
           <div className="grid gap-8 lg:grid-cols-[1.1fr_1.4fr]">
-            <section className="rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-large backdrop-blur-xl dark:border-zen-700/40">
+            <section className="rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
               <div className="inline-flex items-center gap-2 rounded-full bg-sage-500/15 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-400/20 dark:text-zen-100">
                 <Bell className="h-4 w-4" />
                 New reminder
@@ -352,7 +345,7 @@ export default function ZenRemindersPage() {
 
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-full bg-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-sage-600 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex items-center gap-2 rounded-xl bg-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-sage-600 disabled:cursor-not-allowed disabled:opacity-70"
                   disabled={submitting || notificationsUnavailable}
                 >
                   <Bell className="h-4 w-4" />
@@ -366,7 +359,7 @@ export default function ZenRemindersPage() {
               </form>
             </section>
 
-            <section className="space-y-6 rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-large backdrop-blur-xl dark:border-zen-700/40">
+            <section className="space-y-6 rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight text-zen-900 dark:text-zen-50">Upcoming reminders</h2>

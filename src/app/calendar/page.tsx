@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, startOfMonth, endOfMonth, compareAsc } from 'date-fns';
 import { Calendar as CalendarIcon, ChevronDown, ExternalLink, Filter, RefreshCcw, X } from 'lucide-react';
 
@@ -93,6 +93,7 @@ function EventDialog({
 }) {
   const isTaskEvent = event?.type === 'task_due' || event?.type === 'task_reminder';
   const taskMetadata = isTaskMetadata(event?.metadata) ? event?.metadata : null;
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!event) return;
@@ -100,10 +101,35 @@ function EventDialog({
     const handleKeyDown = (keyboardEvent: KeyboardEvent) => {
       if (keyboardEvent.key === 'Escape') {
         onClose();
+        return;
+      }
+
+      // Focus trap: keep Tab cycling within the dialog
+      if (keyboardEvent.key === 'Tab' && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (keyboardEvent.shiftKey && document.activeElement === first) {
+          keyboardEvent.preventDefault();
+          last.focus();
+        } else if (!keyboardEvent.shiftKey && document.activeElement === last) {
+          keyboardEvent.preventDefault();
+          first.focus();
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
+
+    // Auto-focus the close button when dialog opens
+    requestAnimationFrame(() => {
+      const closeBtn = dialogRef.current?.querySelector<HTMLElement>('button[aria-label="Close"]');
+      closeBtn?.focus();
+    });
+
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [event, onClose]);
 
@@ -118,6 +144,7 @@ function EventDialog({
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-zen-200/70 bg-white/95 p-6 shadow-2xl backdrop-blur-lg dark:border-zen-800/70 dark:bg-zen-900/95"
@@ -167,7 +194,7 @@ function EventDialog({
             <button
               type="button"
               onClick={() => onOpenTask(taskMetadata?.taskId)}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-zen-500 to-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
             >
               Go to task
               <ExternalLink className="h-4 w-4" />
@@ -176,7 +203,7 @@ function EventDialog({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-full border border-zen-200/80 bg-white/90 px-4 py-2 text-sm font-semibold text-zen-600 shadow-sm transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/80 dark:text-zen-200 dark:hover:text-zen-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-zen-200/80 bg-white/90 px-4 py-2 text-sm font-semibold text-zen-600 shadow-sm transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/80 dark:text-zen-200 dark:hover:text-zen-50"
           >
             Close
           </button>
@@ -289,12 +316,13 @@ export default function CalendarPage() {
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <ThemeSwitcher />
-            <div className="flex items-center gap-2 rounded-full border border-zen-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-zen-600 shadow-soft backdrop-blur-sm dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200">
+            <div className="flex items-center gap-2 rounded-xl border border-zen-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-zen-600 shadow-soft backdrop-blur-sm dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200">
               <Filter className="h-4 w-4" />
               <select
                 className="bg-transparent text-sm font-semibold focus:outline-none"
                 value={scope}
                 onChange={(event) => handleScopeChange(event.target.value as CalendarScope)}
+                aria-label="Filter calendar scope"
               >
                 <option value="all">All spaces</option>
                 <option value="personal">Personal</option>
@@ -304,20 +332,18 @@ export default function CalendarPage() {
             <button
               type="button"
               onClick={() => refresh()}
-              className="inline-flex items-center gap-2 rounded-full border border-zen-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-zen-600 shadow-soft transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200 dark:hover:text-zen-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-zen-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-zen-600 shadow-soft transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200 dark:hover:text-zen-50"
               aria-label="Refresh calendar"
             >
               <RefreshCcw className={`h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </button>
+            <AccountSummary
+              email={user?.email ?? undefined}
+              syncing={isValidating}
+              onSignOut={signOut}
+            />
           </div>
-        }
-        footer={
-          <AccountSummary
-            email={user?.email ?? undefined}
-            syncing={isValidating}
-            onSignOut={signOut}
-          />
         }
       />
 

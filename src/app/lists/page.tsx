@@ -671,8 +671,6 @@ export default function ListsPage() {
                               </button>
                             </div>
                           </div>
-
-                          <div className="text-xs text-zen-400">ID: {list.id.slice(0, 8)}…</div>
                         </form>
                       ) : (
                         <>
@@ -735,7 +733,6 @@ export default function ListsPage() {
                             />
                             {metadata}
                           </div>
-                          <div className="text-xs text-zen-400">ID: {list.id.slice(0, 8)}…</div>
                         </>
                       )}
                     </motion.div>
