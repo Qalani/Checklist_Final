@@ -219,6 +219,8 @@ export class ChecklistManager {
           reminder_next_trigger_at: (taskData.reminder_next_trigger_at as string | null | undefined) ?? null,
           reminder_snoozed_until: (taskData.reminder_snoozed_until as string | null | undefined) ?? null,
           reminder_timezone: (taskData.reminder_timezone as string | null | undefined) ?? null,
+          task_recurrence: (taskData.task_recurrence as Task['task_recurrence']) ?? null,
+          task_recurrence_interval: (taskData.task_recurrence_interval as number | null | undefined) ?? 1,
           order: nextOrder,
           access_role: 'owner',
           created_at: now,
@@ -255,6 +257,8 @@ export class ChecklistManager {
           reminder_next_trigger_at: taskData.reminder_next_trigger_at ?? null,
           reminder_snoozed_until: taskData.reminder_snoozed_until ?? null,
           reminder_timezone: taskData.reminder_timezone ?? null,
+          task_recurrence: taskData.task_recurrence ?? null,
+          task_recurrence_interval: (taskData.task_recurrence_interval as number | null | undefined) ?? 1,
           order: nextOrder,
           user_id: this.userId,
         })
@@ -358,6 +362,9 @@ export class ChecklistManager {
         tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
         error: null,
       }));
+      if (completed && targetTask.task_recurrence && targetTask.due_date && targetTask.user_id === this.userId) {
+        await this.spawnNextRecurrenceOffline(targetTask);
+      }
       return;
     }
 
@@ -382,6 +389,101 @@ export class ChecklistManager {
     this.setSnapshot((prev) => ({
       ...prev,
       tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
+      error: null,
+    }));
+
+    if (completed && targetTask.task_recurrence && targetTask.due_date && targetTask.user_id === this.userId) {
+      await this.spawnNextRecurrence(targetTask);
+    }
+  }
+
+  private nextRecurrenceDueDate(currentDueDate: string, recurrence: string, interval: number): string {
+    const date = new Date(currentDueDate);
+    if (recurrence === 'daily') {
+      date.setDate(date.getDate() + interval);
+    } else if (recurrence === 'weekly') {
+      date.setDate(date.getDate() + interval * 7);
+    } else if (recurrence === 'monthly') {
+      date.setMonth(date.getMonth() + interval);
+    }
+    return date.toISOString();
+  }
+
+  private buildNextOccurrenceData(completedTask: Task, nextDueDate: string, nextOrder: number): Record<string, unknown> {
+    const interval = completedTask.task_recurrence_interval ?? 1;
+    let nextReminderTrigger: string | null = null;
+    if (completedTask.reminder_minutes_before != null) {
+      const triggerTime = new Date(new Date(nextDueDate).getTime() - completedTask.reminder_minutes_before * 60_000);
+      nextReminderTrigger = triggerTime.toISOString();
+    }
+    return {
+      title: completedTask.title,
+      description: completedTask.description ?? null,
+      priority: completedTask.priority,
+      category: completedTask.category,
+      category_color: completedTask.category_color,
+      completed: false,
+      due_date: nextDueDate,
+      reminder_minutes_before: completedTask.reminder_minutes_before ?? null,
+      reminder_recurrence: completedTask.reminder_recurrence ?? null,
+      reminder_next_trigger_at: nextReminderTrigger,
+      reminder_snoozed_until: null,
+      reminder_timezone: completedTask.reminder_timezone ?? null,
+      task_recurrence: completedTask.task_recurrence,
+      task_recurrence_interval: interval,
+      order: nextOrder,
+    };
+  }
+
+  private async spawnNextRecurrence(completedTask: Task) {
+    if (!completedTask.due_date || !completedTask.task_recurrence || !this.userId) {
+      return;
+    }
+    const interval = completedTask.task_recurrence_interval ?? 1;
+    const nextDueDate = this.nextRecurrenceDueDate(completedTask.due_date, completedTask.task_recurrence, interval);
+    const ownedTasks = this.snapshot.tasks.filter((task) => task.user_id === this.userId);
+    const nextOrder = ownedTasks.reduce((max, t) => Math.max(max, t.order ?? 0), -1) + 1;
+    const newTaskData = {
+      ...this.buildNextOccurrenceData(completedTask, nextDueDate, nextOrder),
+      user_id: this.userId,
+    };
+
+    const { data: newTask, error } = await supabase.from('tasks').insert(newTaskData).select().single();
+    if (error || !newTask) {
+      return;
+    }
+    const normalizedNew = this.normalizeTask(newTask as Task);
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, normalizedNew].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+      error: null,
+    }));
+  }
+
+  private async spawnNextRecurrenceOffline(completedTask: Task) {
+    if (!completedTask.due_date || !completedTask.task_recurrence || !this.userId) {
+      return;
+    }
+    const interval = completedTask.task_recurrence_interval ?? 1;
+    const nextDueDate = this.nextRecurrenceDueDate(completedTask.due_date, completedTask.task_recurrence, interval);
+    const ownedTasks = this.snapshot.tasks.filter((task) => task.user_id === this.userId);
+    const nextOrder = ownedTasks.reduce((max, t) => Math.max(max, t.order ?? 0), -1) + 1;
+    const now = new Date().toISOString();
+    const newTaskId = crypto.randomUUID();
+    const newTask: Task = {
+      ...(this.buildNextOccurrenceData(completedTask, nextDueDate, nextOrder) as Partial<Task>),
+      id: newTaskId,
+      user_id: this.userId,
+      access_role: 'owner',
+      created_at: now,
+      updated_at: now,
+    } as Task;
+    const normalizedNew = this.normalizeTask(newTask);
+    await db.tasks.put(normalizedNew);
+    await enqueue({ table_name: 'tasks', operation: 'INSERT', payload: normalizedNew as Record<string, unknown> });
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, normalizedNew].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
       error: null,
     }));
   }

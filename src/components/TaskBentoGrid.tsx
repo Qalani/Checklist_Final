@@ -149,6 +149,14 @@ function SortableTaskCard({
   const nextReminder = getNextReminderOccurrence(task, { includeCurrent: true });
   const nextReminderLabel = nextReminder ? formatReminderDate(nextReminder, task.reminder_timezone) : null;
   const recurrenceLabel = describeReminderRecurrence(task.reminder_recurrence);
+  const taskRecurrenceLabel = (() => {
+    if (!task.task_recurrence) return null;
+    const n = task.task_recurrence_interval ?? 1;
+    if (task.task_recurrence === 'daily') return n === 1 ? 'Repeats daily' : `Repeats every ${n} days`;
+    if (task.task_recurrence === 'weekly') return n === 1 ? 'Repeats weekly' : `Repeats every ${n} weeks`;
+    if (task.task_recurrence === 'monthly') return n === 1 ? 'Repeats monthly' : `Repeats every ${n} months`;
+    return null;
+  })();
   const snoozedLabel = (() => {
     if (!task.reminder_snoozed_until) {
       return null;
@@ -352,6 +360,12 @@ function SortableTaskCard({
                 <span className="px-2 py-1 rounded-lg text-xs font-medium bg-zen-50 text-zen-700 flex items-center gap-1 shrink-0">
                   <RefreshCcw className="w-3 h-3" />
                   {recurrenceLabel}
+                </span>
+              )}
+              {taskRecurrenceLabel && (
+                <span className="px-2 py-1 rounded-lg text-xs font-medium bg-sage-50 text-sage-700 flex items-center gap-1 shrink-0">
+                  <RefreshCcw className="w-3 h-3" />
+                  {taskRecurrenceLabel}
                 </span>
               )}
               {nextReminderLabel && (

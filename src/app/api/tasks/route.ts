@@ -61,6 +61,8 @@ export async function POST(request: Request) {
     reminder_next_trigger_at: reminderNextTriggerAt,
     reminder_snoozed_until: reminderSnoozedUntil,
     reminder_timezone: reminderTimezone,
+    task_recurrence: taskRecurrence,
+    task_recurrence_interval: taskRecurrenceInterval,
   } = body as {
     title?: unknown;
     description?: unknown;
@@ -75,6 +77,8 @@ export async function POST(request: Request) {
     reminder_next_trigger_at?: unknown;
     reminder_snoozed_until?: unknown;
     reminder_timezone?: unknown;
+    task_recurrence?: unknown;
+    task_recurrence_interval?: unknown;
   };
 
   if (typeof title !== 'string' || !title.trim()) {
@@ -213,6 +217,22 @@ export async function POST(request: Request) {
     );
   }
 
+  const VALID_TASK_RECURRENCES = ['daily', 'weekly', 'monthly'];
+  let normalizedTaskRecurrence: 'daily' | 'weekly' | 'monthly' | null = null;
+  if (typeof taskRecurrence === 'string' && VALID_TASK_RECURRENCES.includes(taskRecurrence)) {
+    normalizedTaskRecurrence = taskRecurrence as 'daily' | 'weekly' | 'monthly';
+  } else if (typeof taskRecurrence !== 'undefined' && taskRecurrence !== null) {
+    return NextResponse.json({ error: 'task_recurrence must be daily, weekly, monthly, or null.' }, { status: 400 });
+  }
+
+  let normalizedTaskRecurrenceInterval = 1;
+  if (typeof taskRecurrenceInterval === 'number') {
+    if (!Number.isInteger(taskRecurrenceInterval) || taskRecurrenceInterval < 1) {
+      return NextResponse.json({ error: 'task_recurrence_interval must be a positive integer.' }, { status: 400 });
+    }
+    normalizedTaskRecurrenceInterval = taskRecurrenceInterval;
+  }
+
   try {
     const { data, error } = await withTimeout(
       supabaseAdmin
@@ -231,6 +251,8 @@ export async function POST(request: Request) {
           reminder_next_trigger_at: normalizedNextTrigger,
           reminder_snoozed_until: normalizedSnoozedUntil,
           reminder_timezone: normalizedTimezone,
+          task_recurrence: normalizedTaskRecurrence,
+          task_recurrence_interval: normalizedTaskRecurrenceInterval,
           user_id: userId,
         })
         .select()
