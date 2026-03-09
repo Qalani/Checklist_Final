@@ -11,9 +11,11 @@ import ParallaxBackground from '@/components/ParallaxBackground';
 import SettingsMenu from '@/components/SettingsMenu';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import ZenPageHeader from '@/components/ZenPageHeader';
+import ZenInsightsAnalytics from '@/components/ZenInsightsAnalytics';
 import DashboardHero from '@/features/dashboard/DashboardHero';
 import { useDashboardLayout } from '@/features/dashboard/hooks/useDashboardLayout';
 import { useChecklist } from '@/features/checklist/useChecklist';
+import { useNotes } from '@/features/notes/useNotes';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import type { DashboardBoardProps } from '@/features/dashboard/DashboardBoard';
 import type { WidgetVisibilityMenuProps } from '@/features/dashboard/WidgetVisibilityMenu';
@@ -67,7 +69,8 @@ function ZenInsightsPageContent() {
   const demoMode = searchParams?.get('demo') === '1';
   const targetUserId = demoMode ? null : user?.id ?? null;
   const { layout, isLoading, isSaving, error, moveWidget, toggleWidget, resetLayout } = useDashboardLayout(targetUserId);
-  const { tasks, status: checklistStatus, syncing: checklistSyncing } = useChecklist(targetUserId);
+  const { tasks, categories, status: checklistStatus, syncing: checklistSyncing } = useChecklist(targetUserId);
+  const { notes } = useNotes(targetUserId);
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'unsupported' | 'pending'
   >('pending');
@@ -318,6 +321,12 @@ function ZenInsightsPageContent() {
                 onRequestEditMode={() => setIsEditMode(true)}
               />
             </div>
+
+            <ZenInsightsAnalytics
+              tasks={demoMode ? [] : tasks}
+              categories={demoMode ? [] : categories}
+              notes={demoMode ? [] : notes}
+            />
           </section>
         </main>
       </div>
