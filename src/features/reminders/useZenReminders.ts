@@ -351,23 +351,27 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         return;
       }
 
+      const existingReminder = remindersRef.current.find(r => r.id === id);
+      if (!existingReminder) return { error: 'Reminder not found.' };
+
+      const now = new Date().toISOString();
+      const optimisticReminder: ZenReminder = { ...existingReminder, ...updates, updated_at: now } as ZenReminder;
+
+      // Apply optimistic update immediately
+      setState(prev => {
+        const index = prev.reminders.findIndex(r => r.id === id);
+        if (index === -1) return prev;
+        const next = [...prev.reminders];
+        next[index] = optimisticReminder;
+        next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
+        remindersRef.current = next;
+        return { ...prev, reminders: next };
+      });
+
       if (!isOnline()) {
-        const existing = remindersRef.current.find(r => r.id === id);
-        if (!existing) return { error: 'Reminder not found in local store.' };
-        const now = new Date().toISOString();
-        const updated: ZenReminder = { ...existing, ...updates, updated_at: now } as ZenReminder;
-        await db.zen_reminders.put(updated);
-        await enqueue({ table_name: 'zen_reminders', operation: 'UPDATE', payload: updated as Record<string, unknown> });
-        setState(prev => {
-          const index = prev.reminders.findIndex(r => r.id === id);
-          if (index === -1) return prev;
-          const next = [...prev.reminders];
-          next[index] = updated;
-          next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
-          remindersRef.current = next;
-          return { ...prev, reminders: next };
-        });
-        return { reminder: updated };
+        await db.zen_reminders.put(optimisticReminder);
+        await enqueue({ table_name: 'zen_reminders', operation: 'UPDATE', payload: optimisticReminder as Record<string, unknown> });
+        return { reminder: optimisticReminder };
       }
 
       const { data, error } = await supabase
@@ -380,6 +384,16 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
 
       if (error) {
         const message = error.message || 'Unable to update reminder.';
+        // Revert optimistic update
+        setState(prev => {
+          const index = prev.reminders.findIndex(r => r.id === id);
+          if (index === -1) return prev;
+          const next = [...prev.reminders];
+          next[index] = existingReminder;
+          next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
+          remindersRef.current = next;
+          return { ...prev, reminders: next, error: message };
+        });
         return { error: message };
       }
 
@@ -407,14 +421,18 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         return { error: 'You must be signed in to delete reminders.' };
       }
 
+      const reminderToDelete = remindersRef.current.find(r => r.id === id);
+
+      // Optimistically remove from UI immediately
+      setState(prev => {
+        const filtered = prev.reminders.filter(r => r.id !== id);
+        remindersRef.current = filtered;
+        return { ...prev, reminders: filtered };
+      });
+
       if (!isOnline()) {
         await db.zen_reminders.delete(id);
         await enqueue({ table_name: 'zen_reminders', operation: 'DELETE', payload: { id } });
-        setState(prev => {
-          const filtered = prev.reminders.filter(r => r.id !== id);
-          remindersRef.current = filtered;
-          return { ...prev, reminders: filtered };
-        });
         return;
       }
 
@@ -426,14 +444,20 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
 
       if (error) {
         const message = error.message || 'Unable to delete reminder.';
+        // Revert: restore the reminder
+        if (reminderToDelete) {
+          setState(prev => {
+            const restored = [...prev.reminders, reminderToDelete].sort(
+              (a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime(),
+            );
+            remindersRef.current = restored;
+            return { ...prev, reminders: restored, error: message };
+          });
+        } else {
+          setState(prev => ({ ...prev, error: message }));
+        }
         return { error: message };
       }
-
-      setState(prev => {
-        const filtered = prev.reminders.filter(reminder => reminder.id !== id);
-        remindersRef.current = filtered;
-        return { ...prev, reminders: filtered };
-      });
     },
     [userId],
   );

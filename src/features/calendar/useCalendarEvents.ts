@@ -2,6 +2,9 @@
 
 import { useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/local-db';
+import { enqueue } from '@/lib/sync-queue';
+import { isOnline } from '@/lib/network-status';
 import type { CalendarEvent } from '@/types';
 
 export interface CreateCalendarEventInput {
@@ -75,23 +78,45 @@ export function useCalendarEvents(userId: string | null) {
         throw new Error('End time must be on or after the start time.');
       }
 
+      const eventData = {
+        title: input.title.trim(),
+        description:
+          typeof input.description === 'string' && input.description.trim()
+            ? input.description.trim()
+            : null,
+        location:
+          typeof input.location === 'string' && input.location.trim()
+            ? input.location.trim()
+            : null,
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        all_day: typeof input.allDay === 'boolean' ? input.allDay : false,
+      };
+
+      if (!isOnline()) {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const localEvent: CalendarEvent = {
+          id,
+          user_id: userId,
+          ...eventData,
+          import_source: null,
+          import_uid: null,
+          created_at: now,
+          updated_at: now,
+        };
+        await db.calendar_events.put(localEvent);
+        await enqueue({
+          table_name: 'calendar_events',
+          operation: 'INSERT',
+          payload: localEvent as Record<string, unknown>,
+        });
+        return localEvent;
+      }
+
       const { data, error } = await supabase
         .from('calendar_events')
-        .insert({
-          user_id: userId,
-          title: input.title.trim(),
-          description:
-            typeof input.description === 'string' && input.description.trim()
-              ? input.description.trim()
-              : null,
-          location:
-            typeof input.location === 'string' && input.location.trim()
-              ? input.location.trim()
-              : null,
-          start_time: startDate.toISOString(),
-          end_time: endDate.toISOString(),
-          all_day: typeof input.allDay === 'boolean' ? input.allDay : false,
-        })
+        .insert({ user_id: userId, ...eventData })
         .select()
         .single();
 
@@ -162,6 +187,22 @@ export function useCalendarEvents(userId: string | null) {
 
       if (Object.keys(dbUpdates).length === 0) {
         throw new Error('Provide at least one field to update.');
+      }
+
+      if (!isOnline()) {
+        const existing = await db.calendar_events.get(eventId);
+        if (!existing) {
+          throw new Error('Event not found.');
+        }
+        const now = new Date().toISOString();
+        const updated: CalendarEvent = { ...existing, ...dbUpdates, updated_at: now } as CalendarEvent;
+        await db.calendar_events.put(updated);
+        await enqueue({
+          table_name: 'calendar_events',
+          operation: 'UPDATE',
+          payload: updated as Record<string, unknown>,
+        });
+        return updated;
       }
 
       const { data, error } = await supabase
