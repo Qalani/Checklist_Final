@@ -726,17 +726,21 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to delete this list item.' };
       }
 
+      const itemToDelete = (targetList.items ?? []).find(item => item.id === itemId);
+
+      // Optimistically remove from UI immediately
+      setState(prev => ({
+        ...prev,
+        lists: prev.lists.map(list =>
+          list.id === targetList.id
+            ? { ...list, items: (list.items ?? []).filter(item => item.id !== itemId) }
+            : list,
+        ),
+      }));
+
       if (!isOnline()) {
         await db.list_items.delete(itemId);
         await enqueue({ table_name: 'list_items', operation: 'DELETE', payload: { id: itemId } });
-        setState(prev => ({
-          ...prev,
-          lists: prev.lists.map(list =>
-            list.id === targetList.id
-              ? { ...list, items: (list.items ?? []).filter(item => item.id !== itemId) }
-              : list,
-          ),
-        }));
         return;
       }
 
@@ -749,19 +753,23 @@ export function useLists(userId: string | null): UseListsResult {
         if (error) {
           throw new Error(error.message || 'Unable to delete list item.');
         }
-
-        setState(prev => ({
-          ...prev,
-          lists: prev.lists.map(list =>
-            list.id === targetList.id
-              ? {
-                  ...list,
-                  items: (list.items ?? []).filter(item => item.id !== itemId),
-                }
-              : list,
-          ),
-        }));
       } catch (error) {
+        // Revert: restore the item in its original position
+        if (itemToDelete) {
+          setState(prev => ({
+            ...prev,
+            lists: prev.lists.map(list =>
+              list.id === targetList.id
+                ? {
+                    ...list,
+                    items: [...(list.items ?? []), itemToDelete].sort(
+                      (a, b) => a.position - b.position,
+                    ),
+                  }
+                : list,
+            ),
+          }));
+        }
         return { error: extractErrorMessage(error, 'Unable to delete list item.') };
       }
     },

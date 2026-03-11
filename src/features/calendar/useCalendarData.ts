@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import useSWR, { type KeyedMutator } from 'swr';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/local-db';
+import { isOnline } from '@/lib/network-status';
 import type { Task, Note, ZenReminder, CalendarEvent } from '@/types';
 import { getUpcomingReminderOccurrences, shouldScheduleReminder } from '@/utils/reminders';
 import type {
@@ -72,41 +74,54 @@ function buildReminderMetadata(task: Task): CalendarReminderMetadata | null {
   };
 }
 
-async function fetchCalendarPayload(
+async function fetchCalendarPayloadOffline(
   userId: string,
   startIso: string,
   endIso: string,
   scope: CalendarScope,
 ): Promise<CalendarResponsePayload> {
+  const [ownedTasks, notes, zenReminders, calendarEvents] = await Promise.all([
+    db.tasks.where('user_id').equals(userId).toArray(),
+    db.notes.where('user_id').equals(userId).toArray(),
+    db.zen_reminders.where('user_id').equals(userId).toArray(),
+    db.calendar_events.where('user_id').equals(userId).toArray(),
+  ]);
+
+  return buildCalendarPayload(
+    userId,
+    startIso,
+    endIso,
+    scope,
+    ownedTasks as Task[],
+    [],
+    notes as Note[],
+    zenReminders as ZenReminder[],
+    calendarEvents as CalendarEvent[],
+  );
+}
+
+function buildCalendarPayload(
+  userId: string,
+  startIso: string,
+  endIso: string,
+  scope: CalendarScope,
+  ownedTasks: Task[],
+  sharedTaskRows: { role?: 'owner' | 'editor' | 'viewer' | null; task?: Task | Task[] | null }[],
+  notes: Note[],
+  zenReminders: ZenReminder[],
+  calendarEvents: CalendarEvent[],
+): CalendarResponsePayload {
   const start = new Date(startIso);
   const end = new Date(endIso);
   const rangeStartMs = start.getTime();
   const rangeEndMs = end.getTime();
 
-  const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult, calendarEventsResult] =
-    await Promise.all([
-      supabase.from('tasks').select('*').eq('user_id', userId),
-      supabase.from('task_collaborators').select('role, task:tasks(*)').eq('user_id', userId),
-      supabase.from('notes').select('*').eq('user_id', userId),
-      supabase.from('zen_reminders').select('*').eq('user_id', userId),
-      supabase.from('calendar_events').select('*').eq('user_id', userId),
-    ]);
-
-  if (ownedTasksResult.error) throw new Error(ownedTasksResult.error.message);
-  if (sharedTasksResult.error) throw new Error(sharedTasksResult.error.message);
-  if (notesResult.error) throw new Error(notesResult.error.message);
-  if (remindersResult.error) throw new Error(remindersResult.error.message);
-  if (calendarEventsResult.error) throw new Error(calendarEventsResult.error.message);
-
   const tasksById = new Map<string, Task & { access_role?: AccessRole }>();
 
-  const ownedTasks = (ownedTasksResult.data ?? []) as Task[];
   ownedTasks.forEach((task) => {
     tasksById.set(task.id, { ...task, access_role: 'owner' });
   });
 
-  type SharedTaskRow = { role?: AccessRole | null; task?: Task | Task[] | null };
-  const sharedTaskRows = (sharedTasksResult.data ?? []) as SharedTaskRow[];
   sharedTaskRows.forEach((row) => {
     const rawTask = row.task;
     const task = Array.isArray(rawTask) ? rawTask[0] ?? null : rawTask ?? null;
@@ -192,7 +207,6 @@ async function fetchCalendarPayload(
   });
 
   if (scope !== 'shared') {
-    const calendarEvents = (calendarEventsResult.data ?? []) as CalendarEvent[];
     calendarEvents.forEach((calendarEvent) => {
       const startDate = new Date(calendarEvent.start_time);
       const endDateCandidate = new Date(calendarEvent.end_time);
@@ -228,7 +242,6 @@ async function fetchCalendarPayload(
     });
   }
 
-  const notes = (notesResult.data ?? []) as Note[];
   notes.forEach((note) => {
     const timestamp = note.updated_at ?? note.created_at;
     if (!timestamp) return;
@@ -258,7 +271,6 @@ async function fetchCalendarPayload(
     });
   });
 
-  const zenReminders = (remindersResult.data ?? []) as ZenReminder[];
   zenReminders.forEach((reminder) => {
     const remindDate = reminder.remind_at ? new Date(reminder.remind_at) : null;
     if (!remindDate) return;
@@ -294,6 +306,51 @@ async function fetchCalendarPayload(
     events,
     generatedAt: new Date().toISOString(),
   };
+}
+
+async function fetchCalendarPayload(
+  userId: string,
+  startIso: string,
+  endIso: string,
+  scope: CalendarScope,
+): Promise<CalendarResponsePayload> {
+  if (!isOnline()) {
+    return fetchCalendarPayloadOffline(userId, startIso, endIso, scope);
+  }
+
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  const rangeStartMs = start.getTime();
+  const rangeEndMs = end.getTime();
+
+  const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult, calendarEventsResult] =
+    await Promise.all([
+      supabase.from('tasks').select('*').eq('user_id', userId),
+      supabase.from('task_collaborators').select('role, task:tasks(*)').eq('user_id', userId),
+      supabase.from('notes').select('*').eq('user_id', userId),
+      supabase.from('zen_reminders').select('*').eq('user_id', userId),
+      supabase.from('calendar_events').select('*').eq('user_id', userId),
+    ]);
+
+  if (ownedTasksResult.error) throw new Error(ownedTasksResult.error.message);
+  if (sharedTasksResult.error) throw new Error(sharedTasksResult.error.message);
+  if (notesResult.error) throw new Error(notesResult.error.message);
+  if (remindersResult.error) throw new Error(remindersResult.error.message);
+  if (calendarEventsResult.error) throw new Error(calendarEventsResult.error.message);
+
+  type SharedTaskRow = { role?: 'owner' | 'editor' | 'viewer' | null; task?: Task | Task[] | null };
+
+  return buildCalendarPayload(
+    userId,
+    startIso,
+    endIso,
+    scope,
+    (ownedTasksResult.data ?? []) as Task[],
+    (sharedTasksResult.data ?? []) as SharedTaskRow[],
+    (notesResult.data ?? []) as Note[],
+    (remindersResult.data ?? []) as ZenReminder[],
+    (calendarEventsResult.data ?? []) as CalendarEvent[],
+  );
 }
 
 export function useCalendarData(userId: string | null, options: UseCalendarOptions): CalendarDataResult {

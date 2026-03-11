@@ -359,23 +359,25 @@ export function useNotes(userId: string | null): UseNotesResult {
         return;
       }
 
+      const existingNote = notesRef.current.find(n => n.id === id);
+      if (!existingNote) return { error: 'Note not found.' };
+
+      const now = new Date().toISOString();
+      const optimisticNote: Note = { ...existingNote, ...updates, updated_at: now } as Note;
+      const optimisticNotes = notesRef.current
+        .map(n => (n.id === id ? optimisticNote : n))
+        .sort((a, b) => {
+          const aDate = a.updated_at ?? a.created_at ?? '';
+          const bDate = b.updated_at ?? b.created_at ?? '';
+          return bDate.localeCompare(aDate);
+        });
+      notesRef.current = optimisticNotes;
+      setState(prev => ({ ...prev, notes: optimisticNotes }));
+
       if (!isOnline()) {
-        const existing = notesRef.current.find(n => n.id === id);
-        if (!existing) return { error: 'Note not found in local store.' };
-        const now = new Date().toISOString();
-        const updated: Note = { ...existing, ...updates, updated_at: now } as Note;
-        await db.notes.put(updated);
-        await enqueue({ table_name: 'notes', operation: 'UPDATE', payload: updated as Record<string, unknown> });
-        const nextNotes = notesRef.current
-          .map(n => (n.id === id ? updated : n))
-          .sort((a, b) => {
-            const aDate = a.updated_at ?? a.created_at ?? '';
-            const bDate = b.updated_at ?? b.created_at ?? '';
-            return bDate.localeCompare(aDate);
-          });
-        notesRef.current = nextNotes;
-        setState(prev => ({ ...prev, notes: nextNotes }));
-        return { note: updated };
+        await db.notes.put(optimisticNote);
+        await enqueue({ table_name: 'notes', operation: 'UPDATE', payload: optimisticNote as Record<string, unknown> });
+        return { note: optimisticNote };
       }
 
       setState(prev => ({ ...prev, syncing: true }));
@@ -390,28 +392,30 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       if (error || !data) {
         const message = extractErrorMessage(error, 'Unable to update note.');
-        setState(prev => ({ ...prev, syncing: false, error: message }));
+        // Revert to the original note
+        const revertedNotes = notesRef.current
+          .map(n => (n.id === id ? existingNote : n))
+          .sort((a, b) => {
+            const aDate = a.updated_at ?? a.created_at ?? '';
+            const bDate = b.updated_at ?? b.created_at ?? '';
+            return bDate.localeCompare(aDate);
+          });
+        notesRef.current = revertedNotes;
+        setState(prev => ({ ...prev, syncing: false, notes: revertedNotes, error: message }));
         return { error: message };
       }
 
       const mapped = mapRowToNote(data);
-      const existingIndex = notesRef.current.findIndex(note => note.id === mapped.id);
-      const nextNotes = [...notesRef.current];
+      const confirmedNotes = notesRef.current
+        .map(n => (n.id === mapped.id ? mapped : n))
+        .sort((a, b) => {
+          const aDate = a.updated_at ?? a.created_at ?? '';
+          const bDate = b.updated_at ?? b.created_at ?? '';
+          return bDate.localeCompare(aDate);
+        });
 
-      if (existingIndex >= 0) {
-        nextNotes[existingIndex] = mapped;
-      } else {
-        nextNotes.unshift(mapped);
-      }
-
-      nextNotes.sort((a, b) => {
-        const aDate = a.updated_at ?? a.created_at ?? '';
-        const bDate = b.updated_at ?? b.created_at ?? '';
-        return bDate.localeCompare(aDate);
-      });
-
-      notesRef.current = nextNotes;
-      setState(prev => ({ ...prev, syncing: false, notes: nextNotes }));
+      notesRef.current = confirmedNotes;
+      setState(prev => ({ ...prev, syncing: false, notes: confirmedNotes }));
 
       return { note: mapped };
     },
@@ -428,12 +432,16 @@ export function useNotes(userId: string | null): UseNotesResult {
         return { error: 'Missing note identifier.' };
       }
 
+      const noteToDelete = notesRef.current.find(n => n.id === id);
+
+      // Optimistically remove from UI immediately
+      const filtered = notesRef.current.filter(n => n.id !== id);
+      notesRef.current = filtered;
+      setState(prev => ({ ...prev, notes: filtered }));
+
       if (!isOnline()) {
         await db.notes.delete(id);
         await enqueue({ table_name: 'notes', operation: 'DELETE', payload: { id } });
-        const filtered = notesRef.current.filter(n => n.id !== id);
-        notesRef.current = filtered;
-        setState(prev => ({ ...prev, notes: filtered }));
         return;
       }
 
@@ -447,13 +455,22 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       if (error) {
         const message = extractErrorMessage(error, 'Unable to delete note.');
-        setState(prev => ({ ...prev, syncing: false, error: message }));
+        // Revert: restore the note
+        if (noteToDelete) {
+          const restored = [noteToDelete, ...notesRef.current].sort((a, b) => {
+            const aDate = a.updated_at ?? a.created_at ?? '';
+            const bDate = b.updated_at ?? b.created_at ?? '';
+            return bDate.localeCompare(aDate);
+          });
+          notesRef.current = restored;
+          setState(prev => ({ ...prev, syncing: false, notes: restored, error: message }));
+        } else {
+          setState(prev => ({ ...prev, syncing: false, error: message }));
+        }
         return { error: message };
       }
 
-      const filtered = notesRef.current.filter(note => note.id !== id);
-      notesRef.current = filtered;
-      setState(prev => ({ ...prev, syncing: false, notes: filtered }));
+      setState(prev => ({ ...prev, syncing: false }));
     },
     [userId],
   );

@@ -162,6 +162,16 @@ export class ChecklistManager {
           return {};
         }
 
+        // Apply optimistic update immediately
+        const optimisticTask = this.normalizeTask({ ...existingTask, ...sanitizedInput } as Task, existingTask);
+        this.setSnapshot((prev) => ({
+          ...prev,
+          tasks: prev.tasks
+            .map((task) => (task.id === optimisticTask.id ? { ...task, ...optimisticTask } : task))
+            .sort((a, b) => a.order - b.order),
+          error: null,
+        }));
+
         const { data, error } = await supabase
           .from('tasks')
           .update(sanitizedInput)
@@ -170,6 +180,14 @@ export class ChecklistManager {
           .single();
 
         if (error) {
+          // Revert the optimistic update
+          this.setSnapshot((prev) => ({
+            ...prev,
+            tasks: prev.tasks
+              .map((task) => (task.id === existingTask.id ? { ...task, ...existingTask } : task))
+              .sort((a, b) => a.order - b.order),
+            error: null,
+          }));
           throw new Error(error.message || 'Unable to save task.');
         }
 
@@ -312,6 +330,13 @@ export class ChecklistManager {
       return;
     }
 
+    // Optimistically remove from UI immediately
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: prev.tasks.filter((task) => task.id !== id),
+      error: null,
+    }));
+
     const { error } = await supabase
       .from('tasks')
       .delete()
@@ -320,18 +345,13 @@ export class ChecklistManager {
 
     if (error) {
       console.error('Error deleting task', error);
+      // Revert: restore the task in its original position
       this.setSnapshot((prev) => ({
         ...prev,
+        tasks: [...prev.tasks, targetTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
         error: error.message || 'Unable to delete task. Please try again.',
       }));
-      return;
     }
-
-    this.setSnapshot((prev) => ({
-      ...prev,
-      tasks: prev.tasks.filter((task) => task.id !== id),
-      error: null,
-    }));
   }
 
   async toggleTask(id: string, completed: boolean) {
@@ -368,6 +388,14 @@ export class ChecklistManager {
       return;
     }
 
+    // Apply optimistic update immediately so the UI reflects the change at once
+    const optimisticTask = this.normalizeTask({ ...targetTask, completed }, targetTask);
+    this.setSnapshot((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((task) => (task.id === optimisticTask.id ? { ...task, ...optimisticTask } : task)),
+      error: null,
+    }));
+
     let query = supabase.from('tasks').update({ completed }).eq('id', id);
 
     if (targetTask.user_id === this.userId) {
@@ -378,8 +406,10 @@ export class ChecklistManager {
 
     if (error) {
       console.error('Error toggling task', error);
+      // Revert the optimistic update
       this.setSnapshot((prev) => ({
         ...prev,
+        tasks: prev.tasks.map((task) => (task.id === targetTask.id ? { ...task, ...targetTask } : task)),
         error: error.message || 'Unable to update task. Please try again.',
       }));
       return;
