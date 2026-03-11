@@ -647,22 +647,25 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'Nothing to update.' };
       }
 
+      // Always apply an optimistic local update immediately so the UI reflects
+      // the change regardless of network state.
+      const existingItem = targetList.items?.find(item => item.id === itemId);
+      if (!existingItem) return { error: 'List item not found.' };
+      const now = new Date().toISOString();
+      const optimisticItem: ListItem = { ...existingItem, ...payload, updated_at: now } as ListItem;
+      await db.list_items.put(optimisticItem);
+      setState(prev => ({
+        ...prev,
+        lists: prev.lists.map(list =>
+          list.id === optimisticItem.list_id
+            ? { ...list, items: (list.items ?? []).map(i => (i.id === itemId ? optimisticItem : i)) }
+            : list,
+        ),
+      }));
+
       if (!isOnline()) {
-        const existingItem = targetList.items?.find(item => item.id === itemId);
-        if (!existingItem) return { error: 'List item not found.' };
-        const now = new Date().toISOString();
-        const item: ListItem = { ...existingItem, ...payload, updated_at: now } as ListItem;
-        await db.list_items.put(item);
-        await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: item as Record<string, unknown> });
-        setState(prev => ({
-          ...prev,
-          lists: prev.lists.map(list =>
-            list.id === item.list_id
-              ? { ...list, items: (list.items ?? []).map(i => (i.id === itemId ? item : i)) }
-              : list,
-          ),
-        }));
-        return { item };
+        await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: optimisticItem as Record<string, unknown> });
+        return { item: optimisticItem };
       }
 
       try {
@@ -698,7 +701,10 @@ export function useLists(userId: string | null): UseListsResult {
 
         return { item };
       } catch (error) {
-        return { error: extractErrorMessage(error, 'Unable to update list item.') };
+        // Server request failed — queue the optimistic change for background sync
+        // so it persists when connectivity is restored.
+        await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: optimisticItem as Record<string, unknown> });
+        return { item: optimisticItem };
       }
     },
     [userId],
