@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { X, Save } from 'lucide-react';
+import { X, Save, Repeat2 } from 'lucide-react';
 import type { Task, Category } from '@/types';
 import {
   getNextReminderOccurrence,
@@ -53,6 +53,12 @@ export default function TaskForm({
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [taskRecurrence, setTaskRecurrence] = useState<'daily' | 'weekly' | 'monthly' | ''>(
+    task?.task_recurrence ?? '',
+  );
+  const [taskRecurrenceInterval, setTaskRecurrenceInterval] = useState(
+    String(task?.task_recurrence_interval ?? 1),
+  );
   const [dueDate, setDueDate] = useState(() => toLocalInputValue(task?.due_date ?? null));
   const initialReminderValue =
     task?.reminder_minutes_before != null && !Number.isNaN(task.reminder_minutes_before)
@@ -298,6 +304,8 @@ export default function TaskForm({
             )
           : null;
 
+      const parsedInterval = Math.max(1, parseInt(taskRecurrenceInterval, 10) || 1);
+
       const result = await onSave({
         title: trimmedTitle,
         description: description.trim(),
@@ -311,6 +319,8 @@ export default function TaskForm({
         reminder_next_trigger_at: nextOccurrence ? nextOccurrence.toISOString() : null,
         reminder_snoozed_until: snoozeForSave,
         reminder_timezone: timezoneForSave,
+        task_recurrence: taskRecurrence || null,
+        task_recurrence_interval: parsedInterval,
       });
 
       if (result && typeof result === 'object' && 'error' in result && result.error) {
@@ -512,6 +522,46 @@ export default function TaskForm({
           snoozedUntilDate={snoozedUntilDate}
           upcomingReminders={upcomingReminders}
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-zen-700 mb-2 flex items-center gap-1.5">
+          <Repeat2 className="w-4 h-4" />
+          Repeat task
+        </label>
+        <div className="flex items-center gap-2">
+          <select
+            value={taskRecurrence}
+            onChange={(e) => setTaskRecurrence(e.target.value as 'daily' | 'weekly' | 'monthly' | '')}
+            className="flex-1 px-4 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none transition-colors"
+          >
+            <option value="">Does not repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+          {taskRecurrence && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zen-600 whitespace-nowrap">every</span>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={taskRecurrenceInterval}
+                onChange={(e) => setTaskRecurrenceInterval(e.target.value.replace(/[^0-9]/g, '') || '1')}
+                className="w-16 px-3 py-3 rounded-xl border-2 border-zen-200 focus:border-sage-500 focus:ring-0 outline-none text-sm text-center"
+              />
+              <span className="text-sm text-zen-600 whitespace-nowrap">
+                {taskRecurrence === 'daily' ? 'day(s)' : taskRecurrence === 'weekly' ? 'week(s)' : 'month(s)'}
+              </span>
+            </div>
+          )}
+        </div>
+        {taskRecurrence && (
+          <p className="mt-1.5 text-xs text-zen-500">
+            When you complete this task, a new one will be scheduled automatically.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">
