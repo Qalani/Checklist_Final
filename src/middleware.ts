@@ -39,8 +39,10 @@ export function middleware(request: NextRequest) {
     "default-src 'self'",
 
     // Same-origin scripts + any script carrying this request's unique nonce.
-    // 'unsafe-inline' and 'unsafe-eval' are intentionally absent.
-    `script-src 'self' 'nonce-${nonce}'`,
+    // In development, Next.js webpack uses eval() for source maps; permit it
+    // only in that mode. Production builds are eval-free so this stays locked.
+    // 'unsafe-inline' is intentionally absent.
+    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
 
     // Inline styles are required by FullCalendar (event sizing) and
     // framer-motion (animation transforms). See note above.

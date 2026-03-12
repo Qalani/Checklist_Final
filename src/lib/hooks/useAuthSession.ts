@@ -124,21 +124,37 @@ export function useAuthSession(): AuthSession {
       }
     }
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => handleUser(data.session?.user ?? null))
-      .catch((error) => {
-        if (!isMounted) return;
+    let subscription: { unsubscribe: () => void } = { unsubscribe: () => {} };
+
+    try {
+      supabase.auth
+        .getSession()
+        .then(({ data }) => handleUser(data.session?.user ?? null))
+        .catch((error) => {
+          if (!isMounted) return;
+          console.error('Error fetching auth session', error);
+          setAuthChecked(true);
+          setSyncStatus('error');
+        });
+    } catch (error) {
+      // Supabase may not be configured (e.g. dev/test environments); treat as
+      // unauthenticated so demo mode and auth-gated pages render correctly.
+      if (isMounted) {
         console.error('Error fetching auth session', error);
         setAuthChecked(true);
         setSyncStatus('error');
-      });
+      }
+    }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleUser(session?.user ?? null).catch(console.error);
-    });
+    try {
+      const result = supabase.auth.onAuthStateChange((_event, session) => {
+        handleUser(session?.user ?? null).catch(console.error);
+      });
+      subscription = result.data.subscription;
+    } catch {
+      // Ignore — auth state change subscriptions require a configured Supabase
+      // client; the app remains functional without real-time auth updates.
+    }
 
     return () => {
       isMounted = false;

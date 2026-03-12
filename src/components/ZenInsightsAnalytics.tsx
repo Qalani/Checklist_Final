@@ -149,6 +149,7 @@ export default function ZenInsightsAnalytics({ tasks, categories, notes }: ZenIn
 
   // ── Completion over time ──────────────────────────────────────────────
   const completionChartData = useMemo((): BarDatum[] => {
+    const now = new Date();
     if (timeRange === '7d') {
       return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(now);
@@ -187,6 +188,7 @@ export default function ZenInsightsAnalytics({ tasks, categories, notes }: ZenIn
 
   // ── Note-writing frequency ────────────────────────────────────────────
   const noteChartData = useMemo((): BarDatum[] => {
+    const now = new Date();
     if (timeRange === '7d') {
       return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(now);

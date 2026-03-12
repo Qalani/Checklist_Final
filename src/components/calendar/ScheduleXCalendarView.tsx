@@ -142,6 +142,7 @@ export function ScheduleXCalendarView({
   const onEventClickRef = useRef(onEventClick);
   onEventClickRef.current = onEventClick;
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const initialSXEvents = useMemo(() => events.map(toSXEvent), []);
 
   const calendar = useNextCalendarApp(

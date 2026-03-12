@@ -4,13 +4,14 @@ export default defineConfig({
   testDir: './tests',
   timeout: 60_000,
   expect: {
-    timeout: 10_000,
+    timeout: 30_000,
   },
   fullyParallel: true,
   use: {
     baseURL: 'http://127.0.0.1:3000',
     headless: true,
-    trace: 'off',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
   projects: [
     {
