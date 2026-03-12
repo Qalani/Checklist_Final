@@ -96,7 +96,7 @@ export function useNotificationPermission(): NotificationPermissionState {
     } finally {
       setRequesting(false);
     }
-  }, []);
+  }, [isNative]);
 
   const isSupported = useMemo(() => permission !== 'unsupported', [permission]);
 

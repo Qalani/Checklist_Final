@@ -157,7 +157,10 @@ function ZenInsightsPageContent() {
     })}`;
   }, [demoMode, tasks]);
 
-  if (!authChecked) {
+  // In demo mode the auth state is irrelevant — render immediately so the
+  // page doesn't block on a Supabase round-trip that will never succeed
+  // (e.g. in environments without Supabase credentials configured).
+  if (!authChecked && !demoMode) {
     return <LoadingScreen />;
   }
 

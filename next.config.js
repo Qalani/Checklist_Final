@@ -15,6 +15,18 @@ const nextConfig = {
   // HTTP server is involved, so response headers are not applicable there.
 
   reactStrictMode: true,
+
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Avoid eval-based source maps in development. The default eval-source-map
+      // devtool wraps module code inside eval() strings which can cause
+      // "SyntaxError: Invalid or unexpected token" page errors in some
+      // environments (e.g. Playwright tests), preventing dynamic imports from
+      // being triggered. cheap-module-source-map uses normal <script> tags.
+      config.devtool = 'cheap-module-source-map';
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;
