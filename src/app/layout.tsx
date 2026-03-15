@@ -23,6 +23,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#7199B6",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -43,8 +44,9 @@ export default function RootLayout({
           <GlobalNav />
           <QuickCreateFAB />
           {/* pb-28 offsets the floating mobile pill nav; lg:pl-16 offsets the desktop sidebar */}
+          {/* pt-[env(safe-area-inset-top)] ensures content clears the phone's status bar on mobile */}
           <ErrorBoundary>
-            <div id="main-content" className="pb-28 lg:pb-0 lg:pl-16">{children}</div>
+            <div id="main-content" className="pb-28 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pl-16 lg:pt-0">{children}</div>
           </ErrorBoundary>
         </ThemeProvider>
         <ServiceWorkerRegistration />
