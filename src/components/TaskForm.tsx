@@ -347,7 +347,7 @@ export default function TaskForm({
   const containerPadding = mode === 'inline' ? 'p-6 sm:p-8' : 'p-6 sm:p-8';
   const formHeader = (
     <div className="flex items-center justify-between mb-6">
-      <h2 className="text-2xl font-semibold text-zen-900">
+      <h2 className="font-display text-2xl text-zen-900">
         {task ? 'Edit Task' : 'New Task'}
       </h2>
       <button

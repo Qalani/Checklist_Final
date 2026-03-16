@@ -45,7 +45,7 @@ export default function ZenPageHeader({
                 </div>
               ) : null}
               <div>
-                <h1 className="text-2xl font-semibold text-zen-900">{title}</h1>
+                <h1 className="font-display text-2xl text-zen-900">{title}</h1>
                 {subtitle ? <p className="text-sm text-zen-600">{subtitle}</p> : null}
               </div>
             </div>

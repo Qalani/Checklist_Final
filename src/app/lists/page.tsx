@@ -379,7 +379,7 @@ export default function ListsPage() {
           <section className="max-w-7xl mx-auto px-4 py-10 space-y-8 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 items-start">
               <div className="space-y-4">
-                <h2 className="text-3xl font-semibold text-zen-900">Shape polished collections that stay in sync.</h2>
+                <h2 className="font-display text-3xl text-zen-900">Shape polished collections that stay in sync.</h2>
                 <p className="text-zen-600 max-w-2xl">
                   Lists help you orchestrate context—from client check-ins to quarterly rituals—without the clutter. Build elegant reference points and keep every detail harmonised.
                 </p>

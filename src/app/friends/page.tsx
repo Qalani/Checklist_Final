@@ -161,7 +161,7 @@ export default function FriendsPage() {
           <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
             <div className="space-y-3">
               <p className="text-sm uppercase tracking-wide text-zen-500">Stay aligned</p>
-              <h2 className="text-3xl font-semibold text-zen-900">Invite the partners who keep you grounded.</h2>
+              <h2 className="font-display text-3xl text-zen-900">Invite the partners who keep you grounded.</h2>
               <p className="max-w-2xl text-sm text-zen-600">
                 Add collaborators by email to exchange progress updates and maintain momentum together. Invites appear instantly here and across shared workspaces.
               </p>

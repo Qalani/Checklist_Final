@@ -176,7 +176,7 @@ function ZenInsightsPageContent() {
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-semibold text-zen-900">Zen Workspace</h1>
+                  <h1 className="font-display text-2xl text-zen-900">Zen Workspace</h1>
                   <p className="text-sm text-zen-600">Your composed control center</p>
                 </div>
               </div>
@@ -188,7 +188,7 @@ function ZenInsightsPageContent() {
 
           <main className="flex flex-1 flex-col items-center justify-center gap-12 px-4 pb-12 sm:px-6 lg:flex-row lg:px-8">
             <div className="max-w-xl space-y-4 text-center lg:text-left">
-              <h2 className="text-3xl font-semibold text-zen-900">Sign in to unlock Zen Insights</h2>
+              <h2 className="font-display text-3xl text-zen-900">Sign in to unlock Zen Insights</h2>
               <p className="text-base text-zen-600">
                 Access tailored dashboard widgets, focus metrics, and sharing controls once you&apos;re signed in.
               </p>

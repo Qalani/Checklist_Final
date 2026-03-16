@@ -379,7 +379,7 @@ export default function HomePage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
                     <span className="text-xs font-semibold uppercase tracking-wide text-zen-400">Task focus</span>
-                    <h2 className="text-2xl font-semibold text-zen-900">{taskTabDetails.title}</h2>
+                    <h2 className="font-display text-2xl text-zen-900">{taskTabDetails.title}</h2>
                     <p className="text-sm text-zen-600 max-w-xl">{taskTabDetails.description}</p>
                   </div>
                   <div

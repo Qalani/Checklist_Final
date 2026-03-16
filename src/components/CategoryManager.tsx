@@ -117,7 +117,7 @@ export default function CategoryManager({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Tag className="w-5 h-5 text-sage-600" />
-          <h2 className="text-lg font-semibold text-zen-900">Categories</h2>
+          <h2 className="font-display text-lg text-zen-900">Categories</h2>
         </div>
         <button
           onClick={() => {

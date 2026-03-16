@@ -234,7 +234,7 @@ export default function HomePageClient() {
       <header className="flex flex-col gap-6 border-b border-zen-200/60 bg-surface/70 px-6 py-6 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between lg:px-12 dark:border-zen-700/40">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.35em] text-zen-500">Zen Workspace</p>
-          <h1 className="mt-2 text-3xl font-semibold text-zen-900 sm:text-4xl">Find clarity in your day</h1>
+          <h1 className="mt-2 font-display text-3xl text-zen-900 sm:text-4xl">Find clarity in your day</h1>
           <p className="mt-2 max-w-2xl text-sm text-zen-600 dark:text-zen-200">
             A composed control center for mindful teams and focused individuals. Glide between priorities, reflections, and
             relationships without the noise.
@@ -286,7 +286,7 @@ export default function HomePageClient() {
       <main className="flex-1 px-6 pb-16 pt-10 lg:px-12">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
           <section className="space-y-6">
-            <h2 className="text-xl font-semibold text-zen-900">Your Zen toolkit</h2>
+            <h2 className="font-display text-xl text-zen-900">Your Zen toolkit</h2>
             <p className="max-w-3xl text-sm text-zen-600 dark:text-zen-200">
               Every workspace pairs poised visuals with purposeful structure. Select a card to dive straight in, or move at a
               measured pace—either way, your focus stays unruffled.
@@ -349,7 +349,7 @@ function SignedOutLanding() {
       <main className="flex flex-1 flex-col items-center justify-center gap-12 px-6 pb-16 pt-4 sm:px-8 lg:flex-row lg:px-12">
         <div className="max-w-xl space-y-6 text-center lg:text-left">
           <div className="space-y-3">
-            <h1 className="text-3xl font-semibold text-zen-900 sm:text-4xl">Sign in to continue</h1>
+            <h1 className="font-display text-3xl text-zen-900 sm:text-4xl">Sign in to continue</h1>
             <p className="text-sm text-zen-600 dark:text-zen-200">
               Access serene task boards, curated rituals, and shared notes—everything you need to keep momentum with ease.
             </p>
