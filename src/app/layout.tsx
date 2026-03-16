@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Inter, Sora } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme-context";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
@@ -16,10 +16,9 @@ const inter = Inter({
   display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
+const sora = Sora({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+  weight: ["300", "400", "600"],
   variable: "--font-display",
   display: "swap",
 });
@@ -47,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme={DEFAULT_THEME_ID} className={`${inter.variable} ${instrumentSerif.variable}`}>
+    <html lang="en" data-theme={DEFAULT_THEME_ID} className={`${inter.variable} ${sora.variable}`}>
       <body>
         <a
           href="#main-content"

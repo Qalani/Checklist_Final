@@ -181,7 +181,7 @@ export default function AuthPanel() {
       className="w-full max-w-md bg-surface/90 backdrop-blur-xl border border-zen-200 shadow-soft rounded-3xl p-8"
     >
       <div className="mb-6 text-center">
-        <h2 className="font-display text-2xl text-zen-900">
+        <h2 className="font-display font-semibold text-2xl text-zen-900">
           {mode === 'sign_in' ? 'Welcome Back' : 'Create your account'}
         </h2>
         <p className="text-sm text-zen-600 mt-1">

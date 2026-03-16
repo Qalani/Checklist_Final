@@ -292,7 +292,7 @@ export default function ZenRemindersPage() {
                 <Bell className="h-4 w-4" />
                 New reminder
               </div>
-              <h2 className="mt-3 font-display text-2xl text-zen-900 dark:text-zen-50">Design a calming cue</h2>
+              <h2 className="mt-3 font-display font-semibold text-2xl text-zen-900 dark:text-zen-50">Design a calming cue</h2>
               <p className="mt-2 text-sm leading-relaxed text-zen-600 dark:text-zen-300">
                 Anchor mindful rituals in your calendar—breathing breaks, posture resets, gratitude moments. We will surface each
                 reminder on schedule.
@@ -362,7 +362,7 @@ export default function ZenRemindersPage() {
             <section className="space-y-6 rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-display text-2xl text-zen-900 dark:text-zen-50">Upcoming reminders</h2>
+                  <h2 className="font-display font-semibold text-2xl text-zen-900 dark:text-zen-50">Upcoming reminders</h2>
                   <p className="text-sm text-zen-600 dark:text-zen-300">
                     {syncing ? 'Syncing latest schedule…' : 'Next mindful cues appear below.'}
                   </p>

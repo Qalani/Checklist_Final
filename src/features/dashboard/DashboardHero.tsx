@@ -63,7 +63,7 @@ export default function DashboardHero({ userName, userId, isEditMode, isSaving, 
             <Sparkles className="h-4 w-4" />
             Composed overview
           </div>
-          <h1 className="font-display text-3xl text-zen-900">{greeting}</h1>
+          <h1 className="font-display font-semibold text-3xl text-zen-900">{greeting}</h1>
           <p className="text-sm text-zen-600 dark:text-zen-200">
             Track progress, rebalance commitments, and arrange widgets to match your rhythm. Switch into edit mode to curate the dashboard that keeps you centred.
           </p>

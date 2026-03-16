@@ -11,7 +11,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['var(--font-display)', 'Georgia', '"Times New Roman"', 'serif'],
+        display: ['var(--font-display)', 'system-ui', '-apple-system', 'sans-serif'],
         body: ['var(--font-body)', 'system-ui', '-apple-system', 'sans-serif'],
       },
       colors: {

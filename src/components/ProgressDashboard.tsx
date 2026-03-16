@@ -25,7 +25,7 @@ export default function ProgressDashboard({ tasks, categories }: ProgressDashboa
     <div className="bg-surface rounded-2xl p-6 shadow-soft border border-zen-100">
       <div className="flex items-center gap-2 mb-6">
         <PieChart className="w-5 h-5 text-sage-600" />
-        <h2 className="font-display text-lg text-zen-900">Progress Overview</h2>
+        <h2 className="font-display font-semibold text-lg text-zen-900">Progress Overview</h2>
       </div>
 
       <div className="space-y-4">
