@@ -148,7 +148,7 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div className="relative min-h-screen flex flex-col">
         <header className="px-4 py-6 sm:px-8">
           <div className="mx-auto flex w-full max-w-4xl items-center justify-between">
             <Link

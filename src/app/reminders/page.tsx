@@ -47,9 +47,9 @@ function formatReminderTimestamp(reminder: ZenReminder): string {
 
 function LoadingState() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
+    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
       <ParallaxBackground />
-      <div className="relative z-10 flex min-h-screen items-center justify-center">
+      <div className="relative flex min-h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-zen-200 border-t-zen-500" />
       </div>
     </div>
@@ -216,9 +216,9 @@ export default function ZenRemindersPage() {
     notificationPermission === 'unsupported' || notificationPermission === 'denied';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
+    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
       <ParallaxBackground />
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="relative flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Reminders"
           subtitle="Create mindful nudges that surface on your calendar and keep your rhythm balanced."
