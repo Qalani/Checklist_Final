@@ -20,7 +20,7 @@ import { useNotificationPermission } from '@/lib/hooks/useNotificationPermission
 
 function LoadingScreen() {
   return (
-    <div className="relative z-10 flex min-h-screen items-center justify-center">
+    <div className="relative flex min-h-screen items-center justify-center">
       <div className="h-12 w-12 animate-spin rounded-full border-4 border-zen-200 border-t-zen-500" />
     </div>
   );
@@ -230,7 +230,7 @@ export default function HomePageClient() {
   }
 
   return (
-    <div className="relative z-10 flex min-h-screen flex-col">
+    <div className="relative flex min-h-screen flex-col">
       <header className="flex flex-col gap-6 border-b border-zen-200/60 bg-surface/70 px-6 py-6 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between lg:px-12 dark:border-zen-700/40">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.35em] text-zen-500">Zen Workspace</p>
@@ -328,7 +328,7 @@ export default function HomePageClient() {
 
 function SignedOutLanding() {
   return (
-    <div className="relative z-10 flex min-h-screen flex-col">
+    <div className="relative flex min-h-screen flex-col">
       <header className="px-6 py-6 lg:px-12">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">

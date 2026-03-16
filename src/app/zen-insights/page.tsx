@@ -47,7 +47,7 @@ function LoadingScreen() {
   return (
     <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <ParallaxBackground />
-      <div className="relative z-10 flex min-h-screen items-center justify-center">
+      <div className="relative flex min-h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-sage-200 border-t-sage-600" />
       </div>
     </div>
@@ -168,7 +168,7 @@ function ZenInsightsPageContent() {
     return (
       <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
         <ParallaxBackground />
-        <div className="relative z-10 flex min-h-screen flex-col">
+        <div className="relative flex min-h-screen flex-col">
           <header className="px-4 py-6 sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
@@ -212,7 +212,7 @@ function ZenInsightsPageContent() {
   return (
     <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
       <ParallaxBackground />
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="relative flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Insights"
           subtitle="Curate dashboards and highlight meaningful metrics"

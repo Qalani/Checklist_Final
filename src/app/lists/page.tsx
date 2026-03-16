@@ -77,7 +77,7 @@ function LoadingScreen() {
   return (
     <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <ParallaxBackground />
-      <div className="relative z-10 flex min-h-screen items-center justify-center">
+      <div className="relative flex min-h-screen items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
       </div>
     </div>
@@ -361,7 +361,7 @@ export default function ListsPage() {
   return (
     <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div className="relative min-h-screen flex flex-col">
         <ZenPageHeader
           title="Zen Lists"
           subtitle="Design composed rituals and playbooks"
