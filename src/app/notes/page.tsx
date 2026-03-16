@@ -505,7 +505,7 @@ export default function NotesPage() {
                 ) : (
                   <div className="flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-surface/75 p-10 text-center">
                     <FileText className="h-10 w-10 text-zen-500" />
-                    <h2 className="mt-4 text-xl font-semibold text-zen-900">Create your first document</h2>
+                    <h2 className="mt-4 font-display font-semibold text-xl text-zen-900">Create your first document</h2>
                     <p className="mt-2 max-w-md text-sm text-zen-500">
                       Capture strategy notes, reflections, and ideas inside a serene editor. Every keystroke saves in the background so you can stay present.
                     </p>

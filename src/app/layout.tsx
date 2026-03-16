@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import "./globals.css";
+import { Inter, Sora } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme-context";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
@@ -8,6 +8,20 @@ import { PushNotificationInitializer } from "@/components/PushNotificationInitia
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { GlobalNav } from "@/components/GlobalNav";
 import { QuickCreateFAB } from "@/components/QuickCreateFAB";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+  display: "swap",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["300", "400", "600"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Zen Workspace - Composed Productivity Hub",
@@ -32,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme={DEFAULT_THEME_ID}>
+    <html lang="en" data-theme={DEFAULT_THEME_ID} className={`${inter.variable} ${sora.variable}`}>
       <body>
         <a
           href="#main-content"

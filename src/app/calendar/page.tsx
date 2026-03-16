@@ -379,7 +379,7 @@ export default function CalendarPage() {
             <div className="flex items-center justify-between gap-2 p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">Up next</p>
-                <h2 className="text-lg font-semibold text-zen-900 dark:text-zen-50">Upcoming highlights</h2>
+                <h2 className="font-display font-semibold text-lg text-zen-900 dark:text-zen-50">Upcoming highlights</h2>
               </div>
               <div className="flex items-center gap-2">
                 <div className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-900/60 dark:text-zen-100">

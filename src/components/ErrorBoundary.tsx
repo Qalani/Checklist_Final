@@ -37,7 +37,7 @@ export default class ErrorBoundary extends React.Component<
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 px-4 text-center">
           <div className="max-w-md rounded-3xl border border-zen-200/70 bg-white/90 p-10 shadow-large">
-            <h1 className="text-2xl font-semibold text-zen-900">Something went wrong</h1>
+            <h1 className="font-display font-semibold text-2xl text-zen-900">Something went wrong</h1>
             {this.state.message && (
               <p className="mt-2 text-sm text-zen-600">{this.state.message}</p>
             )}

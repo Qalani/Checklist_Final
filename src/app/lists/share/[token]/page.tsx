@@ -175,7 +175,7 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
                   <div className="inline-flex items-center gap-2 rounded-full bg-zen-100 px-3 py-1 text-xs font-medium text-zen-700">
                     Shared Zen list
                   </div>
-                  <h1 className="text-3xl font-semibold text-zen-900 sm:text-4xl">{list.name}</h1>
+                  <h1 className="font-display font-semibold text-3xl text-zen-900 sm:text-4xl">{list.name}</h1>
                   {list.description ? (
                     <MarkdownDisplay text={list.description} className="text-base text-zen-600" />
                   ) : (
@@ -214,7 +214,7 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
             </section>
 
             <section className="rounded-3xl border border-zen-200 bg-surface/80 p-6 shadow-soft">
-              <h2 className="text-lg font-semibold text-zen-900">Create your own serene lists</h2>
+              <h2 className="font-display font-semibold text-lg text-zen-900">Create your own serene lists</h2>
               <p className="mt-2 text-sm text-zen-600">
                 Sign in to craft collaborative rituals, automate reminders, and keep every detail harmonised across your team.
               </p>

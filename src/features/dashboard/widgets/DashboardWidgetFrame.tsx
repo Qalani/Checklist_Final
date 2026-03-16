@@ -32,7 +32,7 @@ export default function DashboardWidgetFrame({
       <header className="mb-4 flex items-center gap-3">
         {icon && <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sage-100 text-sage-700 dark:bg-zen-800/30 dark:text-zen-900">{icon}</span>}
         <div>
-          <h3 className="text-lg font-semibold text-zen-900">{title}</h3>
+          <h3 className="font-display font-semibold text-lg text-zen-900">{title}</h3>
           {description ? <p className="text-sm text-zen-500 dark:text-zen-200">{description}</p> : null}
         </div>
       </header>

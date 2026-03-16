@@ -10,6 +10,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['var(--font-display)', 'system-ui', '-apple-system', 'sans-serif'],
+        body: ['var(--font-body)', 'system-ui', '-apple-system', 'sans-serif'],
+      },
       colors: {
         zen: {
           50: "rgb(var(--color-zen-50) / <alpha-value>)",

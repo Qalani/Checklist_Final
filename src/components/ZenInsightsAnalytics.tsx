@@ -255,7 +255,7 @@ export default function ZenInsightsAnalytics({ tasks, categories, notes }: ZenIn
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BarChart2 className="h-5 w-5 text-sage-600" />
-          <h2 className="text-lg font-semibold text-zen-900">Activity Insights</h2>
+          <h2 className="font-display font-semibold text-lg text-zen-900">Activity Insights</h2>
         </div>
         <div className="flex gap-1 rounded-xl border border-zen-200/60 bg-surface/60 p-1 shadow-small dark:border-zen-700/40">
           {(['7d', '30d', '90d'] as TimeRange[]).map(r => (
