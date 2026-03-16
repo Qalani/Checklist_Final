@@ -37,7 +37,7 @@ import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
 import TaskForm from './TaskForm';
 import ConfirmDialog from './ConfirmDialog';
-import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
+import { describeReminderRecurrence, formatReminderDate, formatReminderMinutes, getNextReminderOccurrence } from '@/utils/reminders';
 
 interface TaskBentoGridProps {
   tasks: Task[];
@@ -59,24 +59,6 @@ const ROLE_LABELS: Record<'owner' | 'editor' | 'viewer', string> = {
   editor: 'Editor',
   viewer: 'Viewer',
 };
-
-function formatReminder(minutes: number) {
-  if (minutes < 60) {
-    return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
-  }
-
-  if (minutes % 1440 === 0) {
-    const days = Math.round(minutes / 1440);
-    return `${days} day${days === 1 ? '' : 's'} before`;
-  }
-
-  if (minutes % 60 === 0) {
-    const hours = Math.round(minutes / 60);
-    return `${hours} hour${hours === 1 ? '' : 's'} before`;
-  }
-
-  return `${minutes} minutes before`;
-}
 
 function SortableTaskCard({
   task,
@@ -144,7 +126,7 @@ function SortableTaskCard({
 
   const reminderLabel =
     typeof task.reminder_minutes_before === 'number' && !Number.isNaN(task.reminder_minutes_before)
-      ? formatReminder(task.reminder_minutes_before)
+      ? formatReminderMinutes(task.reminder_minutes_before)
       : null;
   const nextReminder = getNextReminderOccurrence(task, { includeCurrent: true });
   const nextReminderLabel = nextReminder ? formatReminderDate(nextReminder, task.reminder_timezone) : null;
@@ -186,8 +168,8 @@ function SortableTaskCard({
   const cardClassName = `
     relative transition-all ${
       isEditing
-        ? 'rounded-2xl border-2 bg-surface border-zen-200 shadow-soft'
-        : `p-5 rounded-2xl border-2 cursor-pointer ${
+        ? 'rounded-2xl border bg-surface border-zen-200 shadow-soft'
+        : `p-5 rounded-2xl border cursor-pointer ${
             task.completed
               ? 'bg-zen-50/50 border-zen-200 opacity-60'
               : 'bg-surface border-zen-100 hover:border-sage-300 shadow-soft hover:shadow-medium'
@@ -199,9 +181,10 @@ function SortableTaskCard({
     <div ref={setNodeRef} style={style} className="group relative h-full">
       <motion.div
         layout
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 8 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
         className={`${cardClassName} h-full`}
       >
         {isEditing ? (

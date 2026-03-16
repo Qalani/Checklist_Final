@@ -82,7 +82,7 @@ export default function TaskShareModal({
         initial={{ opacity: 0, scale: 0.95, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 12 }}
-        className="relative w-full max-w-2xl rounded-3xl bg-surface p-6 shadow-xl border border-zen-200"
+        className="relative w-full max-w-2xl rounded-3xl bg-surface p-6 shadow-lift border border-zen-200"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
