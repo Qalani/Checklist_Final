@@ -45,7 +45,7 @@ const WidgetVisibilityMenu = dynamic<WidgetVisibilityMenuProps>(
 
 function LoadingScreen() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-sage-200 border-t-sage-600" />
@@ -166,7 +166,7 @@ function ZenInsightsPageContent() {
 
   if (!user && !demoMode) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
+      <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-warm-50 to-sage-50">
         <ParallaxBackground />
         <div className="relative z-10 flex min-h-screen flex-col">
           <header className="px-4 py-6 sm:px-6 lg:px-8">
@@ -210,7 +210,7 @@ function ZenInsightsPageContent() {
   const userName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
+    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
       <ParallaxBackground />
       <div className="relative z-10 flex min-h-screen flex-col">
         <ZenPageHeader
