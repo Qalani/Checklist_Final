@@ -150,7 +150,7 @@ export default function CategoryManager({
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Category name"
                 maxLength={100}
-                className="w-full px-3 py-2 rounded-lg border-2 border-zen-200 focus:border-sage-500 outline-none text-sm"
+                className="w-full px-3 py-2 rounded-xl border border-zen-200 bg-surface focus:border-sage-400 outline-none text-sm text-zen-900"
                 autoFocus
               />
               <div className="flex gap-2 flex-wrap">
@@ -173,7 +173,7 @@ export default function CategoryManager({
               <button
                 onClick={handleAdd}
                 disabled={isSaving}
-                className="w-full py-2 bg-sage-600 text-white rounded-lg hover:bg-sage-700 transition-colors font-medium text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-2 bg-sage-500 text-white rounded-xl hover:bg-sage-600 transition-colors font-medium text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSaving ? 'Saving...' : 'Add Category'}
               </button>
@@ -218,7 +218,7 @@ export default function CategoryManager({
                   }
                 }}
                 maxLength={100}
-                className="flex-1 px-2 py-1 rounded border border-sage-300 outline-none text-sm"
+                className="flex-1 px-2 py-1 rounded-lg border border-zen-200 bg-surface focus:border-sage-400 outline-none text-sm text-zen-900"
                 autoFocus
               />
             ) : (

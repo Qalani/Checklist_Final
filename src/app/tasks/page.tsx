@@ -316,7 +316,7 @@ export default function HomePage() {
                   setInlineEditingTaskId(null);
                   setShowTaskForm(true);
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-zen-600 px-4 py-2 font-medium text-white shadow-medium transition-all hover:bg-zen-700 hover:shadow-lift sm:w-auto"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sage-500 px-4 py-2 font-medium text-white shadow-medium transition-all hover:bg-sage-600 hover:shadow-lift sm:w-auto"
               >
                 <Plus className="h-4 w-4" />
                 New Task
@@ -375,7 +375,7 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
             <section className="space-y-4">
-              <div className="rounded-3xl border border-zen-200 bg-surface/90 shadow-soft p-6">
+              <div className="rounded-2xl border border-zen-200 bg-surface/90 shadow-soft p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
                     <span className="text-xs font-semibold uppercase tracking-wide text-zen-400">Task focus</span>

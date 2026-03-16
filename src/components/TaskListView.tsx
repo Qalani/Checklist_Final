@@ -36,7 +36,7 @@ import {
 import type { Task, Category } from '@/types';
 import MarkdownDisplay from './MarkdownDisplay';
 import ConfirmDialog from './ConfirmDialog';
-import { describeReminderRecurrence, formatReminderDate, getNextReminderOccurrence } from '@/utils/reminders';
+import { describeReminderRecurrence, formatReminderDate, formatReminderMinutes, getNextReminderOccurrence } from '@/utils/reminders';
 import { SyncStatusBadge } from './SyncStatusBadge';
 
 interface TaskListViewProps {
@@ -76,24 +76,6 @@ interface ParticleSpec {
   duration: number;
   size: number;
   hue: number;
-}
-
-function formatReminder(minutes: number) {
-  if (minutes < 60) {
-    return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
-  }
-
-  if (minutes % 1440 === 0) {
-    const days = Math.round(minutes / 1440);
-    return `${days} day${days === 1 ? '' : 's'} before`;
-  }
-
-  if (minutes % 60 === 0) {
-    const hours = Math.round(minutes / 60);
-    return `${hours} hour${hours === 1 ? '' : 's'} before`;
-  }
-
-  return `${minutes} minutes before`;
 }
 
 function SortableTaskItem({
@@ -196,7 +178,7 @@ function SortableTaskItem({
 
   const reminderLabel =
     typeof task.reminder_minutes_before === 'number' && !Number.isNaN(task.reminder_minutes_before)
-      ? formatReminder(task.reminder_minutes_before)
+      ? formatReminderMinutes(task.reminder_minutes_before)
       : null;
   const nextReminder = getNextReminderOccurrence(task, { includeCurrent: true });
   const nextReminderLabel = nextReminder ? formatReminderDate(nextReminder, task.reminder_timezone) : null;
@@ -230,10 +212,11 @@ function SortableTaskItem({
     <div ref={setNodeRef} style={style} className="group">
       <motion.div
         layout
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
         className={`
-          relative bg-surface rounded-xl p-4 border-2 transition-all
+          relative bg-surface rounded-xl p-4 border transition-all
           ${task.completed
             ? 'border-zen-200 opacity-60'
             : 'border-zen-100 hover:border-sage-300 hover:shadow-soft'}

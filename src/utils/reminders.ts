@@ -290,6 +290,24 @@ export function describeReminderRecurrence(recurrence: ReminderRecurrence | null
   return frequencyLabel;
 }
 
+export function formatReminderMinutes(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
+  }
+
+  if (minutes % 1440 === 0) {
+    const days = Math.round(minutes / 1440);
+    return `${days} day${days === 1 ? '' : 's'} before`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = Math.round(minutes / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'} before`;
+  }
+
+  return `${minutes} minutes before`;
+}
+
 export function formatReminderDate(date: Date, timezone?: string | null): string {
   if (!timezone) {
     return date.toLocaleString();
