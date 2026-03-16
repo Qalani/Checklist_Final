@@ -4,25 +4,15 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Security middleware — runs on every non-asset request.
  *
  * Responsibilities:
- *  1. Generate a per-request cryptographic nonce.
- *  2. Build a Content-Security-Policy that uses that nonce instead of the
- *     now-removed 'unsafe-inline' / 'unsafe-eval' directives.
- *  3. Forward the nonce via the `x-nonce` request header so:
- *       a. Next.js's own SSR / streaming inline scripts receive the nonce
- *          automatically (Next.js reads x-nonce internally).
- *       b. The root layout can read it for any future next/script components
- *          that need an explicit nonce prop.
- *  4. Attach all remaining security headers to the response.
+ *  1. Build a Content-Security-Policy with 'unsafe-inline' for script-src.
+ *  2. Attach all remaining security headers to the response.
  *
- * Why nonce over 'unsafe-inline'?
- *   'unsafe-inline' in script-src allows ANY inline script to execute, which
- *   completely defeats XSS protection. A per-request nonce is unguessable by
- *   attackers and only permits the scripts that Next.js itself injected.
- *
- * Why is 'unsafe-eval' gone?
- *   Next.js 15 production builds do not use eval(). FullCalendar v6 was
- *   rewritten to be fully CSP-compliant (no new Function / eval). No other
- *   dependency in this project requires it.
+ * Why 'unsafe-inline' instead of a nonce?
+ *   All pages are statically pre-rendered at build time. Next.js embeds inline
+ *   <script> tags (RSC flight data, hydration bootstrap) in the HTML during the
+ *   build — before any request-time nonce exists. A nonce set in middleware
+ *   would never match those build-time scripts, so the browser blocks them and
+ *   React cannot hydrate, producing a blank screen.
  *
  * Why does style-src still have 'unsafe-inline'?
  *   FullCalendar injects inline positioning styles for event layout; framer-
@@ -30,19 +20,14 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   style-src would break both. Style injection cannot exfiltrate tokens the
  *   way script injection can, so this is an accepted trade-off.
  */
-export function middleware(request: NextRequest) {
-  // crypto.randomUUID() is available in the Next.js Edge runtime and in Node.
-  // Base64-encoding it keeps the nonce URL-safe and slightly shorter.
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-
+export function middleware(_request: NextRequest) {
   const csp = [
     "default-src 'self'",
 
-    // Same-origin scripts + any script carrying this request's unique nonce.
-    // In development, Next.js webpack uses eval() for source maps; permit it
-    // only in that mode. Production builds are eval-free so this stays locked.
-    // 'unsafe-inline' is intentionally absent.
-    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
+    // Inline scripts are required because Next.js embeds RSC flight data and
+    // hydration bootstrap scripts at static build time (no nonce available).
+    // In development, Next.js webpack also uses eval() for source maps.
+    `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
 
     // Inline styles are required by FullCalendar (event sizing) and
     // framer-motion (animation transforms). See note above.
@@ -63,19 +48,11 @@ export function middleware(request: NextRequest) {
     "frame-ancestors 'none'",
   ].join('; ');
 
-  // Attach the nonce to the forwarded request headers.
-  // Next.js reads `x-nonce` internally and stamps it onto the inline <script>
-  // tags it generates during SSR and streaming, making them CSP-compliant.
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  const response = NextResponse.next();
 
   // ── Security response headers ────────────────────────────────────────────
 
-  // CSP — built above with the fresh nonce.
+  // CSP — built above.
   response.headers.set('Content-Security-Policy', csp);
 
   // Prevent MIME-type sniffing (e.g. serving a .jpg that is actually a script).
@@ -107,12 +84,11 @@ export const config = {
   matcher: [
     /**
      * Run middleware on all paths EXCEPT:
-     *   - _next/static  — pre-built JS/CSS chunks (served by CDN, no nonce needed)
+     *   - _next/static  — pre-built JS/CSS chunks (no headers needed)
      *   - _next/image   — image optimisation endpoint
      *   - Common static assets identified by extension
      *
-     * The `missing` array skips prefetch requests so the nonce generated here
-     * isn't wasted on navigation hints that never render HTML.
+     * The `missing` array skips prefetch requests that never render HTML.
      */
     {
       source:
