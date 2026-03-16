@@ -70,7 +70,7 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-zen-200/60 bg-surface/80 p-5 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+    <div className="rounded-2xl bg-zen-50/80 p-5 backdrop-blur-sm dark:bg-zen-900/40">
       <div className="mb-4 flex items-center gap-2">
         {icon}
         <h3 className="text-sm font-medium text-zen-700 dark:text-zen-200">{title}</h3>
@@ -102,7 +102,7 @@ function StatCard({
   gradient: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 p-4 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+    <div className="flex items-center gap-3 rounded-2xl bg-zen-50/80 p-4 backdrop-blur-sm dark:bg-zen-900/40">
       <div
         className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ${gradient}`}
       >

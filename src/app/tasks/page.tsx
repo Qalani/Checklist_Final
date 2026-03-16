@@ -375,7 +375,7 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
             <section className="space-y-4">
-              <div className="rounded-2xl border border-zen-200 bg-surface/90 shadow-soft p-6">
+              <div className="rounded-2xl bg-surface/90 p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
                     <span className="text-xs font-semibold uppercase tracking-wide text-zen-400">Task focus</span>
