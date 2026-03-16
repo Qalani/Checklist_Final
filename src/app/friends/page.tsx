@@ -187,7 +187,7 @@ export default function FriendsPage() {
 
             <form
               onSubmit={handleAddFriend}
-              className="flex flex-col gap-4 rounded-2xl border border-zen-200 bg-surface/80 p-6 shadow-soft sm:flex-row sm:items-end"
+              className="flex flex-col gap-4 rounded-2xl bg-surface/80 p-6 sm:flex-row sm:items-end"
             >
               <div className="flex-1">
                 <label htmlFor="friend-email" className="text-sm font-medium text-zen-700">
@@ -227,7 +227,7 @@ export default function FriendsPage() {
               </div>
             </form>
 
-            <div className="rounded-2xl border border-zen-200 bg-surface/80 p-6 shadow-soft">
+            <div className="rounded-2xl bg-surface/80 p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-zen-900">Your friends</h3>
@@ -280,7 +280,7 @@ export default function FriendsPage() {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-zen-200 bg-surface/80 p-6 shadow-soft">
+              <div className="rounded-2xl bg-surface/80 p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-zen-900">Incoming requests</h3>
@@ -342,7 +342,7 @@ export default function FriendsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zen-200 bg-surface/80 p-6 shadow-soft">
+              <div className="rounded-2xl bg-surface/80 p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-zen-900">Sent requests</h3>

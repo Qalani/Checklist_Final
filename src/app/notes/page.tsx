@@ -354,7 +354,7 @@ export default function NotesPage() {
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pt-8 sm:px-6 lg:px-8">
             <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
               <aside className="space-y-4">
-                <div className="rounded-2xl border border-zen-200 bg-surface/80 shadow-soft">
+                <div className="rounded-2xl bg-surface/80">
                   <div className="flex items-center justify-between border-b border-zen-100 px-4 py-3">
                     <div>
                       <h2 className="text-sm font-semibold text-zen-900">Library</h2>
@@ -424,7 +424,7 @@ export default function NotesPage() {
 
               <section className="space-y-4">
                 {showEditor ? (
-                  <div className="rounded-2xl border border-zen-200 bg-surface/80 p-6 shadow-soft">
+                  <div className="rounded-2xl bg-surface/80 p-6">
                     <div className="flex flex-col gap-3 border-b border-zen-100 pb-4">
                       <input
                         type="text"

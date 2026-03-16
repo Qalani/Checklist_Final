@@ -245,7 +245,7 @@ function ZenInsightsPageContent() {
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <div className="flex items-center gap-3 rounded-2xl bg-zen-50/80 px-4 py-3 backdrop-blur-sm dark:bg-zen-900/40">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-zen-400 to-zen-600 text-white">
                   <LayoutGrid className="h-5 w-5" />
                 </div>
@@ -254,7 +254,7 @@ function ZenInsightsPageContent() {
                   <p className="text-lg font-semibold text-zen-900">{isTasksLoading ? '—' : completedTasksCount}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-zen-200/60 bg-surface/80 px-4 py-3 shadow-soft backdrop-blur-sm dark:border-zen-700/40">
+              <div className="flex items-center gap-3 rounded-2xl bg-zen-50/80 px-4 py-3 backdrop-blur-sm dark:bg-zen-900/40">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-warm-400 to-warm-500 text-white">
                   <CalendarClock className="h-5 w-5" />
                 </div>

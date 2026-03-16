@@ -23,7 +23,7 @@ export default function DashboardWidgetFrame({
   return (
     <div
       className={[
-        'rounded-3xl border border-zen-200/60 bg-surface/80 p-5 shadow-small backdrop-blur-sm transition-shadow hover:shadow-medium dark:border-zen-700/40',
+        'rounded-3xl bg-zen-50/80 p-5 backdrop-blur-sm dark:bg-zen-900/40',
         className,
       ]
         .filter(Boolean)
