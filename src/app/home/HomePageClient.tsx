@@ -201,6 +201,23 @@ export default function HomePageClient() {
           footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
           footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
         },
+        {
+          key: 'zen-insights',
+          title: 'Zen Insights',
+          description: 'Curate dashboards and surface meaningful metrics to guide focused, intentional work.',
+          href: '/zen-insights',
+          icon: Sparkles,
+          loading: false,
+          primary: 'Activity trends & analytics',
+          secondary: 'Customisable dashboard widgets',
+          footerText: 'View your insights',
+          accentGradient: 'bg-gradient-to-br from-warm-400 to-sage-500',
+          accentText: 'text-white',
+          badgeBg: 'bg-warm-100/80 dark:bg-zen-800/40',
+          badgeText: 'text-warm-600 dark:text-zen-900',
+          footerBg: 'bg-warm-50/80 dark:bg-zen-800/25',
+          footerHoverBg: 'group-hover:bg-warm-100/80 dark:group-hover:bg-zen-900/25',
+        },
       ];
     },
     [
