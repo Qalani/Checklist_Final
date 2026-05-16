@@ -26,6 +26,10 @@ export async function enablePublicShare(
     return { error: 'Only owners can enable public sharing.' };
   }
 
+  if (!isOnline()) {
+    return { error: 'You’re offline. Reconnect to enable public sharing.' };
+  }
+
   try {
     const { data, error } = await supabase.rpc('enable_list_public_share', {
       list_uuid: listId,
@@ -80,6 +84,10 @@ export async function rotatePublicShare(
     return { error: 'Public sharing is not enabled for this list.' };
   }
 
+  if (!isOnline()) {
+    return { error: 'You’re offline. Reconnect to refresh the share link.' };
+  }
+
   try {
     const { data, error } = await supabase.rpc('rotate_list_public_share', {
       list_uuid: listId,
@@ -128,6 +136,10 @@ export async function disablePublicShare(
 
   if (existing.access_role !== 'owner') {
     return { error: 'Only owners can disable public sharing.' };
+  }
+
+  if (!isOnline()) {
+    return { error: 'You’re offline. Reconnect to disable public sharing.' };
   }
 
   try {

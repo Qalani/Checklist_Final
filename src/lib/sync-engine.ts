@@ -115,8 +115,16 @@ export async function pullLatest(
       .map((l) => [l.id as string, l]),
   );
 
+  // Rows the user has changed locally but haven't pushed yet. Pulling fresh
+  // server state for these would overwrite the unsaved edit with stale data,
+  // so we skip them — pushQueue() will reconcile when it runs.
+  const pendingIds = await getPendingIds(table, ids);
+
   for (const remote of data) {
-    const local = localMap.get(remote.id as string);
+    const remoteId = remote.id as string;
+    if (pendingIds.has(remoteId)) continue;
+
+    const local = localMap.get(remoteId);
     const resolved = local
       ? resolveConflict(
           local as Record<string, unknown>,
@@ -127,11 +135,37 @@ export async function pullLatest(
   }
 }
 
+/**
+ * Returns the set of row ids from `candidateIds` that have a pending entry
+ * in the local sync queue for `table`. Used by `pullLatest` to avoid
+ * overwriting unsynced local edits with older server state.
+ */
+async function getPendingIds(
+  table: SyncableTable,
+  candidateIds: string[],
+): Promise<Set<string>> {
+  if (candidateIds.length === 0) return new Set();
+  const queueEntries = await db.sync_queue.where('table_name').equals(table).toArray();
+  const candidate = new Set(candidateIds);
+  const pending = new Set<string>();
+  for (const entry of queueEntries) {
+    const id = (entry.payload as { id?: string }).id;
+    if (id && candidate.has(id)) pending.add(id);
+  }
+  return pending;
+}
+
 // ─── Push ─────────────────────────────────────────────────────────────────────
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Module-level promise that serialises concurrent pushQueue() calls. The
+// reconnect, visibility-change, Capacitor-resume, service-worker-sync, and
+// retry-button paths can all race; without this guard each iteration would
+// see the same entries and the retry counters could double-increment.
+let activePush: Promise<void> | null = null;
 
 /**
  * Replays all pending sync_queue entries against Supabase in insertion order.
@@ -141,38 +175,51 @@ function sleep(ms: number): Promise<void> {
  *   with exponential backoff before continuing (2 s → 4 s → 8 s).
  * - Entries that have reached MAX_RETRIES are skipped and left in the queue
  *   for manual inspection / future recovery.
+ *
+ * Concurrent invocations share a single in-flight pass — the call site
+ * receives the existing promise rather than starting a duplicate replay.
  */
 export async function pushQueue(): Promise<void> {
-  const entries = await getAll();
+  if (activePush) return activePush;
 
-  for (const entry of entries) {
-    if (entry.retries >= MAX_RETRIES) {
-      // Leave the entry in the queue for manual inspection / future recovery
-      // instead of silently deleting user data.
-      continue;
-    }
-
+  activePush = (async () => {
     try {
-      const { table_name, operation, payload } = entry;
+      const entries = await getAll();
 
-      if (operation === 'INSERT' || operation === 'UPDATE') {
-        const { error } = await (supabase.from(table_name) as any).upsert(payload);
-        if (error) throw error;
-      } else if (operation === 'DELETE') {
-        const { error } = await (supabase.from(table_name) as any)
-          .delete()
-          .eq('id', (payload as { id: string }).id);
-        if (error) throw error;
+      for (const entry of entries) {
+        if (entry.retries >= MAX_RETRIES) {
+          // Leave the entry in the queue for manual inspection / future recovery
+          // instead of silently deleting user data.
+          continue;
+        }
+
+        try {
+          const { table_name, operation, payload } = entry;
+
+          if (operation === 'INSERT' || operation === 'UPDATE') {
+            const { error } = await (supabase.from(table_name) as any).upsert(payload);
+            if (error) throw error;
+          } else if (operation === 'DELETE') {
+            const { error } = await (supabase.from(table_name) as any)
+              .delete()
+              .eq('id', (payload as { id: string }).id);
+            if (error) throw error;
+          }
+
+          await remove(entry.id!);
+        } catch (err) {
+          console.warn(`sync-engine: push failed for queue entry ${entry.id}`, err);
+          await incrementRetry(entry.id!);
+          // Exponential backoff: 2 s on first retry, 4 s on second, 8 s on third
+          await sleep(Math.pow(2, entry.retries + 1) * 1000);
+        }
       }
-
-      await remove(entry.id!);
-    } catch (err) {
-      console.warn(`sync-engine: push failed for queue entry ${entry.id}`, err);
-      await incrementRetry(entry.id!);
-      // Exponential backoff: 2 s on first retry, 4 s on second, 8 s on third
-      await sleep(Math.pow(2, entry.retries + 1) * 1000);
+    } finally {
+      activePush = null;
     }
-  }
+  })();
+
+  return activePush;
 }
 
 // ─── Auto-push on reconnect ───────────────────────────────────────────────────

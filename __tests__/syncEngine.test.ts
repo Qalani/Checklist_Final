@@ -15,6 +15,7 @@ jest.mock('@/lib/supabase', () => ({
 
 const mockBulkGet = jest.fn();
 const mockPut = jest.fn();
+const mockQueueToArray = jest.fn();
 
 const dexieTableMock = () => ({ bulkGet: mockBulkGet, put: mockPut });
 
@@ -28,6 +29,11 @@ jest.mock('@/lib/local-db', () => ({
     list_members: dexieTableMock(),
     zen_reminders: dexieTableMock(),
     calendar_events: dexieTableMock(),
+    sync_queue: {
+      where: jest.fn().mockReturnValue({
+        equals: jest.fn().mockReturnValue({ toArray: mockQueueToArray }),
+      }),
+    },
   },
 }));
 
@@ -119,7 +125,11 @@ describe('resolveConflict', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('pullLatest', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Default: no pending queue entries, so dedup is a no-op.
+    mockQueueToArray.mockResolvedValue([]);
+  });
 
   it('returns early without touching Dexie when Supabase returns no rows', async () => {
     mockFrom.mockReturnValue(makeQueryMock({ data: [], error: null }));
@@ -197,6 +207,40 @@ describe('pullLatest', () => {
     await pullLatest('list_items', 'user-abc', '1970-01-01T00:00:00Z');
 
     expect((queryMock.eq as jest.Mock)).not.toHaveBeenCalled();
+  });
+
+  it('skips rows that have a pending entry in the sync queue', async () => {
+    // Local row was edited offline and its UPDATE is still queued. The
+    // server's older snapshot must not overwrite it on the next pull.
+    const remote = { id: 'r1', updated_at: '2024-01-05T00:00:00Z', title: 'Stale remote' };
+    mockFrom.mockReturnValue(makeQueryMock({ data: [remote], error: null }));
+    mockBulkGet.mockResolvedValue([
+      { id: 'r1', updated_at: '2024-01-10T00:00:00Z', title: 'Pending local edit' },
+    ]);
+    mockQueueToArray.mockResolvedValue([
+      { table_name: 'tasks', operation: 'UPDATE', payload: { id: 'r1', title: 'Pending local edit' } },
+    ]);
+
+    await pullLatest('tasks', 'user-1', '1970-01-01T00:00:00Z');
+
+    expect(mockPut).not.toHaveBeenCalled();
+  });
+
+  it('still writes rows without a pending queue entry when others do have one', async () => {
+    const stalePending = { id: 'r1', updated_at: '2024-01-01T00:00:00Z' };
+    const freshUntouched = { id: 'r2', updated_at: '2024-01-09T00:00:00Z' };
+    mockFrom.mockReturnValue(
+      makeQueryMock({ data: [stalePending, freshUntouched], error: null }),
+    );
+    mockBulkGet.mockResolvedValue([undefined, undefined]);
+    mockQueueToArray.mockResolvedValue([
+      { table_name: 'tasks', operation: 'UPDATE', payload: { id: 'r1' } },
+    ]);
+
+    await pullLatest('tasks', 'user-1', '1970-01-01T00:00:00Z');
+
+    expect(mockPut).toHaveBeenCalledTimes(1);
+    expect(mockPut).toHaveBeenCalledWith(freshUntouched);
   });
 });
 

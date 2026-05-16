@@ -773,6 +773,11 @@ export class ChecklistManager {
   }
 
   async loadTaskCollaborators(taskId: string) {
+    if (!isOnline()) {
+      // Task collaborators aren't part of the offline replication set; render
+      // empty rather than blowing up the sharing dialog.
+      return { collaborators: [] as TaskCollaborator[] };
+    }
     try {
       const { data, error } = await supabase.rpc('get_task_collaborators', {
         task_uuid: taskId,
@@ -792,6 +797,10 @@ export class ChecklistManager {
   async inviteTaskCollaborator(taskId: string, email: string, role: 'viewer' | 'editor') {
     if (!email.trim()) {
       return { error: 'Enter an email address to invite.' };
+    }
+
+    if (!isOnline()) {
+      return { error: 'You’re offline. Reconnect to invite collaborators.' };
     }
 
     try {
@@ -816,6 +825,9 @@ export class ChecklistManager {
   }
 
   async updateTaskCollaboratorRole(collaboratorId: string, role: 'viewer' | 'editor') {
+    if (!isOnline()) {
+      return { error: 'You’re offline. Reconnect to update collaborator roles.' };
+    }
     try {
       const { data, error } = await supabase
         .from('task_collaborators')
@@ -835,6 +847,9 @@ export class ChecklistManager {
   }
 
   async removeTaskCollaborator(collaboratorId: string) {
+    if (!isOnline()) {
+      return { error: 'You’re offline. Reconnect to remove collaborators.' };
+    }
     try {
       const { error } = await supabase
         .from('task_collaborators')

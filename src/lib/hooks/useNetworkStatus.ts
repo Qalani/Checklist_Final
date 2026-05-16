@@ -6,9 +6,13 @@ interface NetworkStatus {
 }
 
 export function useNetworkStatus(): NetworkStatus {
-  // Default to true (assume online) to avoid a flash of the offline banner
-  // during SSR / hydration before we've had a chance to probe.
-  const [online, setOnline] = useState<boolean>(true);
+  // On SSR (no navigator) assume online so the banner isn't pre-rendered.
+  // On the client, hydrate from navigator.onLine immediately so the offline
+  // banner shows on first paint when the app cold-starts without a connection.
+  const [online, setOnline] = useState<boolean>(() => {
+    if (typeof navigator === 'undefined') return true;
+    return navigator.onLine;
+  });
 
   useEffect(() => {
     let cancelled = false;

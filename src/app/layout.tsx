@@ -3,6 +3,7 @@ import { Inter, Sora } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme-context";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { OfflineBootstrap } from "@/components/OfflineBootstrap";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { PushNotificationInitializer } from "@/components/PushNotificationInitializer";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -64,6 +65,7 @@ export default function RootLayout({
           </ErrorBoundary>
         </ThemeProvider>
         <ServiceWorkerRegistration />
+        <OfflineBootstrap />
         <PushNotificationInitializer />
         <OfflineIndicator />
       </body>
