@@ -3,6 +3,7 @@
 import { AlertTriangle, Clock } from 'lucide-react';
 import { useSyncStatus } from '@/lib/hooks/useSyncStatus';
 import { retryEntry } from '@/lib/sync-queue';
+import { pushQueue } from '@/lib/sync-engine';
 
 interface SyncStatusBadgeProps {
   /** Dexie / Supabase table name, e.g. 'tasks', 'notes', 'list_items' */
@@ -48,7 +49,9 @@ export function SyncStatusBadge({ tableName, id }: SyncStatusBadgeProps) {
       {entry && (
         <button
           type="button"
-          onClick={() => void retryEntry(entry)}
+          onClick={() =>
+            void retryEntry(entry).then(() => pushQueue())
+          }
           aria-label="Retry sync for this item"
           className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
         >
