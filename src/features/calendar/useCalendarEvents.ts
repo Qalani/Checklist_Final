@@ -232,6 +232,10 @@ export function useCalendarEvents(userId: string | null) {
         throw new Error('You must be signed in to import events.');
       }
 
+      if (!isOnline()) {
+        throw new Error('You’re offline. Reconnect to import calendar files.');
+      }
+
       const icsString = await file.text();
 
       if (!icsString.trim()) {

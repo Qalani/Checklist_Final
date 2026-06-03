@@ -1,6 +1,21 @@
-const CACHE_NAME = "zen-workspace-cache-v4";
+const CACHE_NAME = "zen-workspace-cache-v5";
 const API_CACHE_NAME = "zen-api-cache-v1";
-const ASSETS_TO_CACHE = ["/"];
+
+// App-shell routes precached on install so the user can cold-start the app
+// and navigate to every top-level feature while completely offline. The
+// individual JS/CSS chunks each page needs are picked up by the runtime
+// cache below on first visit while online.
+const ASSETS_TO_CACHE = [
+  "/",
+  "/tasks",
+  "/lists",
+  "/notes",
+  "/calendar",
+  "/reminders",
+  "/zen-insights",
+  "/friends",
+  "/manifest.webmanifest",
+];
 
 // GET-only API routes served with stale-while-revalidate.
 // POST/PUT/DELETE are never cached.
@@ -10,7 +25,25 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(ASSETS_TO_CACHE))
+      // addAll is atomic — one failed precache item rejects the whole batch
+      // and the SW won't install. Fetch each route individually so a single
+      // missing path (e.g. a route renamed between deploys) doesn't break
+      // the install.
+      .then(async (cache) => {
+        await Promise.all(
+          ASSETS_TO_CACHE.map(async (path) => {
+            try {
+              const response = await fetch(path, { credentials: "same-origin" });
+              if (response.ok) {
+                await cache.put(path, response);
+              }
+            } catch {
+              // Network failure during install — the runtime cache will pick
+              // this route up on the user's first online visit instead.
+            }
+          })
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });
