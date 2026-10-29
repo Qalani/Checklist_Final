@@ -450,9 +450,7 @@ export default function HomePage() {
                         onDelete={(id) => {
                           void deleteTask(id);
                         }}
-                        onToggle={(id, completed) => {
-                          void handleToggleTask(id, completed);
-                        }}
+                        onToggle={handleToggleTask}
                         onReorder={(reorderedTasks) => {
                           if (taskSort !== 'custom') {
                             return;

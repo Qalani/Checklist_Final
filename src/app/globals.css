@@ -277,3 +277,138 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Completion feedback uses a fixed overlay so filtering a card cannot cut it off. */
+.completion-toggle {
+  border-radius: 0.375rem;
+  transition: color 150ms, transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.completion-toggle:active:not(:disabled) { transform: scale(0.9); }
+.completion-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+
+.action-feedback-dock {
+  position: fixed;
+  z-index: 110;
+  bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.action-feedback-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.125rem 0.75rem 0.875rem;
+  border: 1px solid rgb(var(--color-sage-200));
+  border-radius: 1rem;
+  background: rgb(var(--color-surface));
+  box-shadow: 0 8px 24px rgb(var(--color-zen-900) / 0.1);
+  animation: action-toast-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    action-toast-out 180ms cubic-bezier(0.7, 0, 0.84, 0) 2000ms forwards;
+}
+
+.action-feedback-icon {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  color: rgb(var(--color-sage-600));
+}
+
+.action-feedback-icon svg, .action-feedback-mark svg { width: 100%; height: 100%; }
+.action-feedback-check { transform-origin: center; animation: action-check-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.action-feedback-paper--archive { animation: action-file-away 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.action-feedback-paper--restore { animation: action-file-restore 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.action-feedback-lid { animation: action-lid-close 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+.action-feedback-burst {
+  position: fixed;
+  z-index: 111;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  color: rgb(var(--color-sage-600));
+}
+
+.action-feedback-ripple {
+  position: absolute;
+  left: -15px;
+  top: -15px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  animation: action-ripple 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.action-feedback-mark {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgb(var(--color-surface));
+  animation: action-mark 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.action-feedback-spark {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: action-spark 380ms cubic-bezier(0.16, 1, 0.3, 1) var(--spark-delay) both;
+}
+
+.action-feedback-spark:nth-last-child(even) { color: rgb(var(--color-warm-500)); }
+
+@keyframes action-toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes action-toast-out { to { opacity: 0; transform: translateY(4px); } }
+@keyframes action-check-in {
+  from { opacity: 0; transform: scale(0.65); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes action-file-away {
+  from { opacity: 1; transform: translateY(-5px); }
+  to { opacity: 0; transform: translateY(8px); }
+}
+@keyframes action-file-restore {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes action-lid-close {
+  from { transform: translateY(-3px); }
+  to { transform: translateY(0); }
+}
+@keyframes action-ripple {
+  from { opacity: 0.5; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(1.9); }
+}
+@keyframes action-mark {
+  0% { opacity: 0; transform: scale(0.65); }
+  30%, 65% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes action-spark {
+  from { opacity: 0.8; transform: translate(0, 0) scale(0.6); }
+  to { opacity: 0; transform: translate(var(--spark-x), var(--spark-y)) scale(0.3); }
+}
+
+@media (min-width: 1024px) { .action-feedback-dock { bottom: 1.5rem; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .completion-toggle { transition: none; }
+  .completion-toggle:active:not(:disabled) { transform: none; }
+  .action-feedback-burst { display: none; }
+  .action-feedback-toast, .action-feedback-toast * { animation: none; }
+}

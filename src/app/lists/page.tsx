@@ -527,7 +527,10 @@ export default function ListsPage() {
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
-                            onClick={() => void handleUnarchive(list)}
+                            onClick={event => {
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              void handleUnarchive(list, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                            }}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zen-200 text-xs font-medium text-zen-600 hover:text-zen-800 hover:border-zen-300 transition-colors"
                             title="Restore list"
                           >
@@ -702,7 +705,10 @@ export default function ListsPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => void handleArchive(list)}
+                                  onClick={event => {
+                                    const rect = event.currentTarget.getBoundingClientRect();
+                                    void handleArchive(list, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                                  }}
                                   className="p-2 rounded-xl border border-zen-200 text-zen-500 hover:text-zen-700 hover:border-zen-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                   disabled={!canDeleteList}
                                   title={canDeleteList ? 'Archive list' : 'Only owners can archive this list'}

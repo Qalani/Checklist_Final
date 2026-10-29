@@ -1,6 +1,9 @@
 /** @type {import('jest').Config} */
 const config = {
   preset: 'ts-jest',
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }],
+  },
   testEnvironment: 'jsdom',
   moduleFileExtensions: ['ts', 'tsx', 'js'],
   moduleNameMapper: {

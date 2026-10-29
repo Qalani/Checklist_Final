@@ -21,7 +21,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   CheckCircle2,
-  Circle,
   Clock,
   Flag,
   GripVertical,
@@ -38,13 +37,14 @@ import MarkdownDisplay from './MarkdownDisplay';
 import TaskForm from './TaskForm';
 import ConfirmDialog from './ConfirmDialog';
 import { describeReminderRecurrence, formatReminderDate, formatReminderMinutes, getNextReminderOccurrence } from '@/utils/reminders';
+import CompletionToggle from '@/components/CompletionToggle';
 
 interface TaskBentoGridProps {
   tasks: Task[];
   categories: Category[];
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
-  onToggle: (id: string, completed: boolean) => void;
+  onToggle: (id: string, completed: boolean) => void | boolean | Promise<void | boolean>;
   onReorder: (tasks: Task[]) => void;
   onManageAccess?: (task: Task) => void;
   editingTaskId?: string | null;
@@ -75,7 +75,7 @@ function SortableTaskCard({
   category?: Category;
   onEdit: () => void;
   onDelete: () => void;
-  onToggle: () => void;
+  onToggle: () => void | boolean | Promise<void | boolean>;
   onManageAccess?: () => void;
   isEditing?: boolean;
   editingContent?: ReactNode;
@@ -205,17 +205,12 @@ function SortableTaskCard({
             {/* Header */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
               <div className="flex items-start gap-3 flex-1 min-w-0">
-                <button
-                  onClick={onToggle}
-                  className="flex-shrink-0 mt-0.5 text-sage-600 hover:text-sage-700 transition-colors"
-                  aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
-                >
-                  {task.completed ? (
-                    <CheckCircle2 className="w-6 h-6" />
-                  ) : (
-                    <Circle className="w-6 h-6" />
-                  )}
-                </button>
+                <CompletionToggle
+                  completed={task.completed}
+                  onToggle={onToggle}
+                  label="Task completed"
+                  className="mt-0.5 flex-shrink-0"
+                />
 
                 <div className="flex-1 min-w-0 space-y-1">
                   <h3

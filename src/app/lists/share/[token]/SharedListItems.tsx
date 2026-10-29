@@ -3,6 +3,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { CheckSquare, Square } from 'lucide-react';
+import { useActionFeedback } from '@/components/ActionFeedback';
 
 export type SharedListItem = {
   id: string;
@@ -39,6 +40,7 @@ type StoredValue = {
 };
 
 export default function SharedListItems({ token, items }: SharedListItemsProps) {
+  const celebrate = useActionFeedback();
   const [overrides, setOverrides] = useState<Overrides>({});
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -113,7 +115,16 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
     [items, overrides],
   );
 
-  const handleToggle = (id: string) => {
+  const handleToggle = (id: string, element: HTMLElement) => {
+    const currentItem = displayedItems.find(item => item.id === id);
+    if (currentItem && !currentItem.completed) {
+      const rect = element.getBoundingClientRect();
+      celebrate({
+        kind: 'complete',
+        message: 'Item completed',
+        origin: { x: rect.left + 26, y: rect.top + 26 },
+      });
+    }
     setOverrides(prev => {
       const base = baseCompletion.get(id) ?? false;
       const current = Object.prototype.hasOwnProperty.call(prev, id) ? prev[id] : base;
@@ -193,7 +204,7 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>, id: string) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      handleToggle(id);
+      handleToggle(id, event.currentTarget);
     }
   };
 
@@ -213,7 +224,7 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
             key={item.id}
             role="button"
             tabIndex={0}
-            onClick={() => handleToggle(item.id)}
+            onClick={event => handleToggle(item.id, event.currentTarget)}
             onKeyDown={event => handleKeyDown(event, item.id)}
             className="flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-zen-200 bg-surface/80 p-4 text-left transition-colors hover:border-sage-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-500"
             aria-pressed={item.completed}

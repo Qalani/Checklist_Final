@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   DndContext,
   DragEndEvent,
@@ -22,7 +22,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   CheckCircle2,
-  Circle,
   MoreHorizontal,
   Flag,
   Clock,
@@ -38,13 +37,14 @@ import MarkdownDisplay from './MarkdownDisplay';
 import ConfirmDialog from './ConfirmDialog';
 import { describeReminderRecurrence, formatReminderDate, formatReminderMinutes, getNextReminderOccurrence } from '@/utils/reminders';
 import { SyncStatusBadge } from './SyncStatusBadge';
+import CompletionToggle from '@/components/CompletionToggle';
 
 interface TaskListViewProps {
   tasks: Task[];
   categories: Category[];
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
-  onToggle: (id: string, completed: boolean) => void;
+  onToggle: (id: string, completed: boolean) => void | boolean | Promise<void | boolean>;
   onReorder: (tasks: Task[]) => void;
   onManageAccess?: (task: Task) => void;
 }
@@ -68,16 +68,6 @@ const strikeVariants = {
 
 const strikeTransition = { duration: 0.45, ease: [0.33, 1, 0.68, 1] } as const;
 
-interface ParticleSpec {
-  id: string;
-  x: number;
-  y: number;
-  delay: number;
-  duration: number;
-  size: number;
-  hue: number;
-}
-
 function SortableTaskItem({
   task,
   category,
@@ -94,7 +84,7 @@ function SortableTaskItem({
   onExpand: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onToggle: () => void;
+  onToggle: () => void | boolean | Promise<void | boolean>;
   onManageAccess?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -107,44 +97,8 @@ function SortableTaskItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const [particleBurst, setParticleBurst] = useState<ParticleSpec[]>([]);
-  const [burstKey, setBurstKey] = useState(0);
+  const reduceMotion = useReducedMotion();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  useEffect(() => {
-    let timeout: number | undefined;
-
-    if (task.completed) {
-      const newParticles = Array.from({ length: 8 }).map<ParticleSpec>((_, index) => {
-        const distance = 16 + Math.random() * 28;
-        const verticalSpread = (Math.random() - 0.5) * 32;
-        return {
-          id: `${task.id}-particle-${index}-${Date.now()}`,
-          x: distance,
-          y: verticalSpread,
-          delay: Math.random() * 0.08,
-          duration: 0.6 + Math.random() * 0.3,
-          size: 4 + Math.random() * 4,
-          hue: 130 + Math.random() * 80,
-        };
-      });
-
-      setParticleBurst(newParticles);
-      setBurstKey((key) => key + 1);
-
-      timeout = window.setTimeout(() => {
-        setParticleBurst([]);
-      }, 900);
-    } else {
-      setParticleBurst([]);
-    }
-
-    return () => {
-      if (timeout) {
-        window.clearTimeout(timeout);
-      }
-    };
-  }, [task.completed, task.id]);
 
   const dueDate = task.due_date ? new Date(task.due_date) : null;
   let dueBadge: { text: string; tone: string } | null = null;
@@ -231,12 +185,13 @@ function SortableTaskItem({
         </div>
 
         <div className="flex items-start gap-3">
-          <button
-            onClick={onToggle}
-            className="flex-shrink-0 mt-0.5 text-sage-600 hover:text-sage-700 transition-colors"
-          >
-            {task.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-          </button>
+          <CompletionToggle
+            completed={task.completed}
+            onToggle={onToggle}
+            label="Task completed"
+            size="sm"
+            className="mt-0.5 flex-shrink-0"
+          />
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -253,45 +208,9 @@ function SortableTaskItem({
                     variants={strikeVariants}
                     initial={task.completed ? 'completed' : 'active'}
                     animate={task.completed ? 'completed' : 'active'}
-                    transition={strikeTransition}
+                    transition={reduceMotion ? { duration: 0 } : strikeTransition}
                     style={{ transformOrigin: 'left center' }}
                   />
-                  <AnimatePresence>
-                    {particleBurst.length > 0 && (
-                      <motion.span
-                        key={burstKey}
-                        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                      >
-                        {particleBurst.map((particle) => (
-                          <motion.span
-                            key={particle.id}
-                            className="pointer-events-none absolute rounded-full shadow-md"
-                            initial={{ opacity: 1, x: 0, y: 0, scale: 0.6 }}
-                            animate={{
-                              opacity: 0,
-                              x: particle.x,
-                              y: particle.y,
-                              scale: 0,
-                            }}
-                            transition={{
-                              duration: particle.duration,
-                              ease: 'easeOut',
-                              delay: particle.delay,
-                            }}
-                            style={{
-                              width: `${particle.size}px`,
-                              height: `${particle.size}px`,
-                              backgroundColor: `hsl(${particle.hue}, 70%, 78%)`,
-                              boxShadow: '0 0 8px rgba(255, 255, 255, 0.6)',
-                            }}
-                          />
-                        ))}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
                 </span>
               </h3>
 
@@ -536,7 +455,7 @@ export default function TaskListView({
               }}
               onToggle={() => {
                 setExpandedTask(prev => (prev === task.id ? null : prev));
-                onToggle(task.id, !task.completed);
+                return onToggle(task.id, !task.completed);
               }}
               onManageAccess={onManageAccess ? () => onManageAccess(task) : undefined}
             />

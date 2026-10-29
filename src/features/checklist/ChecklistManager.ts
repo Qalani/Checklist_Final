@@ -370,15 +370,15 @@ export class ChecklistManager {
     }
   }
 
-  async toggleTask(id: string, completed: boolean) {
+  async toggleTask(id: string, completed: boolean): Promise<boolean> {
     if (!this.userId) {
-      return;
+      return false;
     }
 
     const targetTask = this.snapshot.tasks.find((task) => task.id === id);
 
     if (!targetTask) {
-      return;
+      return false;
     }
 
     if (targetTask.access_role && !['owner', 'editor'].includes(targetTask.access_role)) {
@@ -386,22 +386,30 @@ export class ChecklistManager {
         ...prev,
         error: 'You do not have permission to update this task.',
       }));
-      return;
+      return false;
     }
 
     if (!isOnline()) {
-      const updatedTask = this.normalizeTask({ ...targetTask, completed }, targetTask);
-      await db.tasks.put(updatedTask);
-      await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: { id, completed } });
-      this.setSnapshot((prev) => ({
-        ...prev,
-        tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
-        error: null,
-      }));
-      if (completed && targetTask.task_recurrence && targetTask.due_date && targetTask.user_id === this.userId) {
-        await this.spawnNextRecurrenceOffline(targetTask);
+      try {
+        const updatedTask = this.normalizeTask({ ...targetTask, completed }, targetTask);
+        await db.tasks.put(updatedTask);
+        await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: { id, completed } });
+        this.setSnapshot((prev) => ({
+          ...prev,
+          tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
+          error: null,
+        }));
+        if (completed && targetTask.task_recurrence && targetTask.due_date && targetTask.user_id === this.userId) {
+          await this.spawnNextRecurrenceOffline(targetTask);
+        }
+        return true;
+      } catch (error) {
+        this.setSnapshot((prev) => ({
+          ...prev,
+          error: extractErrorMessage(error, 'Unable to update task. Please try again.'),
+        }));
+        return false;
       }
-      return;
     }
 
     // Apply optimistic update immediately so the UI reflects the change at once
@@ -428,7 +436,7 @@ export class ChecklistManager {
         tasks: prev.tasks.map((task) => (task.id === targetTask.id ? { ...task, ...targetTask } : task)),
         error: error.message || 'Unable to update task. Please try again.',
       }));
-      return;
+      return false;
     }
 
     const updatedTask = this.normalizeTask(data as Task, targetTask);
@@ -441,6 +449,7 @@ export class ChecklistManager {
     if (completed && targetTask.task_recurrence && targetTask.due_date && targetTask.user_id === this.userId) {
       await this.spawnNextRecurrence(targetTask);
     }
+    return true;
   }
 
   private buildNextOccurrenceData(completedTask: Task, nextDueDate: string, nextOrder: number): Record<string, unknown> {

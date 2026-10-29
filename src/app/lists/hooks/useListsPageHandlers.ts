@@ -1,6 +1,9 @@
+import { useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { List, ListMember } from '@/types';
 import type { UseListsResult } from '@/features/lists/useLists';
+import { useActionFeedback } from '@/components/ActionFeedback';
+import type { ActionFeedbackOptions } from '@/components/ActionFeedback';
 
 type MemberRole = ListMember['role'];
 
@@ -143,6 +146,8 @@ export function useListsPageHandlers({
   shareUrl,
   shareCopyTimeoutRef,
 }: UseListsPageHandlersParams) {
+  const celebrate = useActionFeedback();
+  const pendingListActions = useRef(new Set<string>());
   const setListItemError = (listId: string, message: string | null) => {
     setItemActionErrors(prev => {
       if (prev[listId] === message) {
@@ -319,25 +324,28 @@ export function useListsPageHandlers({
     }
   };
 
-  const handleArchive = async (list: List) => {
-    const result = await archiveList(list.id);
-    if (result && 'error' in result) {
-      setListActionMessage({ type: 'error', text: result.error });
-    } else {
-      setListActionMessage({ type: 'success', text: `"${list.name}" archived.` });
-      setTimeout(() => setListActionMessage(null), 3000);
+  const handleListTransition = async (list: List, kind: 'archive' | 'restore', origin?: ActionFeedbackOptions['origin']) => {
+    if (pendingListActions.current.has(list.id)) return;
+    pendingListActions.current.add(list.id);
+    const scroll = { x: window.scrollX, y: window.scrollY };
+    try {
+      const result = await (kind === 'archive' ? archiveList(list.id) : unarchiveList(list.id));
+      if (result && 'error' in result) {
+        setListActionMessage({ type: 'error', text: result.error });
+      } else {
+        setListActionMessage(null);
+        const stayedInPlace = scroll.x === window.scrollX && scroll.y === window.scrollY;
+        celebrate({ kind, message: kind === 'archive' ? 'List archived' : 'List restored', detail: list.name, origin: stayedInPlace ? origin : undefined });
+      }
+    } catch {
+      setListActionMessage({ type: 'error', text: `Unable to ${kind} this list. Please try again.` });
+    } finally {
+      pendingListActions.current.delete(list.id);
     }
   };
 
-  const handleUnarchive = async (list: List) => {
-    const result = await unarchiveList(list.id);
-    if (result && 'error' in result) {
-      setListActionMessage({ type: 'error', text: result.error });
-    } else {
-      setListActionMessage({ type: 'success', text: `"${list.name}" restored.` });
-      setTimeout(() => setListActionMessage(null), 3000);
-    }
-  };
+  const handleArchive = (list: List, origin?: ActionFeedbackOptions['origin']) => handleListTransition(list, 'archive', origin);
+  const handleUnarchive = (list: List, origin?: ActionFeedbackOptions['origin']) => handleListTransition(list, 'restore', origin);
 
   const handleCloseShare = () => {
     setSharingList(null);
@@ -606,12 +614,18 @@ export function useListsPageHandlers({
   };
 
   const handleToggleListItem = async (listId: string, itemId: string, completed: boolean) => {
-    const result = await updateListItem(itemId, { completed });
-    if (!result || isErrorResult(result)) {
-      setListItemError(listId, result?.error ?? 'Unable to update list item.');
-      return;
+    try {
+      const result = await updateListItem(itemId, { completed });
+      if (!result || isErrorResult(result)) {
+        setListItemError(listId, result?.error ?? 'Unable to update list item.');
+        return false;
+      }
+      setListItemError(listId, null);
+      return true;
+    } catch {
+      setListItemError(listId, 'Unable to save this item. Please try again.');
+      return false;
     }
-    setListItemError(listId, null);
   };
 
   const handleDeleteListItem = async (listId: string, itemId: string) => {
