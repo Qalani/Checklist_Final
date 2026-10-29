@@ -14,23 +14,25 @@ const STORAGE_KEY = 'zen-workspace-theme';
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeId, setThemeId] = useState<ThemeId>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = window.localStorage.getItem(STORAGE_KEY);
-        if (stored && isThemeId(stored)) {
-          return stored;
-        }
-      } catch (error) {
-        console.warn('Unable to read stored theme preference', error);
-      }
-    }
-
-    return DEFAULT_THEME_ID;
-  });
+  // Match the server on the first render, then restore the saved preference.
+  // Do not persist the default before that read has completed.
+  const [themeId, setThemeId] = useState<ThemeId>(DEFAULT_THEME_ID);
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
 
   useEffect(() => {
-    if (typeof document === 'undefined') {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored && isThemeId(stored)) {
+        setThemeId(stored);
+      }
+    } catch (error) {
+      console.warn('Unable to read stored theme preference', error);
+    }
+    setPreferenceLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!preferenceLoaded) {
       return;
     }
 
@@ -51,7 +53,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.warn('Unable to persist theme preference', error);
     }
-  }, [themeId]);
+  }, [themeId, preferenceLoaded]);
 
   const setTheme = useCallback((id: ThemeId) => {
     setThemeId(id);

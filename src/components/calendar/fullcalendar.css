@@ -1,7 +1,7 @@
 .calendar-surface {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgb(var(--color-zen-200) / 0.65);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.65);
   border-radius: 1.25rem;
   background: rgb(var(--color-surface));
   color: rgb(var(--color-zen-900));
@@ -40,7 +40,7 @@
   width: 44px;
   height: 44px;
   justify-content: center;
-  border: 1px solid rgb(var(--color-zen-200) / 0.7);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.7);
   border-radius: 0.65rem;
 }
 .calendar-date-jump > span {
@@ -58,7 +58,7 @@
   max-width: 145px;
   padding: 0.4rem 0.5rem;
   color: rgb(var(--color-zen-800));
-  border: 1px solid rgb(var(--color-zen-200) / 0.7);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.7);
   border-radius: 0.65rem;
   background: rgb(var(--color-surface));
   font-size: 0.8rem;
@@ -92,7 +92,7 @@
   min-width: 0;
   width: 108px;
   padding: 0.5rem;
-  border: 1px solid rgb(var(--color-zen-200) / 0.7);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.7);
   border-radius: 0.65rem;
   background: rgb(var(--color-surface));
   color: rgb(var(--color-zen-700));
@@ -127,7 +127,7 @@
 }
 .calendar-chip {
   padding: 0.5rem 0.75rem;
-  border: 1px solid rgb(var(--color-zen-200) / 0.7);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.7);
 }
 .calendar-view-button {
   flex: 1;
@@ -149,10 +149,10 @@
 .calendar-body {
   position: relative;
   min-width: 0;
-  border-top: 1px solid rgb(var(--color-zen-200) / 0.5);
+  border-top: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.5);
 }
 .calendar-body .fc {
-  --fc-border-color: rgb(var(--color-zen-200) / 0.45);
+  --fc-border-color: rgb(var(--color-border-zen, var(--color-zen-200)) / 0.45);
   --fc-today-bg-color: rgb(var(--color-sage-500) / 0.06);
   --fc-neutral-bg-color: rgb(var(--color-zen-100) / 0.45);
   --fc-list-event-hover-bg-color: rgb(var(--color-zen-100) / 0.6);
@@ -254,7 +254,7 @@
 }
 .calendar-body .fc .fc-popover {
   max-width: min(320px, calc(100vw - 32px));
-  border: 1px solid rgb(var(--color-zen-200) / 0.6);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.6);
   border-radius: 0.75rem;
   overflow: hidden;
   background: rgb(var(--color-surface));
@@ -301,7 +301,7 @@
 .calendar-body .fc .fc-list-event td {
   padding: 1rem 0.5rem;
   background: transparent;
-  border-color: rgb(var(--color-zen-200) / 0.4);
+  border-color: rgb(var(--color-border-zen, var(--color-zen-200)) / 0.4);
 }
 .calendar-body .fc .fc-list-event-time {
   padding-left: 1rem;
@@ -346,7 +346,7 @@
   max-width: calc(100% - 2rem);
   white-space: nowrap;
   padding: 0.65rem 1rem;
-  border: 1px solid rgb(var(--color-zen-200) / 0.6);
+  border: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.6);
   border-radius: 2rem;
   background: rgb(var(--color-surface) / 0.95);
   color: rgb(var(--color-zen-700));
@@ -362,7 +362,7 @@
   color: rgb(var(--color-zen-600));
   font-size: 0.75rem;
   line-height: 1.6;
-  border-top: 1px solid rgb(var(--color-zen-200) / 0.45);
+  border-top: 1px solid rgb(var(--color-border-zen, var(--color-zen-200)) / 0.45);
 }
 .calendar-move-error {
   padding: 0.75rem 1rem;

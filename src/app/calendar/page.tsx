@@ -392,9 +392,7 @@ export default function CalendarPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="hidden sm:block">
-              <ThemeSwitcher />
-            </div>
+            <ThemeSwitcher />
             <button
               type="button"
               className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-sage-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sage-700"

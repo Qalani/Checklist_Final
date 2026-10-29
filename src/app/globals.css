@@ -80,80 +80,158 @@ body {
   --color-warm-900: 63 51 95;
 }
 
+/* Dark palettes separate foreground, fill and boundary colours.
+ * Tailwind falls back to the original palette in light themes. */
+
 :root[data-theme='midnight-dark'] {
   color-scheme: dark;
-  --color-surface: 12 14 22;
-  /* zen: cool silver-blue — 50/100 = dark surfaces; 200+ = text/UI (bright) */
-  --color-zen-50: 16 19 30;
-  --color-zen-100: 26 30 48;
-  --color-zen-200: 170 180 214;
-  --color-zen-300: 183 193 222;
-  --color-zen-400: 197 207 232;
-  --color-zen-500: 210 218 240;
-  --color-zen-600: 221 228 245;
-  --color-zen-700: 231 236 249;
-  --color-zen-800: 239 242 252;
-  --color-zen-900: 246 249 253;
-  /* sage: teal/cyan — 50/100 = dark teal surfaces; 200+ = bright teal accents */
-  --color-sage-50: 10 22 24;
-  --color-sage-100: 16 38 44;
-  --color-sage-200: 72 180 190;
-  --color-sage-300: 100 202 210;
-  --color-sage-400: 132 218 226;
-  --color-sage-500: 160 228 236;
-  --color-sage-600: 185 238 244;
-  --color-sage-700: 208 245 250;
-  --color-sage-800: 228 250 253;
-  --color-sage-900: 244 252 254;
-  /* warm: amethyst — 50/100 = dark purple surfaces; 200+ = bright purple accents */
-  --color-warm-50: 18 14 28;
-  --color-warm-100: 32 24 52;
-  --color-warm-200: 158 126 200;
-  --color-warm-300: 176 148 214;
-  --color-warm-400: 193 168 226;
-  --color-warm-500: 208 186 236;
-  --color-warm-600: 220 204 244;
-  --color-warm-700: 230 220 249;
-  --color-warm-800: 239 233 252;
-  --color-warm-900: 248 244 254;
+  --color-surface: 25 31 48;
+  --color-zen-50: 16 21 34;
+  --color-zen-100: 34 43 64;
+  --color-zen-200: 194 204 224;
+  --color-zen-300: 179 191 213;
+  --color-zen-400: 158 172 197;
+  --color-zen-500: 175 189 212;
+  --color-zen-600: 196 207 225;
+  --color-zen-700: 214 223 237;
+  --color-zen-800: 228 234 244;
+  --color-zen-900: 241 245 252;
+  --color-sage-50: 20 40 46;
+  --color-sage-100: 28 57 65;
+  --color-sage-200: 115 203 209;
+  --color-sage-300: 128 213 219;
+  --color-sage-400: 137 220 225;
+  --color-sage-500: 105 202 210;
+  --color-sage-600: 121 214 221;
+  --color-sage-700: 148 225 230;
+  --color-sage-800: 177 236 240;
+  --color-sage-900: 212 245 247;
+  --color-warm-50: 37 30 53;
+  --color-warm-100: 54 43 74;
+  --color-warm-200: 192 160 229;
+  --color-warm-300: 201 172 235;
+  --color-warm-400: 208 184 238;
+  --color-warm-500: 187 153 223;
+  --color-warm-600: 200 172 232;
+  --color-warm-700: 215 192 239;
+  --color-warm-800: 228 213 245;
+  --color-warm-900: 240 232 250;
+  --color-bg-zen-50: 16 21 34;
+  --color-bg-zen-100: 34 43 64;
+  --color-bg-zen-200: 44 55 78;
+  --color-bg-zen-300: 54 67 91;
+  --color-bg-zen-400: 60 75 102;
+  --color-bg-zen-500: 64 81 109;
+  --color-bg-zen-600: 55 70 95;
+  --color-bg-zen-700: 46 60 83;
+  --color-bg-zen-800: 37 49 72;
+  --color-bg-zen-900: 29 38 57;
+  --color-bg-sage-50: 20 40 46;
+  --color-bg-sage-100: 28 57 65;
+  --color-bg-sage-200: 37 72 81;
+  --color-bg-sage-300: 45 87 97;
+  --color-bg-sage-400: 35 106 119;
+  --color-bg-sage-500: 36 108 121;
+  --color-bg-sage-600: 32 95 109;
+  --color-bg-sage-700: 27 86 100;
+  --color-bg-sage-800: 36 108 121;
+  --color-bg-sage-900: 26 76 89;
+  --color-bg-warm-50: 37 30 53;
+  --color-bg-warm-100: 54 43 74;
+  --color-bg-warm-200: 70 54 88;
+  --color-bg-warm-300: 87 64 108;
+  --color-bg-warm-400: 105 81 127;
+  --color-bg-warm-500: 112 83 136;
+  --color-bg-warm-600: 98 71 120;
+  --color-bg-warm-700: 85 61 107;
+  --color-bg-warm-800: 112 83 136;
+  --color-bg-warm-900: 72 52 92;
+  --color-border-zen: 83 97 123;
+  --color-border-sage: 66 126 136;
+  --color-border-warm: 128 98 153;
 }
 
 :root[data-theme='forest-dark'] {
   color-scheme: dark;
-  --color-surface: 12 17 14;
-  /* zen: warm sage-silver — 50/100 = dark surfaces; 200+ = text/UI (bright) */
-  --color-zen-50: 16 23 18;
-  --color-zen-100: 26 38 30;
-  --color-zen-200: 162 178 167;
-  --color-zen-300: 176 192 180;
-  --color-zen-400: 190 205 194;
-  --color-zen-500: 203 217 207;
-  --color-zen-600: 215 228 219;
-  --color-zen-700: 225 237 229;
-  --color-zen-800: 236 244 238;
-  --color-zen-900: 248 252 250;
-  /* sage: emerald — 50/100 = dark green surfaces; 200+ = bright emerald accents */
-  --color-sage-50: 12 24 16;
-  --color-sage-100: 20 44 28;
-  --color-sage-200: 82 182 118;
-  --color-sage-300: 110 202 148;
-  --color-sage-400: 138 218 174;
-  --color-sage-500: 164 230 196;
-  --color-sage-600: 188 240 214;
-  --color-sage-700: 210 247 230;
-  --color-sage-800: 229 251 241;
-  --color-sage-900: 244 253 248;
-  /* warm: amber/gold — 50/100 = dark amber surfaces; 200+ = bright amber accents */
-  --color-warm-50: 24 18 10;
-  --color-warm-100: 44 32 14;
-  --color-warm-200: 190 150 74;
-  --color-warm-300: 205 166 94;
-  --color-warm-400: 218 183 116;
-  --color-warm-500: 229 198 140;
-  --color-warm-600: 238 214 164;
-  --color-warm-700: 244 226 188;
-  --color-warm-800: 249 238 212;
-  --color-warm-900: 253 248 234;
+  --color-surface: 26 40 34;
+  --color-zen-50: 16 28 23;
+  --color-zen-100: 37 55 46;
+  --color-zen-200: 198 215 203;
+  --color-zen-300: 182 203 189;
+  --color-zen-400: 159 184 168;
+  --color-zen-500: 175 198 184;
+  --color-zen-600: 199 216 205;
+  --color-zen-700: 216 229 220;
+  --color-zen-800: 231 238 233;
+  --color-zen-900: 242 247 243;
+  --color-sage-50: 22 46 35;
+  --color-sage-100: 32 67 51;
+  --color-sage-200: 132 214 168;
+  --color-sage-300: 146 224 180;
+  --color-sage-400: 155 229 188;
+  --color-sage-500: 126 212 160;
+  --color-sage-600: 144 223 176;
+  --color-sage-700: 170 233 194;
+  --color-sage-800: 196 241 214;
+  --color-sage-900: 225 248 233;
+  --color-warm-50: 43 37 24;
+  --color-warm-100: 65 55 33;
+  --color-warm-200: 221 186 117;
+  --color-warm-300: 229 198 139;
+  --color-warm-400: 236 208 156;
+  --color-warm-500: 220 181 107;
+  --color-warm-600: 230 196 134;
+  --color-warm-700: 237 211 159;
+  --color-warm-800: 244 226 188;
+  --color-warm-900: 250 239 216;
+  --color-bg-zen-50: 16 28 23;
+  --color-bg-zen-100: 37 55 46;
+  --color-bg-zen-200: 48 70 58;
+  --color-bg-zen-300: 58 83 69;
+  --color-bg-zen-400: 64 94 78;
+  --color-bg-zen-500: 69 100 81;
+  --color-bg-zen-600: 58 85 70;
+  --color-bg-zen-700: 48 72 59;
+  --color-bg-zen-800: 41 62 50;
+  --color-bg-zen-900: 33 51 41;
+  --color-bg-sage-50: 22 46 35;
+  --color-bg-sage-100: 32 67 51;
+  --color-bg-sage-200: 41 79 61;
+  --color-bg-sage-300: 49 94 72;
+  --color-bg-sage-400: 45 113 77;
+  --color-bg-sage-500: 48 117 78;
+  --color-bg-sage-600: 40 102 67;
+  --color-bg-sage-700: 33 91 59;
+  --color-bg-sage-800: 48 117 78;
+  --color-bg-sage-900: 28 78 51;
+  --color-bg-warm-50: 43 37 24;
+  --color-bg-warm-100: 65 55 33;
+  --color-bg-warm-200: 82 67 42;
+  --color-bg-warm-300: 98 80 51;
+  --color-bg-warm-400: 119 96 52;
+  --color-bg-warm-500: 124 97 52;
+  --color-bg-warm-600: 110 84 43;
+  --color-bg-warm-700: 96 72 37;
+  --color-bg-warm-800: 124 97 52;
+  --color-bg-warm-900: 82 62 34;
+  --color-border-zen: 84 110 95;
+  --color-border-sage: 69 132 94;
+  --color-border-warm: 144 115 68;
+}
+
+/* Existing low-numbered dark text utilities remain readable on dark fills. */
+:root[data-theme$='dark'] {
+  --color-text-zen-50: var(--color-zen-900);
+  --color-text-zen-100: var(--color-zen-800);
+  --color-text-sage-50: var(--color-sage-900);
+  --color-text-sage-100: var(--color-sage-800);
+  --color-text-warm-50: var(--color-warm-900);
+  --color-text-warm-100: var(--color-warm-800);
+  --color-bg-white: var(--color-surface);
+  --color-danger: 255 163 174;
+  --color-danger-surface: 64 32 42;
+  --color-danger-hover: 84 40 52;
+  --color-danger-border: 141 79 91;
 }
 
 @layer base {
@@ -178,82 +256,45 @@ body {
   }
 }
 
-/*
- * Dark-mode button / filled-accent background corrections.
- *
- * Shades 500-700 are near-white text colours in both dark themes.
- * Solid interactive elements (buttons, banners) that use these shades
- * with white text would become unreadable without an override.
- *
- * Each filled shade is remapped to its -200 accent at reduced opacity,
- * which composites over the very dark surface and produces a saturated
- * but dark background — keeping white text clearly legible.
- *
- *   -500 / -600  →  accent-200 @ 45 %  (default state)
- *   -700         →  accent-200 @ 58 %  (hover-up / pressed)
- *   hover:-500   →  accent-200 @ 35 %  (hover-down variant)
- *   hover:-600   →  accent-200 @ 45 %  (hover partner for -500 base)
- *   hover:-700   →  accent-200 @ 58 %  (hover partner for -600 base)
- *
- * Specificity: [attr + class] = (0,2,0) beats Tailwind's plain [class] = (0,1,0).
- * These rules live outside @layer so they also win over any in-layer utility.
- */
+/* Consistent, visible interaction feedback across both dark palettes. */
+@layer base {
+  :root[data-theme$='dark'] {
+    accent-color: rgb(var(--color-sage-500));
+    scrollbar-color: rgb(var(--color-border-zen)) rgb(var(--color-zen-50));
+  }
 
-/* sage (teal / emerald) */
-[data-theme$='dark'] .bg-sage-500,
-[data-theme$='dark'] .bg-sage-600 {
-  background-color: rgb(var(--color-sage-200) / 0.45);
-}
-[data-theme$='dark'] .bg-sage-700 {
-  background-color: rgb(var(--color-sage-200) / 0.58);
-}
-[data-theme$='dark'] .hover\:bg-sage-500:hover {
-  background-color: rgb(var(--color-sage-200) / 0.35);
-}
-[data-theme$='dark'] .hover\:bg-sage-600:hover {
-  background-color: rgb(var(--color-sage-200) / 0.45);
-}
-[data-theme$='dark'] .hover\:bg-sage-700:hover {
-  background-color: rgb(var(--color-sage-200) / 0.58);
-}
-[data-theme$='dark'] .hover\:bg-sage-800:hover {
-  background-color: rgb(var(--color-sage-200) / 0.65);
+  :root[data-theme$='dark'] :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--color-sage-400));
+    outline-offset: 3px;
+    --tw-ring-offset-color: rgb(var(--color-surface));
+  }
+
+  :root[data-theme$='dark'] :is(input, textarea)::placeholder {
+    color: rgb(var(--color-zen-400));
+    opacity: 1;
+  }
+
+  :root[data-theme$='dark'] :is(input:not([type='checkbox']):not([type='radio']), textarea, select) {
+    background-color: rgb(var(--color-zen-50));
+    color: rgb(var(--color-zen-900));
+  }
+
+  :root[data-theme$='dark'] ::selection {
+    background: rgb(var(--color-sage-300) / 0.28);
+    color: rgb(var(--color-zen-900));
+  }
 }
 
-/* zen (silver-blue / sage-silver) */
-[data-theme$='dark'] .bg-zen-500,
-[data-theme$='dark'] .bg-zen-600 {
-  background-color: rgb(var(--color-zen-200) / 0.45);
-}
-[data-theme$='dark'] .bg-zen-700 {
-  background-color: rgb(var(--color-zen-200) / 0.58);
-}
-[data-theme$='dark'] .hover\:bg-zen-500:hover {
-  background-color: rgb(var(--color-zen-200) / 0.35);
-}
-[data-theme$='dark'] .hover\:bg-zen-600:hover {
-  background-color: rgb(var(--color-zen-200) / 0.45);
-}
-[data-theme$='dark'] .hover\:bg-zen-700:hover {
-  background-color: rgb(var(--color-zen-200) / 0.58);
+[data-theme$='dark'] .workspace-card {
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.14);
 }
 
-/* warm (amethyst / amber) */
-[data-theme$='dark'] .bg-warm-500,
-[data-theme$='dark'] .bg-warm-600 {
-  background-color: rgb(var(--color-warm-200) / 0.45);
+[data-theme$='dark'] nav [aria-current='page'] {
+  box-shadow: inset 3px 0 rgb(var(--color-sage-500));
 }
-[data-theme$='dark'] .bg-warm-700 {
-  background-color: rgb(var(--color-warm-200) / 0.58);
-}
-[data-theme$='dark'] .hover\:bg-warm-500:hover {
-  background-color: rgb(var(--color-warm-200) / 0.35);
-}
-[data-theme$='dark'] .hover\:bg-warm-600:hover {
-  background-color: rgb(var(--color-warm-200) / 0.45);
-}
-[data-theme$='dark'] .hover\:bg-warm-700:hover {
-  background-color: rgb(var(--color-warm-200) / 0.58);
+
+[data-theme$='dark'] :is(input:not([type='checkbox']):not([type='radio']), textarea, select) {
+  border-color: rgb(var(--color-zen-400) / 0.7);
 }
 
 /* Quiet, shared surfaces for the workspace overview. */

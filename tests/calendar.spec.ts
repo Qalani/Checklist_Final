@@ -301,8 +301,9 @@ test('calendar and event details work in a persistent dark theme', async ({ page
   await page.setViewportSize({ width: 1440, height: 1000 });
   calendarApi.events.push(seedEvent('Evening focus', { location: 'Quiet room' }));
   await openCalendar(page);
-  await page.getByRole('button', { name: 'Zen light', exact: true }).click();
-  await page.getByRole('button', { name: /^Midnight dark / }).click();
+  await page.getByRole('button', { name: /Change theme/ }).click();
+  await page.getByRole('radio', { name: /^Midnight dark / }).check();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight-dark');
   await expect(calendarItem(page, 'Evening focus')).toBeVisible();
   await screenshot(page, testInfo, 'calendar-dark.png');
