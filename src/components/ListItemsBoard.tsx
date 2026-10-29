@@ -19,16 +19,17 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckSquare, GripVertical, Plus, Square, Trash2 } from 'lucide-react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { ListItem } from '@/types';
 import { SyncStatusBadge } from './SyncStatusBadge';
+import CompletionToggle from './CompletionToggle';
 
 interface ListItemsBoardProps {
   items: ListItem[];
   canEdit: boolean;
   editing?: boolean;
   onAddItem?: () => Promise<string | null>;
-  onToggleItem?: (itemId: string, completed: boolean) => Promise<void> | void;
+  onToggleItem?: (itemId: string, completed: boolean) => Promise<void | boolean> | void | boolean;
   onContentCommit?: (itemId: string, content: string) => Promise<void> | void;
   onDeleteItem?: (itemId: string) => Promise<void> | void;
   onReorder?: (orderedIds: string[]) => Promise<void> | void;
@@ -39,7 +40,7 @@ interface SortableListItemProps {
   item: ListItem;
   canEdit: boolean;
   editing: boolean;
-  onToggle?: (completed: boolean) => Promise<void> | void;
+  onToggle?: (completed: boolean) => Promise<void | boolean> | void | boolean;
   onContentCommit?: (content: string) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
   autoFocus?: boolean;
@@ -222,22 +223,15 @@ function SortableListItem({
           <GripVertical className="h-4 w-4" />
         </button>
       )}
-      <button
-        type="button"
-        className={`mt-0.5 flex-shrink-0 ${
-          canEdit ? 'text-sage-500 hover:text-sage-600' : 'text-sage-300'
-        }`}
-        aria-label={item.completed ? 'Mark item as incomplete' : 'Mark item as complete'}
+      <CompletionToggle
+        completed={item.completed}
+        label="Item completed"
+        subject="item"
+        shape="square"
+        size="sm"
         disabled={!canEdit || !onToggle}
-        onClick={() => {
-          if (!canEdit || !onToggle) {
-            return;
-          }
-          void onToggle(!item.completed);
-        }}
-      >
-        {item.completed ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-      </button>
+        onToggle={() => onToggle?.(!item.completed)}
+      />
       <div className="flex-1 min-w-0">
         {canEdit && editing && onContentCommit ? (
           <textarea

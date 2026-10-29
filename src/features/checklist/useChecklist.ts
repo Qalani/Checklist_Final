@@ -5,7 +5,7 @@ import { ChecklistManager, type ChecklistSnapshot } from './ChecklistManager';
 interface UseChecklistResult extends ChecklistSnapshot {
   saveTask: (taskData: Partial<Task>, existing: Task | null) => Promise<{ error?: string } | void>;
   deleteTask: (id: string) => Promise<void>;
-  toggleTask: (id: string, completed: boolean) => Promise<void>;
+  toggleTask: (id: string, completed: boolean) => Promise<boolean>;
   reorderTasks: (tasks: Task[]) => Promise<void>;
   createCategory: (input: { name: string; color: string }) => Promise<Category>;
   updateCategory: (id: string, input: { name: string; color: string }) => Promise<void>;

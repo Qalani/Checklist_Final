@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 
 interface UseTaskRemindersOptions {
   tasks: Task[];
-  toggleTaskFn: (id: string, completed: boolean) => Promise<void>;
+  toggleTaskFn: (id: string, completed: boolean) => Promise<boolean>;
 }
 
 export function useTaskReminders({ tasks, toggleTaskFn }: UseTaskRemindersOptions) {
@@ -234,11 +234,12 @@ export function useTaskReminders({ tasks, toggleTaskFn }: UseTaskRemindersOption
   const handleToggleTask = useCallback(
     async (id: string, completed: boolean) => {
       const task = tasks.find(currentTask => currentTask.id === id);
-      await toggleTaskFn(id, completed);
+      const succeeded = await toggleTaskFn(id, completed);
 
-      if (completed && task) {
+      if (succeeded && completed && task && !task.completed) {
         showTaskCompletionNotification(task.title);
       }
+      return succeeded;
     },
     [showTaskCompletionNotification, tasks, toggleTaskFn],
   );
