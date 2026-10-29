@@ -88,11 +88,15 @@ export default function NotesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedDraft, setSavedDraft] = useState({ title: '', content: '' });
   const lastSavedTitleRef = useRef('');
   const lastSavedContentRef = useRef('');
   const previousNoteIdRef = useRef<string | null>(null);
   const lastSyncedVersionRef = useRef<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const flushSaveRef = useRef<() => Promise<void>>(async () => {});
+  const activeSaveRef = useRef<Promise<void> | null>(null);
+  const latestDraftRef = useRef({ noteId: null as string | null, title: '', content: '' });
 
   useEffect(() => {
     if (!authChecked) {
@@ -115,12 +119,13 @@ export default function NotesPage() {
     return notes.find(note => note.id === selectedNoteId) ?? null;
   }, [notes, selectedNoteId]);
 
-  const isDirty = useMemo(() => {
-    return (
-      draftTitle.trim() !== lastSavedTitleRef.current.trim() ||
-      draftContent !== lastSavedContentRef.current
-    );
-  }, [draftContent, draftTitle]);
+  latestDraftRef.current = { noteId: activeNote?.id ?? null, title: draftTitle, content: draftContent };
+  // The acknowledged draft is state so every completed save updates the
+  // button, even when saving did not otherwise change the draft values.
+  const isDirty = (
+    (draftTitle.trim() || 'Untitled document') !== (savedDraft.title.trim() || 'Untitled document') ||
+    draftContent !== savedDraft.content
+  );
 
   useEffect(() => {
     if (!activeNote) {
@@ -128,6 +133,7 @@ export default function NotesPage() {
       setDraftContent('');
       lastSavedTitleRef.current = '';
       lastSavedContentRef.current = '';
+      setSavedDraft({ title: '', content: '' });
       previousNoteIdRef.current = null;
       lastSyncedVersionRef.current = null;
       setSaveStatus('idle');
@@ -157,69 +163,78 @@ export default function NotesPage() {
     lastSyncedVersionRef.current = noteVersion;
     lastSavedTitleRef.current = noteTitle;
     lastSavedContentRef.current = noteContent;
+    setSavedDraft({ title: noteTitle, content: noteContent });
     setDraftTitle(noteTitle);
     setDraftContent(noteContent);
     setSaveStatus('idle');
     setSaveError(null);
   }, [activeNote, isDirty]);
 
-  const flushSave = useCallback(async () => {
-    if (!activeNote) {
-      return;
-    }
+  const flushSave = useCallback((): Promise<void> => {
+    if (activeSaveRef.current) return activeSaveRef.current;
+    if (!activeNote) return Promise.resolve();
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
 
-    const trimmedTitle = draftTitle.trim() || 'Untitled document';
-    const hasTitleChanged = trimmedTitle !== lastSavedTitleRef.current;
-    const hasContentChanged = draftContent !== lastSavedContentRef.current;
-
-    if (!hasTitleChanged && !hasContentChanged) {
+    const noteId = activeNote.id;
+    const submittedTitle = draftTitle;
+    const submittedContent = draftContent;
+    const trimmedTitle = submittedTitle.trim() || 'Untitled document';
+    if (trimmedTitle === lastSavedTitleRef.current && submittedContent === lastSavedContentRef.current) {
       setSaveStatus(prev => (prev === 'saving' ? 'idle' : prev));
-      return;
+      return Promise.resolve();
     }
 
     setSaveStatus('saving');
     setSaveError(null);
+    let succeeded = false;
+    const save = (async () => {
+      try {
+        const result = await updateNote(noteId, { title: trimmedTitle, content: submittedContent });
+        if (result && 'error' in result) throw new Error(result.error);
+        const savedNote = result && 'note' in result ? result.note : null;
+        if (latestDraftRef.current.noteId !== noteId) return;
 
-    const result = await updateNote(activeNote.id, {
-      title: trimmedTitle,
-      content: draftContent,
+        const nextTitle = savedNote?.title ?? trimmedTitle;
+        const nextContent = savedNote?.content ?? submittedContent;
+        lastSavedTitleRef.current = nextTitle;
+        lastSavedContentRef.current = nextContent;
+        setSavedDraft({ title: nextTitle, content: nextContent });
+        previousNoteIdRef.current = noteId;
+        lastSyncedVersionRef.current = savedNote?.updated_at ?? savedNote?.created_at ?? (
+          activeNote.updated_at ?? activeNote.created_at ?? null
+        );
+        // A server acknowledgement must not replace typing that happened while
+        // the write was in flight.
+        setDraftTitle(current => current === submittedTitle ? nextTitle : current);
+        setDraftContent(current => current === submittedContent ? nextContent : current);
+        setSaveStatus('saved');
+        succeeded = true;
+      } catch (error) {
+        if (latestDraftRef.current.noteId === noteId) {
+          setSaveStatus('error');
+          setSaveError(error instanceof Error ? error.message : 'Unable to save document.');
+        }
+      }
+    })();
+    activeSaveRef.current = save.finally(() => {
+      activeSaveRef.current = null;
+      const latest = latestDraftRef.current;
+      if (succeeded && latest.noteId === noteId && (
+        (latest.title.trim() || 'Untitled document') !== lastSavedTitleRef.current ||
+        latest.content !== lastSavedContentRef.current
+      )) {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = setTimeout(() => { void flushSaveRef.current(); }, SAVE_DEBOUNCE_MS);
+      }
     });
-
-    if (result && 'error' in result) {
-      setSaveStatus('error');
-      setSaveError(result.error);
-      return;
-    }
-
-    const savedNote = result && 'note' in result ? result.note : null;
-    const nextTitle = savedNote?.title ?? trimmedTitle;
-    const nextContent = savedNote?.content ?? draftContent;
-
-    lastSavedTitleRef.current = nextTitle;
-    lastSavedContentRef.current = nextContent;
-    previousNoteIdRef.current = activeNote.id;
-    lastSyncedVersionRef.current = savedNote?.updated_at ?? savedNote?.created_at ?? (
-      activeNote.updated_at ?? activeNote.created_at ?? null
-    );
-
-    if (draftTitle !== nextTitle) {
-      setDraftTitle(nextTitle);
-    }
-
-    if (draftContent !== nextContent) {
-      setDraftContent(nextContent);
-    }
-
-    setSaveStatus('saved');
-    setTimeout(() => {
-      setSaveStatus('idle');
-    }, 1500);
+    return activeSaveRef.current;
   }, [activeNote, draftContent, draftTitle, updateNote]);
+
+  useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
 
   const queueSave = useCallback(() => {
     if (!activeNote) {
@@ -235,9 +250,9 @@ export default function NotesPage() {
 
     saveTimeoutRef.current = setTimeout(() => {
       saveTimeoutRef.current = null;
-      void flushSave();
+      void flushSaveRef.current();
     }, SAVE_DEBOUNCE_MS);
-  }, [activeNote, flushSave]);
+  }, [activeNote]);
 
   useEffect(() => {
     return () => {
@@ -245,9 +260,9 @@ export default function NotesPage() {
         clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = null;
       }
-      void flushSave();
+      void flushSaveRef.current();
     };
-  }, [flushSave]);
+  }, []);
 
   const handleSelectNote = useCallback(
     async (note: Note) => {

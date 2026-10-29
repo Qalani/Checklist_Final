@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows, getCachedTasks, mergePendingRows } from '@/lib/offline-cache';
 import { isOnline } from '@/lib/network-status';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
 import type { Category, ReminderRecurrence, Task } from '@/types';
@@ -42,7 +43,7 @@ export function normalizeReminderFields(task: Task): Task {
 
 export async function fetchTasks(userId: string, options: FetchTasksOptions = {}): Promise<Task[]> {
   if (!isOnline()) {
-    const rows = await db.tasks.where('user_id').equals(userId).toArray();
+    const rows = await getCachedTasks(userId);
     return rows
       .map(task => ({ ...normalizeReminderFields(task), access_role: task.access_role ?? 'owner' }))
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -66,7 +67,7 @@ export async function fetchTasks(userId: string, options: FetchTasksOptions = {}
 
   const records = Array.isArray(data) ? data : [];
 
-  return records.map((record) => {
+  const tasks = records.map((record) => {
     const task = normalizeReminderFields(record as Task);
     return {
       ...task,
@@ -74,6 +75,8 @@ export async function fetchTasks(userId: string, options: FetchTasksOptions = {}
         (record as { access_role?: Task['access_role'] }).access_role ?? (record.user_id === userId ? 'owner' : undefined),
     };
   });
+  await cacheRows('tasks', tasks, userId);
+  return mergePendingRows('tasks', tasks, userId);
 }
 
 export async function fetchCategories(userId: string): Promise<Category[]> {
@@ -97,5 +100,6 @@ export async function fetchCategories(userId: string): Promise<Category[]> {
     throw new Error(error.message || 'Failed to load categories.');
   }
 
-  return data ?? [];
+  await cacheRows('categories', data ?? [], userId);
+  return mergePendingRows('categories', data ?? [], userId);
 }

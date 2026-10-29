@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows, cacheDelete, mergePendingRows, shouldQueueWrite } from '@/lib/offline-cache';
 import { enqueue } from '@/lib/sync-queue';
 import { extractErrorMessage } from '@/utils/extract-error-message';
-import { isOnline } from '@/lib/network-status';
+import { isOnline, onStatusChange } from '@/lib/network-status';
 import type { Note } from '@/types';
 import { computeNoteMetadata } from './noteUtils';
 
@@ -85,8 +86,9 @@ export async function fetchNotes(userId: string): Promise<Note[]> {
     throw new Error(error.message || 'Unable to load notes.');
   }
 
-  const rows = data ?? [];
-  return rows.map(row => mapRowToNote(row));
+  const rows = (data ?? []).map(mapRowToNote);
+  await cacheRows('notes', rows, userId);
+  return mergePendingRows('notes', rows, userId);
 }
 
 export function useNotes(userId: string | null): UseNotesResult {
@@ -161,6 +163,17 @@ export function useNotes(userId: string | null): UseNotesResult {
   );
 
   useEffect(() => {
+    if (!userId) return;
+    const refreshCachedView = () => { void runRefresh(true); };
+    const unsubscribe = onStatusChange(refreshCachedView);
+    window.addEventListener('zen-sync-complete', refreshCachedView);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('zen-sync-complete', refreshCachedView);
+    };
+  }, [runRefresh, userId]);
+
+  useEffect(() => {
     if (!userId) {
       reset();
       return;
@@ -187,6 +200,12 @@ export function useNotes(userId: string | null): UseNotesResult {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${userId}` },
         payload => {
+          if (payload.eventType === 'DELETE') {
+            const removedId = (payload.old as { id?: string } | null)?.id;
+            if (removedId) void cacheDelete('notes', removedId);
+          } else if (payload.new) {
+            void cacheRows('notes', [payload.new], userId);
+          }
           setState(prev => {
             const notes = notesRef.current;
 
@@ -262,7 +281,7 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       const { html, summary, wordCount } = computeNoteMetadata(rawContent);
 
-      if (!isOnline()) {
+      if (await shouldQueueWrite(userId)) {
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const note: Note = {
@@ -275,8 +294,10 @@ export function useNotes(userId: string | null): UseNotesResult {
           created_at: isoTimestamp ?? now,
           updated_at: isoTimestamp ?? now,
         };
-        await db.notes.put(note);
-        await enqueue({ table_name: 'notes', operation: 'INSERT', payload: note as Record<string, unknown> });
+        await db.transaction('rw', [db.notes, db.sync_queue], async () => {
+          await db.notes.put(note);
+          await enqueue({ user_id: userId, table_name: 'notes', operation: 'INSERT', payload: note as Record<string, unknown> });
+        });
         const nextNotes = [note, ...notesRef.current];
         nextNotes.sort((a, b) => {
           const aDate = a.updated_at ?? a.created_at ?? '';
@@ -316,6 +337,7 @@ export function useNotes(userId: string | null): UseNotesResult {
       }
 
       const note = mapRowToNote(data);
+      await cacheRows('notes', [note], userId);
       const nextNotes = [note, ...notesRef.current];
       nextNotes.sort((a, b) => {
         const aDate = a.updated_at ?? a.created_at ?? '';
@@ -371,14 +393,18 @@ export function useNotes(userId: string | null): UseNotesResult {
           const bDate = b.updated_at ?? b.created_at ?? '';
           return bDate.localeCompare(aDate);
         });
-      notesRef.current = optimisticNotes;
-      setState(prev => ({ ...prev, notes: optimisticNotes }));
-
-      if (!isOnline()) {
-        await db.notes.put(optimisticNote);
-        await enqueue({ table_name: 'notes', operation: 'UPDATE', payload: optimisticNote as Record<string, unknown> });
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.notes, db.sync_queue], async () => {
+          await db.notes.put(optimisticNote);
+          await enqueue({ user_id: userId, table_name: 'notes', operation: 'UPDATE', payload: optimisticNote as Record<string, unknown> });
+        });
+        notesRef.current = optimisticNotes;
+        setState(prev => ({ ...prev, notes: optimisticNotes }));
         return { note: optimisticNote };
       }
+
+      notesRef.current = optimisticNotes;
+      setState(prev => ({ ...prev, notes: optimisticNotes }));
 
       setState(prev => ({ ...prev, syncing: true }));
 
@@ -406,6 +432,7 @@ export function useNotes(userId: string | null): UseNotesResult {
       }
 
       const mapped = mapRowToNote(data);
+      await cacheRows('notes', [mapped], userId);
       const confirmedNotes = notesRef.current
         .map(n => (n.id === mapped.id ? mapped : n))
         .sort((a, b) => {
@@ -436,14 +463,18 @@ export function useNotes(userId: string | null): UseNotesResult {
 
       // Optimistically remove from UI immediately
       const filtered = notesRef.current.filter(n => n.id !== id);
-      notesRef.current = filtered;
-      setState(prev => ({ ...prev, notes: filtered }));
-
-      if (!isOnline()) {
-        await db.notes.delete(id);
-        await enqueue({ table_name: 'notes', operation: 'DELETE', payload: { id } });
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.notes, db.sync_queue], async () => {
+          await db.notes.delete(id);
+          await enqueue({ user_id: userId, table_name: 'notes', operation: 'DELETE', payload: { id } });
+        });
+        notesRef.current = filtered;
+        setState(prev => ({ ...prev, notes: filtered }));
         return;
       }
+
+      notesRef.current = filtered;
+      setState(prev => ({ ...prev, notes: filtered }));
 
       setState(prev => ({ ...prev, syncing: true }));
 
@@ -470,6 +501,7 @@ export function useNotes(userId: string | null): UseNotesResult {
         return { error: message };
       }
 
+      await cacheDelete('notes', id);
       setState(prev => ({ ...prev, syncing: false }));
     },
     [userId],

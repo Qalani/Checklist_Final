@@ -1,4 +1,7 @@
+import Dexie from 'dexie';
 import { db, type SyncQueueEntry } from '@/lib/local-db';
+import { supabase } from '@/lib/supabase';
+import { getSyncUser } from '@/lib/sync-session';
 
 export type SyncOperation = 'INSERT' | 'UPDATE' | 'DELETE';
 
@@ -15,15 +18,30 @@ export type { SyncQueueEntry };
  * online-event fallback in sync-engine.ts remains the safety net.
  */
 export async function enqueue(
-  entry: Pick<SyncQueueEntry, 'table_name' | 'operation' | 'payload'>
+  entry: Pick<SyncQueueEntry, 'table_name' | 'operation' | 'payload'> & { user_id?: string }
 ): Promise<void> {
+  const userId = entry.user_id ?? getSyncUser() ?? (await supabase.auth.getSession()).data.session?.user.id;
+  if (!userId) throw new Error('Sign in before saving changes for sync.');
+
+  const transaction = Dexie.currentTransaction;
   await db.sync_queue.add({
+    user_id: userId,
     table_name: entry.table_name,
     operation: entry.operation,
     payload: entry.payload,
     queued_at: new Date().toISOString(),
     retries: 0,
   });
+
+  // Queue replay must start after the enclosing local-write transaction commits.
+  // Starting it inside the transaction can deadlock against its own DB reads.
+  const schedule = () => {
+    if (typeof window !== 'undefined') {
+      setTimeout(() => window.dispatchEvent(new Event('zen-sync-request')), 0);
+    }
+  };
+  if (transaction) transaction.on('complete', schedule);
+  else schedule();
 
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.ready
@@ -44,7 +62,7 @@ export async function enqueue(
  * Returns all pending sync queue entries ordered by the time they were queued.
  */
 export async function getAll(): Promise<SyncQueueEntry[]> {
-  return db.sync_queue.orderBy('queued_at').toArray();
+  return db.sync_queue.orderBy('id').toArray();
 }
 
 /**
@@ -71,10 +89,7 @@ export async function incrementRetry(id: number): Promise<void> {
  * Call this when the user clicks "Retry" on an item in error state.
  */
 export async function retryEntry(entry: SyncQueueEntry): Promise<void> {
-  await db.sync_queue.delete(entry.id!);
-  await enqueue({
-    table_name: entry.table_name,
-    operation: entry.operation,
-    payload: entry.payload,
-  });
+  // Reset in place: moving a failed INSERT behind its UPDATE/DELETE would
+  // break dependency order and could resurrect deleted records.
+  await db.sync_queue.update(entry.id!, { retries: 0 });
 }

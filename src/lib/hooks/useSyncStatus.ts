@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { liveQuery } from 'dexie';
 import { db, type SyncQueueEntry } from '@/lib/local-db';
+import { getSyncUser } from '@/lib/sync-session';
 
-// Keep in sync with MAX_RETRIES in sync-engine.ts
+// Show persistent failures after three attempts; future reconnects still retry.
 const MAX_RETRIES = 3;
 
 export type ItemSyncStatus = 'synced' | 'pending' | 'error';
@@ -22,6 +23,7 @@ export function useSyncStatus(
   tableName: string,
   id: string,
 ): { status: ItemSyncStatus; entry: SyncQueueEntry | undefined } {
+  const userId = getSyncUser();
   const [status, setStatus] = useState<ItemSyncStatus>('synced');
   const [entry, setEntry] = useState<SyncQueueEntry | undefined>(undefined);
 
@@ -30,7 +32,8 @@ export function useSyncStatus(
       db.sync_queue.where('table_name').equals(tableName).toArray()
     ).subscribe((entries) => {
       const found = entries.find(
-        (e) => (e.payload as { id?: string }).id === id
+        (e) => (e.payload as { id?: string }).id === id &&
+          (e.user_id === userId || (!e.user_id && e.payload.user_id === userId))
       );
 
       if (!found) {
@@ -46,7 +49,7 @@ export function useSyncStatus(
     });
 
     return () => subscription.unsubscribe();
-  }, [tableName, id]);
+  }, [tableName, id, userId]);
 
   return { status, entry };
 }

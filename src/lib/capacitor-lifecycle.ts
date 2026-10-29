@@ -1,5 +1,5 @@
 import { isCapacitorNative } from '@/lib/capacitor-auth';
-import { pushQueue } from '@/lib/sync-engine';
+import { syncAll } from '@/lib/sync-engine';
 import { isOnline } from '@/lib/network-status';
 
 /**
@@ -22,7 +22,7 @@ export function installAppLifecycleHooks(): void {
 
   const triggerSync = () => {
     if (isOnline()) {
-      pushQueue().catch((err) => {
+      syncAll().catch((err) => {
         console.warn('lifecycle: push on resume failed', err);
       });
     }
@@ -35,6 +35,7 @@ export function installAppLifecycleHooks(): void {
   });
 
   window.addEventListener('focus', triggerSync);
+  triggerSync();
 
   if (isCapacitorNative()) {
     import('@capacitor/app')

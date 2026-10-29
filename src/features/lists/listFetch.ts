@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows, mergePendingRows } from '@/lib/offline-cache';
 import { isOnline } from '@/lib/network-status';
 import type { List, ListItem } from '@/types';
 import { isListItemRow, mapListItem } from './listTypes';
@@ -42,6 +43,9 @@ export async function fetchLists(userId: string): Promise<List[]> {
     .from('list_members')
     .select(
       `
+        id,
+        user_id,
+        created_at,
         role,
         list_id,
         list:lists(
@@ -85,9 +89,14 @@ export async function fetchLists(userId: string): Promise<List[]> {
       } satisfies List;
     });
 
-  const listIds = lists.map(list => list.id).filter(Boolean);
+  await cacheRows('lists', lists, userId);
+  await cacheRows('list_members', records.filter(record => record.id).map(record => ({
+    id: record.id!, user_id: userId, list_id: record.list_id, role: record.role, created_at: record.created_at,
+  })), userId);
+  const mergedLists = await mergePendingRows('lists', lists, userId);
+  const listIds = mergedLists.map(list => list.id).filter(Boolean);
   if (listIds.length === 0) {
-    return lists;
+    return mergedLists;
   }
 
   const { data: itemsData, error: itemsError } = await supabase
@@ -102,14 +111,17 @@ export async function fetchLists(userId: string): Promise<List[]> {
     throw new Error(itemsError.message || 'Failed to load list items.');
   }
 
+  const rows = (itemsData ?? []).map(mapListItem);
+  await cacheRows('list_items', rows, userId);
+  const mergedItems = await mergePendingRows('list_items', rows, userId);
   const itemsByList = new Map<string, ListItem[]>();
-  for (const row of itemsData ?? []) {
+  for (const row of mergedItems) {
     const existing = itemsByList.get(row.list_id) ?? [];
-    existing.push(mapListItem(row));
+    existing.push(row);
     itemsByList.set(row.list_id, existing);
   }
 
-  return lists.map(list => ({
+  return mergedLists.map(list => ({
     ...list,
     items: itemsByList.get(list.id) ?? [],
   }));

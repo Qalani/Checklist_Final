@@ -3,22 +3,16 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Upload, X, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-
-interface ImportResult {
-  imported: number;
-  skipped: number;
-  truncated: number;
-  errors: string[];
-}
+import { importListFile, type ImportResult, type ImportedList } from '@/features/imports/file-import';
 
 interface ImportListsModalProps {
   open: boolean;
   onClose: () => void;
   onImported: () => void;
+  onImportList: (input: ImportedList) => Promise<void | { error?: string }>;
 }
 
-export default function ImportListsModal({ open, onClose, onImported }: ImportListsModalProps) {
+export default function ImportListsModal({ open, onClose, onImported, onImportList }: ImportListsModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -49,33 +43,11 @@ export default function ImportListsModal({ open, onClose, onImported }: ImportLi
     setResult(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      if (!token) {
-        setError('You must be signed in to import lists.');
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      const response = await fetch('/api/lists/import', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      const json = await response.json();
-
-      if (!response.ok) {
-        setError(json.error ?? 'Import failed. Please try again.');
-        return;
-      }
-
-      setResult(json as ImportResult);
+      const imported = await importListFile(selectedFile, onImportList);
+      setResult(imported);
       onImported();
-    } catch {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Import failed. Please try again.');
     } finally {
       setImporting(false);
     }

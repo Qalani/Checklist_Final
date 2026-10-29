@@ -1,6 +1,7 @@
 import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows } from '@/lib/offline-cache';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
 import { extractErrorMessage } from '@/utils/extract-error-message';
@@ -46,6 +47,7 @@ export async function enablePublicShare(
       throw new Error('Public share token was not returned.');
     }
 
+    await cacheRows('lists', [{ ...existing, public_share_token: token, public_share_enabled: true } as unknown as Record<string, unknown>]);
     setState(prev => ({
       ...prev,
       lists: prev.lists.map(list =>
@@ -104,6 +106,7 @@ export async function rotatePublicShare(
       throw new Error('Public share token was not returned.');
     }
 
+    await cacheRows('lists', [{ ...existing, public_share_token: token, public_share_enabled: true } as unknown as Record<string, unknown>]);
     setState(prev => ({
       ...prev,
       lists: prev.lists.map(list =>
@@ -151,6 +154,7 @@ export async function disablePublicShare(
       throw new Error(error.message || 'Unable to disable public sharing.');
     }
 
+    await cacheRows('lists', [{ ...existing, public_share_token: null, public_share_enabled: false } as unknown as Record<string, unknown>]);
     setState(prev => ({
       ...prev,
       lists: prev.lists.map(list =>
@@ -185,6 +189,7 @@ export async function archiveList(
   try {
     const { error } = await supabase.from('lists').update({ archived: true }).eq('id', id);
     if (error) throw new Error(error.message || 'Unable to archive list.');
+    await cacheRows('lists', [{ ...existing, archived: true } as unknown as Record<string, unknown>]);
     setState(prev => ({ ...prev, lists: prev.lists.map(l => l.id === id ? { ...l, archived: true } : l) }));
   } catch (error) {
     return { error: extractErrorMessage(error, 'Unable to archive list.') };
@@ -212,6 +217,7 @@ export async function unarchiveList(
   try {
     const { error } = await supabase.from('lists').update({ archived: false }).eq('id', id);
     if (error) throw new Error(error.message || 'Unable to unarchive list.');
+    await cacheRows('lists', [{ ...existing, archived: false } as unknown as Record<string, unknown>]);
     setState(prev => ({ ...prev, lists: prev.lists.map(l => l.id === id ? { ...l, archived: false } : l) }));
   } catch (error) {
     return { error: extractErrorMessage(error, 'Unable to unarchive list.') };

@@ -6,8 +6,8 @@ import { AlertTriangle, CheckCircle2, RefreshCw, WifiOff, X } from 'lucide-react
 import { useNetworkStatus } from '@/lib/hooks/useNetworkStatus';
 import { db } from '@/lib/local-db';
 
-// Keep in sync with MAX_RETRIES in sync-engine.ts / useSyncStatus.ts
-const MAX_RETRIES = 3;
+// Surface repeated failures while the engine continues bounded automatic retries.
+const RETRY_WARNING_THRESHOLD = 3;
 
 /**
  * Global sync / offline status indicator mounted in the root layout.
@@ -18,7 +18,7 @@ const MAX_RETRIES = 3;
  * 3. Bottom-right    — online, queue draining ("Syncing N changes…")
  * 4. Bottom-right    — queue just flushed to 0 ("Synced ✓"), auto-dismisses
  *    after 3 seconds
- * 5. Bottom-left     — one or more items stuck at max retries (sync error toast)
+ * 5. Bottom-left     — one or more items with repeated retry failures (sync error toast)
  */
 export function OfflineIndicator() {
   const { isOnline } = useNetworkStatus();
@@ -40,10 +40,10 @@ export function OfflineIndicator() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Live-query items that have exhausted retries — these need user attention.
+  // Live-query items with repeated retry failures — these need user attention.
   useEffect(() => {
     const subscription = liveQuery(() =>
-      db.sync_queue.filter(e => e.retries >= MAX_RETRIES).count()
+      db.sync_queue.filter(e => e.retries >= RETRY_WARNING_THRESHOLD).count()
     ).subscribe((count) => {
       setErrorCount(count);
     });
@@ -85,7 +85,7 @@ export function OfflineIndicator() {
         <div
           role="alert"
           aria-live="assertive"
-          className="fixed bottom-4 left-4 z-50 flex items-center gap-3 rounded-xl border border-red-200 bg-surface px-4 py-3 text-sm font-medium text-red-700 shadow-lift"
+          className="fixed bottom-28 left-4 right-4 z-30 flex items-center lg:bottom-4 lg:right-auto gap-3 rounded-xl border border-red-200 bg-surface px-4 py-3 text-sm font-medium text-red-700 shadow-lift"
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
           <span>
@@ -107,7 +107,7 @@ export function OfflineIndicator() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border border-sage-200 bg-surface px-4 py-2.5 text-sm font-medium text-sage-700 shadow-lift"
+          className="pointer-events-none fixed bottom-28 right-4 z-30 flex lg:bottom-4 items-center gap-2 rounded-xl border border-sage-200 bg-surface px-4 py-2.5 text-sm font-medium text-sage-700 shadow-lift"
         >
           <CheckCircle2 className="h-4 w-4" />
           Synced
@@ -119,7 +119,7 @@ export function OfflineIndicator() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border border-zen-200 bg-surface px-4 py-2.5 text-sm font-medium text-zen-600 shadow-lift"
+          className="pointer-events-none fixed bottom-28 right-4 z-30 flex lg:bottom-4 items-center gap-2 rounded-xl border border-zen-200 bg-surface px-4 py-2.5 text-sm font-medium text-zen-600 shadow-lift"
         >
           <RefreshCw className="h-4 w-4 animate-spin" />
           Syncing {pendingCount} change{pendingCount === 1 ? '' : 's'}&hellip;
@@ -131,7 +131,7 @@ export function OfflineIndicator() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-28 left-4 right-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-warm-200 bg-surface px-4 py-3 text-sm text-zen-900 shadow-medium lg:bottom-6 lg:left-auto lg:right-6"
+          className="pointer-events-none fixed bottom-28 left-4 right-4 z-30 mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-warm-200 bg-surface px-4 py-3 text-sm text-zen-900 shadow-medium lg:bottom-6 lg:left-auto lg:right-6"
         >
           <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-warm-700" />
           <div>

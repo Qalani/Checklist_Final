@@ -1,68 +1,28 @@
-const CACHE_NAME = "zen-workspace-cache-v5";
-const API_CACHE_NAME = "zen-api-cache-v1";
-
-// App-shell routes precached on install so the user can cold-start the app
-// and navigate to every top-level feature while completely offline. The
-// individual JS/CSS chunks each page needs are picked up by the runtime
-// cache below on first visit while online.
-const ASSETS_TO_CACHE = [
-  "/",
-  "/tasks",
-  "/lists",
-  "/notes",
-  "/calendar",
-  "/reminders",
-  "/zen-insights",
-  "/friends",
-  "/manifest.webmanifest",
-];
-
-// GET-only API routes served with stale-while-revalidate.
-// POST/PUT/DELETE are never cached.
-const SWR_API_PATHS = ["/api/tasks", "/api/categories"];
+// Imported scripts participate in the browser's update check. This manifest is
+// generated after every production build, so an unchanged worker still gets a
+// new cache when the deployed route chunks change.
+importScripts("/offline-manifest.js");
+const { version, assets, routes } = self.__ZEN_PRECACHE;
+const CACHE_PREFIX = "zen-workspace-cache-";
+const CACHE_NAME = CACHE_PREFIX + version;
+const SHELL_ROUTES = new Set(routes);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      // addAll is atomic — one failed precache item rejects the whole batch
-      // and the SW won't install. Fetch each route individually so a single
-      // missing path (e.g. a route renamed between deploys) doesn't break
-      // the install.
-      .then(async (cache) => {
-        await Promise.all(
-          ASSETS_TO_CACHE.map(async (path) => {
-            try {
-              const response = await fetch(path, { credentials: "same-origin" });
-              if (response.ok) {
-                await cache.put(path, response);
-              }
-            } catch {
-              // Network failure during install — the runtime cache will pick
-              // this route up on the user's first online visit instead.
-            }
-          })
-        );
-      })
-      .then(() => self.skipWaiting())
-  );
+  // Install is atomic: do not activate an incomplete new shell or replace a
+  // working offline version when any required route/chunk cannot be fetched.
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(assets)));
+  // Let existing tabs finish on their current version before activating.
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) =>
-        Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
-              return caches.delete(cacheName);
-            }
-            return undefined;
-          })
-        )
-      )
-      .then(() => self.clients.claim())
+    caches.keys().then((names) => Promise.all(names.map((name) => {
+      // Remove the old authenticated API-response cache as well. User data is
+      // stored by account in IndexedDB, never in the service worker cache.
+      if ((name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME) || name.startsWith("zen-api-cache-")) {
+        return caches.delete(name);
+      }
+    }))).then(() => self.clients.claim())
   );
 });
 
@@ -88,8 +48,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      icon: "/icon.png",
+      badge: "/icon.png",
       tag: "zen-reminder",
       renotify: true,
     })
@@ -125,6 +85,9 @@ self.addEventListener("sync", (event) => {
       self.clients
         .matchAll({ includeUncontrolled: true, type: "window" })
         .then((clients) => {
+          // A worker cannot authenticate and replay the queue itself. Keep
+          // the tag pending for a later browser retry when no app page is open.
+          if (clients.length === 0) throw new Error("Open Zen Workspace to sync");
           for (const client of clients) {
             client.postMessage({ type: "ZEN_SYNC_PUSH" });
           }
@@ -133,120 +96,39 @@ self.addEventListener("sync", (event) => {
   }
 });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function shouldHandleAsNavigation(request) {
-  if (request.mode === "navigate") {
-    return true;
-  }
-
-  const acceptHeader = request.headers.get("accept") || "";
-  return acceptHeader.includes("text/html");
-}
-
-function isSWRApiRoute(url) {
-  try {
-    const pathname = new URL(url).pathname;
-    return SWR_API_PATHS.some(
-      (path) => pathname === path || pathname.startsWith(path + "/")
-    );
-  } catch {
-    return false;
-  }
-}
-
-async function cacheStaticResponse(request, response) {
-  if (
-    response &&
-    response.status === 200 &&
-    response.type === "basic" &&
-    !request.url.includes("/__") &&
-    !new URL(request.url).pathname.startsWith("/api/")
-  ) {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(request, response.clone());
-  }
-}
-
-// Stale-while-revalidate: return the cached entry immediately (if any) while
-// fetching a fresh copy in the background to update the cache.
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(API_CACHE_NAME);
-  const cached = await cache.match(request);
-
-  // Always kick off a background network request to refresh the cache.
-  const networkFetch = fetch(request)
-    .then(async (response) => {
-      if (response.ok) {
-        await cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch(() => null);
-
-  // Serve the cached entry immediately; fall back to the network response on
-  // first visit (no cache yet) or when offline and no cache is available.
-  return cached ?? (await networkFetch) ?? new Response("Offline", { status: 503 });
-}
-
-// ─── Fetch handler ────────────────────────────────────────────────────────────
-
+// Only public app-shell resources belong in this cache. In particular, never
+// intercept Supabase calls, auth requests, API responses, or public-share pages.
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
-  if (request.method !== "GET") {
-    return;
-  }
+  const pathname = url.pathname.replace(/\/$/, "") || "/";
+  const isShell = SHELL_ROUTES.has(pathname);
+  const isStatic = url.pathname.startsWith("/_next/static/") || assets.includes(url.pathname);
+  if (!isShell && !isStatic) return;
 
-  // Probes must reach the network, without cached or synthetic offline replies.
-  if (new URL(request.url).pathname === "/api/health") {
-    return;
-  }
-
-  // Stale-while-revalidate for designated read-only API routes.
-  if (isSWRApiRoute(request.url)) {
-    event.respondWith(staleWhileRevalidate(request));
-    return;
-  }
-
-  if (shouldHandleAsNavigation(request)) {
+  if (isShell) {
     event.respondWith(
-      fetch(request)
-        .then(async (response) => {
-          await cacheStaticResponse(request, response);
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) {
-            return cached;
-          }
-
-          const fallback = await caches.match("/");
-          if (fallback) {
-            return fallback;
-          }
-
-          return new Response("Offline", { status: 503 });
-        })
+      fetch(request).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        // RSC requests must not be cached under an HTML key (their headers and
+        // router-tree query vary). A cached text/html response makes Next's
+        // fetchServerResponse perform a full navigation to this route, which
+        // is then served by this same cached shell, including all its chunks.
+        return (await cache.match(pathname)) || new Response("Offline", { status: 503 });
+      })
     );
     return;
   }
 
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(request)
-        .then(async (response) => {
-          await cacheStaticResponse(request, response);
-          return response;
-        })
-        .catch(() =>
-          cachedResponse || new Response("Offline", { status: 503 })
-        );
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      // Only listed, same-origin build assets can reach this path. Do not
+      // populate a shell cache with arbitrary personalized network responses.
+      return fetch(request);
     })
   );
 });

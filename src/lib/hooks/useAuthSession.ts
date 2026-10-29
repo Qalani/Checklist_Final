@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { pullLatest, type SyncableTable } from '@/lib/sync-engine';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { syncAll } from '@/lib/sync-engine';
+import { setSyncUser } from '@/lib/sync-session';
+import { checkHttpConnectivity, isOnline, onStatusChange } from '@/lib/network-status';
+import { forgetOfflineUser, readOfflineUser, rememberOfflineUser } from '@/lib/offline-identity';
 
 export type SyncStatus = 'seeding' | 'ready' | 'error';
-
 interface AuthSession {
   user: User | null;
   authChecked: boolean;
@@ -14,159 +14,86 @@ interface AuthSession {
   signOut: () => Promise<void>;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const ALL_TABLES: SyncableTable[] = [
-  'tasks',
-  'categories',
-  'notes',
-  'lists',
-  'list_items',
-  'list_members',
-  'zen_reminders',
-  'calendar_events',
-];
-
-// A timestamp safely before any real user data so the first pull gets everything
-const EPOCH = '1970-01-01T00:00:00.000Z';
-
-// ─── localStorage helpers ─────────────────────────────────────────────────────
-
-function seededKey(userId: string): string {
-  return `zen-sync-seeded-${userId}`;
-}
-
-function lastSyncKey(userId: string): string {
-  return `zen-sync-last-${userId}`;
-}
-
-// ─── Seed logic ───────────────────────────────────────────────────────────────
-
-// Prevent concurrent seed runs for the same user (e.g. if getSession and
-// onAuthStateChange both fire before the first seed completes).
-const seedInProgress = new Set<string>();
-
-/**
- * Pulls all tables for `userId` from Supabase into the local Dexie store.
- *
- * Full seed  — first call on a given device; `since` = epoch (gets everything).
- * Incremental — subsequent calls; `since` = timestamp of the last successful sync.
- *
- * The seeded flag and last-sync timestamp are persisted in localStorage so
- * the strategy survives page refreshes.
- */
-async function seedLocalDb(userId: string): Promise<void> {
-  if (seedInProgress.has(userId)) return;
-  seedInProgress.add(userId);
-
-  try {
-    // localStorage may be unavailable in private-browsing or sandboxed contexts;
-    // fall back to a full seed from epoch so the app still works.
-    let isSeeded = false;
-    let since = EPOCH;
-    try {
-      isSeeded = localStorage.getItem(seededKey(userId)) === 'true';
-      since = isSeeded ? (localStorage.getItem(lastSyncKey(userId)) ?? EPOCH) : EPOCH;
-    } catch {
-      // Proceed with full seed from epoch
-    }
-
-    for (const table of ALL_TABLES) {
-      await pullLatest(table, userId, since);
-    }
-
-    // Mark this device as fully seeded and record the sync timestamp.
-    // Silently skip if localStorage is unavailable — the app remains functional
-    // but will re-seed from the server on the next page load.
-    try {
-      localStorage.setItem(seededKey(userId), 'true');
-      localStorage.setItem(lastSyncKey(userId), new Date().toISOString());
-    } catch {
-      // Intentionally ignored
-    }
-  } finally {
-    seedInProgress.delete(userId);
-  }
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
 export function useAuthSession(): AuthSession {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('seeding');
 
   useEffect(() => {
-    let isMounted = true;
-
-    /**
-     * Shared handler for both getSession() and onAuthStateChange callbacks.
-     * Sets auth state immediately, then seeds the local DB in the background.
-     */
-    async function handleUser(newUser: User | null): Promise<void> {
-      if (!isMounted) return;
-      setUser(newUser);
+    let mounted = true;
+    const showUser = (next: User | null) => {
+      if (!mounted) return;
+      setSyncUser(next?.id ?? null);
+      setUser(next);
       setAuthChecked(true);
-
-      if (!newUser) {
-        // No session — nothing to seed
-        setSyncStatus('ready');
+    };
+    const restoreOffline = () => {
+      if (!mounted || isOnline()) return;
+      showUser(readOfflineUser());
+      setSyncStatus('ready');
+    };
+    async function handleUser(next: User | null, signedIn = false): Promise<void> {
+      if (!mounted) return;
+      if (next && !rememberOfflineUser(next, signedIn)) next = null;
+      if (!next && !isOnline()) {
+        restoreOffline();
         return;
       }
-
+      if (!next) forgetOfflineUser();
+      showUser(next);
+      if (!next || !isOnline()) { setSyncStatus('ready'); return; }
       setSyncStatus('seeding');
       try {
-        await seedLocalDb(newUser.id);
-        if (isMounted) setSyncStatus('ready');
-      } catch (err) {
-        console.error('useAuthSession: local DB seed failed', err);
-        if (isMounted) setSyncStatus('error');
+        await syncAll(next.id);
+        if (mounted) setSyncStatus('ready');
+      } catch (error) {
+        console.error('useAuthSession: sync failed', error);
+        if (mounted) setSyncStatus(isOnline() ? 'error' : 'ready');
       }
     }
-
-    let subscription: { unsubscribe: () => void } = { unsubscribe: () => {} };
-
-    try {
-      supabase.auth
-        .getSession()
+    const refreshAuth = () => {
+      // Do not wait for an expired token's network refresh before exposing the
+      // existing local cache in airplane mode. Supabase must refresh before sync.
+      restoreOffline();
+      void supabase.auth.getSession()
         .then(({ data }) => handleUser(data.session?.user ?? null))
-        .catch((error) => {
-          if (!isMounted) return;
-          console.error('Error fetching auth session', error);
-          setAuthChecked(true);
-          setSyncStatus('error');
+        .catch(error => {
+          if (!mounted) return;
+          if (!isOnline()) restoreOffline();
+          else { forgetOfflineUser(); console.error('Error fetching auth session', error); showUser(null); setSyncStatus('error'); }
         });
-    } catch (error) {
-      // Supabase may not be configured (e.g. dev/test environments); treat as
-      // unauthenticated so demo mode and auth-gated pages render correctly.
-      if (isMounted) {
-        console.error('Error fetching auth session', error);
-        setAuthChecked(true);
-        setSyncStatus('error');
-      }
-    }
+    };
 
-    try {
-      const result = supabase.auth.onAuthStateChange((_event, session) => {
-        handleUser(session?.user ?? null).catch(console.error);
-      });
-      subscription = result.data.subscription;
-    } catch {
-      // Ignore — auth state change subscriptions require a configured Supabase
-      // client; the app remains functional without real-time auth updates.
-    }
-
+    refreshAuth();
+    void checkHttpConnectivity().then(reachable => { if (!reachable) restoreOffline(); });
+    const unsubscribeNetwork = onStatusChange(online => { if (online) refreshAuth(); else restoreOffline(); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Supabase holds an internal auth lock while callbacks run.
+      setTimeout(() => {
+        if (event === 'SIGNED_OUT') forgetOfflineUser();
+        void handleUser(session?.user ?? null, event === 'SIGNED_IN').catch(console.error);
+      }, 0);
+    });
+    const onLogout = () => { showUser(null); setSyncStatus('ready'); };
+    window.addEventListener('zen-local-signout', onLogout);
     return () => {
-      isMounted = false;
+      mounted = false;
+      unsubscribeNetwork();
       subscription.unsubscribe();
+      window.removeEventListener('zen-local-signout', onLogout);
     };
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // Clear the local selector immediately, even if revocation cannot reach the
+    // server. Keep queued data bound to its actor for a future explicit sign-in.
+    forgetOfflineUser(user?.id);
+    setSyncUser(null);
     setUser(null);
     setSyncStatus('ready');
-  }, []);
+    window.dispatchEvent(new Event('zen-local-signout'));
+    await supabase.auth.signOut({ scope: 'local' });
+  }, [user?.id]);
 
   return { user, authChecked, syncStatus, signOut };
 }

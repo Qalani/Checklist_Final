@@ -533,6 +533,8 @@ export default function HomePage() {
       <ImportTasksModal
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
+        categories={categories}
+        onImportTask={(input) => saveTask(input, null)}
         onImported={() => void refreshTasks(true)}
       />
     </div>

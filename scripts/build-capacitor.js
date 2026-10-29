@@ -58,7 +58,7 @@ for (const [src, dest] of dirs) {
 }
 
 try {
-  execSync('next build', {
+  execSync('next build && node scripts/generate-offline-manifest.js', {
     cwd: root,
     stdio: 'inherit',
     env: { ...process.env, CAPACITOR_BUILD: 'true' },

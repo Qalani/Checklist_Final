@@ -800,6 +800,7 @@ export default function ListsPage() {
       <ImportListsModal
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
+        onImportList={createList}
         onImported={() => void refresh(true)}
       />
     </div>
