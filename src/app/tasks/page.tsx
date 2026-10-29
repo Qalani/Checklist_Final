@@ -1,5 +1,7 @@
 'use client';
 
+import MobileSectionNav from '@/components/MobileSectionNav';
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -48,6 +50,7 @@ export default function HomePage() {
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [taskSort, setTaskSort] = useState<TaskSortOption>('custom');
+  const [mobileSection, setMobileSection] = useState('tasks');
   const [showImportModal, setShowImportModal] = useState(false);
 
   const { friends } = useFriends(user?.id ?? null);
@@ -292,9 +295,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
+    <div className="mobile-screen relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
-      <div className="relative min-h-screen">
+      <div className="mobile-screen-frame relative min-h-screen">
         <ZenPageHeader
           title="Zen Tasks"
           subtitle="Structure priorities with poise"
@@ -304,6 +307,7 @@ export default function HomePage() {
             <>
               <ThemeSwitcher />
               <button
+                data-close-page-actions
                 onClick={() => setShowImportModal(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface/80 px-4 py-2 font-medium text-zen-600 shadow-soft transition-all hover:border-zen-300 hover:text-zen-800 sm:w-auto"
               >
@@ -311,6 +315,7 @@ export default function HomePage() {
                 Import
               </button>
               <button
+                data-close-page-actions
                 onClick={() => {
                   setEditingTask(null);
                   setInlineEditingTaskId(null);
@@ -362,7 +367,8 @@ export default function HomePage() {
           }
         />
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="mobile-screen-main tasks-main max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'tasks', label: 'Tasks' }, { value: 'progress', label: 'Progress' }, { value: 'categories', label: 'Categories' }]} />
         {checklistError && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {checklistError}
@@ -373,8 +379,8 @@ export default function HomePage() {
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-sage-200 border-t-sage-600" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
-            <section className="space-y-4">
+          <div className="mobile-panel-layout grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
+            <section data-mobile-panel={mobileSection === 'tasks'} className="tasks-panel space-y-4">
               <div className="rounded-2xl bg-surface/90 p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
@@ -475,14 +481,18 @@ export default function HomePage() {
               </div>
             </section>
 
-            <aside className="space-y-6">
+            <aside className="tasks-secondary lg:space-y-6">
+              <div data-mobile-panel={mobileSection === 'progress'}>
               <ProgressDashboard tasks={tasks} categories={categories} />
+              </div>
+              <div data-mobile-panel={mobileSection === 'categories'}>
               <CategoryManager
                 categories={categories}
                 onCreateCategory={handleCategoryCreate}
                 onUpdateCategory={handleCategoryUpdate}
                 onDeleteCategory={handleCategoryDelete}
               />
+              </div>
             </aside>
           </div>
         )}

@@ -151,7 +151,7 @@ function DialogShell({
         aria-labelledby={titleId}
         aria-busy={busy}
         tabIndex={-1}
-        className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl border border-zen-200 bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-lift sm:rounded-3xl sm:p-6"
+        className="calendar-dialog max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl border border-zen-200 bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-lift sm:rounded-3xl sm:p-6"
       >
         <div className="mb-5 flex items-start justify-between gap-3">
           <h2
@@ -288,7 +288,7 @@ export function CalendarEventForm({
       busy={saving}
       initialFocus
     >
-      <form onSubmit={submit} aria-describedby={error ? errorId : undefined}>
+      <form className="calendar-event-form" onSubmit={submit} aria-describedby={error ? errorId : undefined}>
         <fieldset disabled={saving} className="space-y-4">
           <label className="block text-sm font-medium text-zen-700">
             Title

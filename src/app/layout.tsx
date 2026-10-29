@@ -12,6 +12,7 @@ import { GlobalNav } from "@/components/GlobalNav";
 import { QuickCreateFAB } from "@/components/QuickCreateFAB";
 import { ActionFeedbackProvider } from "@/components/ActionFeedback";
 import "./globals.css";
+import "./mobile.css";
 
 const inter = localFont({
   src: "./fonts/inter-latin-wght-normal.woff2",
@@ -65,7 +66,7 @@ export default function RootLayout({
             {/* Keep content clear of the mobile navigation and labeled desktop sidebar. */}
             {/* pt-[env(safe-area-inset-top)] ensures content clears the phone's status bar on mobile */}
             <ErrorBoundary>
-              <div id="main-content" className="pb-28 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pl-56 lg:pt-0">{children}</div>
+              <div id="main-content" className="app-shell pb-28 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pl-56 lg:pt-0">{children}</div>
             </ErrorBoundary>
           </ActionFeedbackProvider>
         </ThemeProvider>

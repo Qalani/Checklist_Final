@@ -359,9 +359,9 @@ export default function ListsPage() {
   const shareIsActive = Boolean(sharingList?.public_share_enabled && sharingList.public_share_token);
 
   return (
-    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
+    <div className="mobile-screen relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
-      <div className="relative min-h-screen flex flex-col">
+      <div className="mobile-screen-frame relative min-h-screen flex flex-col">
         <ZenPageHeader
           title="Zen Lists"
           subtitle="Design composed rituals and playbooks"
@@ -375,9 +375,9 @@ export default function ListsPage() {
           }
         />
 
-        <main className="flex-1">
-          <section className="max-w-7xl mx-auto px-4 py-10 space-y-8 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 items-start">
+        <main className="mobile-screen-main flex-1">
+          <section className="lists-content max-w-7xl mx-auto px-4 py-10 lg:space-y-8 sm:px-6 lg:px-8">
+            <div className="lists-intro grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 items-start">
               <div className="space-y-4">
                 <h2 className="font-display font-semibold text-3xl text-zen-900">Shape polished collections that stay in sync.</h2>
                 <p className="text-zen-600 max-w-2xl">
@@ -452,7 +452,7 @@ export default function ListsPage() {
               handleSubmit={handleSubmit}
             />
 
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="lists-controls flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-1 p-1 bg-surface/70 border border-zen-200 rounded-xl shadow-soft">
                 {[
                   { key: 'active' as const, label: `Active (${activeLists.length})` },
@@ -490,6 +490,7 @@ export default function ListsPage() {
               </div>
             </div>
 
+            <div className="lists-collection mobile-scroll">
             {status === 'loading' && lists.length === 0 ? (
               <div className="columns-1 md:columns-2 xl:columns-3 gap-6">
                 {Array.from({ length: 3 }).map((_, index) => (
@@ -747,6 +748,7 @@ export default function ListsPage() {
               </div>
             )}
 
+            </div>
           </section>
         </main>
       </div>

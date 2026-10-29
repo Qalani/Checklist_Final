@@ -432,7 +432,7 @@ export default function TaskBentoGrid({
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex flex-col items-center justify-center py-20 text-center"
+        className="task-empty flex flex-col items-center justify-center py-20 text-center"
       >
         <div className="w-20 h-20 rounded-full bg-sage-100 flex items-center justify-center mb-4">
           <CheckCircle2 className="w-10 h-10 text-sage-600" />

@@ -370,7 +370,8 @@ export default function TaskForm({
   );
 
   const form = (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="task-edit-form space-y-5">
+      <div className="task-form-fields space-y-5">
       <div>
         <label className="block text-sm font-medium text-zen-700 mb-2">
           Task Title
@@ -609,7 +610,8 @@ export default function TaskForm({
         <p className="text-sm text-red-600 text-center">{formError}</p>
       )}
 
-      <div className="flex gap-3 pt-4">
+      </div>
+      <div className="task-form-actions flex gap-3 pt-4">
         <button
           type="button"
           onClick={onClose}
@@ -630,7 +632,7 @@ export default function TaskForm({
   );
 
   const inner = (
-    <div className={`${containerPadding} ${mode === 'modal' ? 'max-h-[90vh] overflow-y-auto' : ''}`}>
+    <div className={`${containerPadding} ${mode === 'modal' ? 'task-modal-content max-h-[90vh] overflow-y-auto' : ''}`}>
       {formHeader}
       {form}
     </div>

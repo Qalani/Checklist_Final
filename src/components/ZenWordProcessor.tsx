@@ -237,7 +237,7 @@ export default function ZenWordProcessor({
   };
 
   return (
-    <div className={`space-y-3 ${className ?? ''}`} {...rest}>
+    <div className={`word-processor space-y-3 ${className ?? ''}`} {...rest}>
       <div className="rounded-2xl border-2 border-zen-200 bg-surface/90 shadow-soft focus-within:border-sage-500">
         <div className="flex flex-wrap items-center gap-2 border-b border-zen-100 bg-zen-50/80 px-3 py-2 rounded-t-[calc(theme(borderRadius.2xl)-2px)]">
           <ToolbarButton onClick={() => runCommand('undo')} label="Undo" disabled={readOnly}>

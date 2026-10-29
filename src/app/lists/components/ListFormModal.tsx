@@ -1,6 +1,6 @@
 'use client';
 
-import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, useId, useRef, type Dispatch, type SetStateAction } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import RichTextTextarea from '@/components/RichTextTextarea';
 import ListItemsBoard from '@/components/ListItemsBoard';
@@ -44,18 +44,30 @@ export default function ListFormModal({
   reorderNewListItems,
   handleSubmit,
 }: ListFormModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!showForm || !dialog) return;
+    if (window.matchMedia('(max-width: 1023px)').matches) dialog.showModal();
+    else dialog.show();
+    return () => dialog.close();
+  }, [showForm]);
   return (
     <AnimatePresence>
       {showForm && (
-        <motion.div
+        <motion.dialog
+          ref={dialogRef}
+          aria-labelledby={headingId}
+          onCancel={() => setShowForm(false)}
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
-          className="rounded-3xl bg-surface/90 border border-zen-200 shadow-soft p-6 space-y-4"
+          className="list-create-form rounded-3xl bg-surface/90 border border-zen-200 shadow-soft p-6 lg:space-y-4"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-zen-900">
+              <h3 id={headingId} className="text-lg font-semibold text-zen-900">
                 {editingList ? 'Update list' : 'Create a new list'}
               </h3>
               <p className="text-sm text-zen-600">
@@ -71,7 +83,7 @@ export default function ListFormModal({
             </button>
           </div>
 
-          <div className="grid gap-4">
+          <div className="list-form-fields grid gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-zen-700">List name</label>
               <input
@@ -135,7 +147,7 @@ export default function ListFormModal({
               {submitting ? 'Saving…' : editingList ? 'Save changes' : 'Create list'}
             </button>
           </div>
-        </motion.div>
+        </motion.dialog>
       )}
     </AnimatePresence>
   );

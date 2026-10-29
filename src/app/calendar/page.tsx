@@ -1,5 +1,7 @@
 'use client';
 
+import MobileSectionNav from '@/components/MobileSectionNav';
+
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
@@ -113,6 +115,7 @@ function toRecord(event: CalendarEvent): CalendarEventRecord {
 export default function CalendarPage() {
   const router = useRouter();
   const { user, authChecked } = useAuthSession();
+  const [mobileSection, setMobileSection] = useState('calendar');
   const [scope, setScope] = useState<CalendarScope>('all');
   const [view, setView] = useState<CalendarViewType>('dayGridMonth');
   const [viewReady, setViewReady] = useState(false);
@@ -377,7 +380,7 @@ export default function CalendarPage() {
     );
 
   return (
-    <div className="min-h-screen bg-zen-50/50">
+    <div className="mobile-screen mobile-screen-frame calendar-screen min-h-screen bg-zen-50/50">
       <header className="workspace-header border-b border-zen-200/70 bg-surface/90">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div>
@@ -404,8 +407,9 @@ export default function CalendarPage() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1600px] space-y-5 px-3 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <div className="flex flex-col gap-3">
+      <main className="mobile-screen-main calendar-main mx-auto max-w-[1600px] space-y-5 px-3 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'calendar', label: 'Calendar' }, { value: 'filters', label: 'Filters' }, { value: 'upcoming', label: 'Coming up' }]} />
+        <div data-mobile-panel={mobileSection === 'filters'} className="calendar-filters flex flex-col gap-3">
           <div className="flex flex-wrap gap-2">
             <div className="relative min-w-[140px] basis-full sm:max-w-sm sm:flex-1 sm:basis-auto">
               <Search
@@ -553,8 +557,8 @@ export default function CalendarPage() {
             </button>
           </div>
         )}
-        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_300px]">
-          <section aria-label="Your calendar" className="min-w-0">
+        <div className="calendar-grid mobile-panel-layout grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_300px]">
+          <section data-mobile-panel={mobileSection === 'calendar'} aria-label="Your calendar" className="calendar-primary min-w-0">
             {viewReady && (
               <CalendarView
                 events={calendarEvents}
@@ -601,7 +605,8 @@ export default function CalendarPage() {
             )}
           </section>
           <aside
-            className="hidden min-w-0 xl:block"
+            data-mobile-panel={mobileSection === 'upcoming'}
+            className="calendar-upcoming hidden min-w-0 xl:block"
             aria-label="Coming up in this view"
           >
             <div className="flex items-center justify-between border-b border-zen-200 pb-4 pt-2">

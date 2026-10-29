@@ -1,5 +1,7 @@
 'use client';
 
+import MobileSectionNav from '@/components/MobileSectionNav';
+
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RefreshCcw, UserMinus, UserPlus, UserX, Users } from 'lucide-react';
@@ -42,6 +44,7 @@ export default function FriendsPage() {
     declineRequest,
     refresh,
   } = useFriends(user?.id ?? null);
+  const [mobileSection, setMobileSection] = useState('friends');
   const [emailInput, setEmailInput] = useState('');
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -141,9 +144,9 @@ export default function FriendsPage() {
   };
 
   return (
-    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
+    <div className="mobile-screen relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
-      <div className="relative flex min-h-screen flex-col">
+      <div className="mobile-screen-frame relative flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Friends"
           subtitle="Strengthen accountability with trusted allies"
@@ -157,9 +160,10 @@ export default function FriendsPage() {
           }
         />
 
-        <main className="flex-1">
-          <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-            <div className="space-y-3">
+        <main className="mobile-screen-main friends-main flex-1">
+          <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'friends', label: 'Friends' }, { value: 'invite', label: 'Invite' }, { value: 'requests', label: 'Requests' }]} />
+          <section className="mobile-panel-layout mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+            <div className="mobile-desktop-only space-y-3">
               <p className="text-sm uppercase tracking-wide text-zen-500">Stay aligned</p>
               <h2 className="font-display font-semibold text-3xl text-zen-900">Invite the partners who keep you grounded.</h2>
               <p className="max-w-2xl text-sm text-zen-600">
@@ -186,6 +190,7 @@ export default function FriendsPage() {
             ) : null}
 
             <form
+              data-mobile-panel={mobileSection === 'invite'}
               onSubmit={handleAddFriend}
               className="flex flex-col gap-4 rounded-2xl bg-surface/80 p-6 sm:flex-row sm:items-end"
             >
@@ -227,7 +232,7 @@ export default function FriendsPage() {
               </div>
             </form>
 
-            <div className="rounded-2xl bg-surface/80 p-6">
+            <div data-mobile-panel={mobileSection === 'friends'} className="rounded-2xl bg-surface/80 p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-zen-900">Your friends</h3>
@@ -279,7 +284,7 @@ export default function FriendsPage() {
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div data-mobile-panel={mobileSection === 'requests'} className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl bg-surface/80 p-6">
                 <div className="flex items-center justify-between">
                   <div>

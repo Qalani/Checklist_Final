@@ -381,7 +381,7 @@ export function QuickCreateFAB() {
             aria-labelledby="quick-create-title"
             className="fixed bottom-28 right-4 z-50 w-80 rounded-3xl border border-zen-200/70 bg-surface/95 shadow-lift backdrop-blur-xl dark:border-zen-700/40 lg:bottom-6"
           >
-            <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4 p-5">
+            <form onSubmit={(e) => void handleSubmit(e)} className="quick-create-form flex flex-col gap-4 p-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ModeIcon className="h-4 w-4 text-sage-500" />
@@ -399,6 +399,7 @@ export function QuickCreateFAB() {
                 </button>
               </div>
 
+              <div className="quick-create-fields space-y-4">
               {/* Title / Name field */}
               <input
                 ref={titleRef}
@@ -565,6 +566,7 @@ export function QuickCreateFAB() {
                 <p className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</p>
               )}
 
+              </div>
               <button
                 type="submit"
                 disabled={submitting || !title.trim()}

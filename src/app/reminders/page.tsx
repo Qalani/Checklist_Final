@@ -1,5 +1,7 @@
 'use client';
 
+import MobileSectionNav from '@/components/MobileSectionNav';
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { format } from 'date-fns';
 import { Bell, Clock, RefreshCcw, Trash2 } from 'lucide-react';
@@ -75,6 +77,7 @@ export default function ZenRemindersPage() {
     requesting: requestingNotificationPermission,
   } = useNotificationPermission();
 
+  const [mobileSection, setMobileSection] = useState('upcoming');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
@@ -181,6 +184,7 @@ export default function ZenRemindersPage() {
 
     setTitle('');
     setDescription('');
+    setMobileSection('upcoming');
 
     const label = format(combined, "MMM d, yyyy 'at' HH:mm");
     setStatusMessage({ type: 'success', message: `Zen reminder scheduled for ${label}.` });
@@ -216,9 +220,9 @@ export default function ZenRemindersPage() {
     notificationPermission === 'unsupported' || notificationPermission === 'denied';
 
   return (
-    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
+    <div className="mobile-screen relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-[rgb(var(--color-zen-50)_/_0.92)] dark:via-[rgb(var(--color-zen-100)_/_0.82)] dark:to-[rgb(var(--color-sage-100)_/_0.85)]">
       <ParallaxBackground />
-      <div className="relative flex min-h-screen flex-col">
+      <div className="mobile-screen-frame relative flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Reminders"
           subtitle="Create mindful nudges that surface on your calendar and keep your rhythm balanced."
@@ -245,7 +249,8 @@ export default function ZenRemindersPage() {
             </div>
           }
         />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <main className="mobile-screen-main reminders-main mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+          <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'upcoming', label: 'Reminders' }, { value: 'create', label: 'New reminder' }, ...(notificationInlineMessage ? [{ value: 'alerts', label: 'Alerts' }] : [])]} />
 
           {bannerMessage ? (
             <div
@@ -260,7 +265,7 @@ export default function ZenRemindersPage() {
           ) : null}
 
           {notificationInlineMessage ? (
-            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-zen-200/70 bg-zen-50/80 px-4 py-3 text-sm text-zen-700 shadow-soft dark:border-zen-700/40 dark:bg-zen-900/70 dark:text-zen-100">
+            <div data-mobile-panel={mobileSection === 'alerts'} className="reminder-alert-help mb-6 flex items-start gap-3 rounded-2xl border border-zen-200/70 bg-zen-50/80 px-4 py-3 text-sm text-zen-700 shadow-soft dark:border-zen-700/40 dark:bg-zen-900/70 dark:text-zen-100">
               <div className="rounded-full bg-zen-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-zen-600 dark:bg-zen-800/80 dark:text-zen-100">
                 Notifications
               </div>
@@ -286,8 +291,8 @@ export default function ZenRemindersPage() {
             </div>
           ) : null}
 
-          <div className="grid gap-8 lg:grid-cols-[1.1fr_1.4fr]">
-            <section className="rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
+          <div className="mobile-panel-layout grid gap-8 lg:grid-cols-[1.1fr_1.4fr]">
+            <section data-mobile-panel={mobileSection === 'create'} className="reminder-create-panel rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
               <div className="inline-flex items-center gap-2 rounded-full bg-sage-500/15 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-400/20 dark:text-zen-100">
                 <Bell className="h-4 w-4" />
                 New reminder
@@ -299,6 +304,7 @@ export default function ZenRemindersPage() {
               </p>
 
               <form onSubmit={handleCreateReminder} className="mt-6 space-y-5">
+                <div className="reminder-form-fields space-y-5">
                 <label className="block text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
                   Reminder title
                   <input
@@ -343,6 +349,7 @@ export default function ZenRemindersPage() {
                   <p className="text-sm font-semibold text-warm-600 dark:text-warm-400">{formError}</p>
                 ) : null}
 
+                </div>
                 <button
                   type="submit"
                   className="inline-flex items-center gap-2 rounded-xl bg-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-sage-600 disabled:cursor-not-allowed disabled:opacity-70"
@@ -359,7 +366,7 @@ export default function ZenRemindersPage() {
               </form>
             </section>
 
-            <section className="space-y-6 rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
+            <section data-mobile-panel={mobileSection === 'upcoming'} className="space-y-6 rounded-3xl border border-zen-200/70 bg-surface/85 p-6 shadow-lift backdrop-blur-xl dark:border-zen-700/40">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-display font-semibold text-2xl text-zen-900 dark:text-zen-50">Upcoming reminders</h2>

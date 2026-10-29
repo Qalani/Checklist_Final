@@ -1,5 +1,7 @@
 'use client';
 
+import MobileSectionNav from '@/components/MobileSectionNav';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -85,6 +87,7 @@ export default function NotesPage() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftContent, setDraftContent] = useState('');
+  const [mobileSection, setMobileSection] = useState('library');
   const [searchTerm, setSearchTerm] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -266,6 +269,7 @@ export default function NotesPage() {
 
   const handleSelectNote = useCallback(
     async (note: Note) => {
+      setMobileSection('editor');
       if (note.id === selectedNoteId) {
         return;
       }
@@ -286,6 +290,7 @@ export default function NotesPage() {
 
     if (result && 'note' in result) {
       setSelectedNoteId(result.note.id);
+      setMobileSection('editor');
     }
   };
 
@@ -338,9 +343,9 @@ export default function NotesPage() {
   const showEditor = activeNote != null;
 
   return (
-    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
+    <div className="mobile-screen relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50">
       <ParallaxBackground />
-      <div className="relative flex min-h-screen flex-col">
+      <div className="mobile-screen-frame relative flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Notes"
           subtitle="Capture polished thinking in a calm editor"
@@ -350,6 +355,7 @@ export default function NotesPage() {
             <>
               <ThemeSwitcher />
               <button
+                data-close-page-actions
                 type="button"
                 onClick={() => {
                   void handleCreateNote();
@@ -365,10 +371,11 @@ export default function NotesPage() {
           }
         />
 
-        <main className="flex-1 pb-16">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pt-8 sm:px-6 lg:px-8">
-            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-              <aside className="space-y-4">
+        <main className="mobile-screen-main notes-main flex-1 pb-16">
+          <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'library', label: 'Library' }, { value: 'editor', label: 'Editor' }]} />
+          <div className="notes-content mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 pt-8 sm:px-6 lg:px-8">
+            <div className="mobile-panel-layout grid gap-6 lg:grid-cols-[320px_1fr]">
+              <aside data-mobile-panel={mobileSection === 'library'} className="notes-library space-y-4">
                 <div className="rounded-2xl bg-surface/80">
                   <div className="flex items-center justify-between border-b border-zen-100 px-4 py-3">
                     <div>
@@ -437,9 +444,9 @@ export default function NotesPage() {
                 </div>
               </aside>
 
-              <section className="space-y-4">
+              <section data-mobile-panel={mobileSection === 'editor'} className="notes-editor space-y-4">
                 {showEditor ? (
-                  <div className="rounded-2xl bg-surface/80 p-6">
+                  <div className="note-document rounded-2xl bg-surface/80 p-6">
                     <div className="flex flex-col gap-3 border-b border-zen-100 pb-4">
                       <input
                         type="text"
@@ -506,7 +513,7 @@ export default function NotesPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="pt-4">
+                    <div className="note-writing-area pt-4">
                       <ZenWordProcessor
                         value={draftContent}
                         onChange={html => {
@@ -518,7 +525,7 @@ export default function NotesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-surface/75 p-10 text-center">
+                  <div className="note-empty flex h-full min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed border-zen-200 bg-surface/75 p-10 text-center">
                     <FileText className="h-10 w-10 text-zen-500" />
                     <h2 className="mt-4 font-display font-semibold text-xl text-zen-900">Create your first document</h2>
                     <p className="mt-2 max-w-md text-sm text-zen-500">
