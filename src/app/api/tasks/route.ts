@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     reminder_timezone: reminderTimezone,
     task_recurrence: taskRecurrence,
     task_recurrence_interval: taskRecurrenceInterval,
+    task_recurrence_anchor_day: taskRecurrenceAnchorDay,
   } = body as {
     title?: unknown;
     description?: unknown;
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     reminder_timezone?: unknown;
     task_recurrence?: unknown;
     task_recurrence_interval?: unknown;
+    task_recurrence_anchor_day?: unknown;
   };
 
   if (typeof title !== 'string' || !title.trim()) {
@@ -233,6 +235,17 @@ export async function POST(request: Request) {
     normalizedTaskRecurrenceInterval = taskRecurrenceInterval;
   }
 
+  let normalizedTaskRecurrenceAnchorDay: number | null = null;
+  if (taskRecurrenceAnchorDay !== undefined && taskRecurrenceAnchorDay !== null) {
+    if (typeof taskRecurrenceAnchorDay !== 'number' || !Number.isInteger(taskRecurrenceAnchorDay) ||
+        taskRecurrenceAnchorDay < 1 || taskRecurrenceAnchorDay > 31) {
+      return NextResponse.json({ error: 'task_recurrence_anchor_day must be an integer from 1 to 31 or null.' }, { status: 400 });
+    }
+    if (normalizedTaskRecurrence === 'monthly') {
+      normalizedTaskRecurrenceAnchorDay = taskRecurrenceAnchorDay;
+    }
+  }
+
   try {
     const { data, error } = await withTimeout(
       supabaseAdmin
@@ -253,6 +266,7 @@ export async function POST(request: Request) {
           reminder_timezone: normalizedTimezone,
           task_recurrence: normalizedTaskRecurrence,
           task_recurrence_interval: normalizedTaskRecurrenceInterval,
+          task_recurrence_anchor_day: normalizedTaskRecurrenceAnchorDay,
           user_id: userId,
         })
         .select()

@@ -5,6 +5,7 @@ import { isOnline } from '@/lib/network-status';
 import { extractErrorMessage } from '@/utils/extract-error-message';
 import type { Category, ReminderRecurrence, Task, TaskCollaborator } from '@/types';
 import { normalizeReminderRecurrence } from '@/utils/reminders';
+import { getMonthlyTaskAnchorDay, getNextTaskDueDate, isSameLocalTaskDate } from '@/utils/task-recurrence';
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
@@ -131,6 +132,19 @@ export class ChecklistManager {
     }
 
     try {
+      const recurrence = taskData.task_recurrence === undefined
+        ? existingTask?.task_recurrence
+        : taskData.task_recurrence;
+      const dueDate = taskData.due_date === undefined ? existingTask?.due_date : taskData.due_date;
+      const previousAnchor = isSameLocalTaskDate(dueDate, existingTask?.due_date) && existingTask?.task_recurrence === 'monthly'
+        ? existingTask.task_recurrence_anchor_day
+        : null;
+      taskData = {
+        ...taskData,
+        task_recurrence_anchor_day: recurrence === 'monthly'
+          ? getMonthlyTaskAnchorDay(dueDate, taskData.task_recurrence_anchor_day ?? previousAnchor)
+          : null,
+      };
       if (existingTask) {
         if (existingTask.access_role && !['owner', 'editor'].includes(existingTask.access_role)) {
           throw new Error('You do not have permission to edit this task.');
@@ -239,6 +253,7 @@ export class ChecklistManager {
           reminder_timezone: (taskData.reminder_timezone as string | null | undefined) ?? null,
           task_recurrence: (taskData.task_recurrence as Task['task_recurrence']) ?? null,
           task_recurrence_interval: (taskData.task_recurrence_interval as number | null | undefined) ?? 1,
+          task_recurrence_anchor_day: taskData.task_recurrence_anchor_day ?? null,
           order: nextOrder,
           access_role: 'owner',
           created_at: now,
@@ -277,6 +292,7 @@ export class ChecklistManager {
           reminder_timezone: taskData.reminder_timezone ?? null,
           task_recurrence: taskData.task_recurrence ?? null,
           task_recurrence_interval: (taskData.task_recurrence_interval as number | null | undefined) ?? 1,
+          task_recurrence_anchor_day: taskData.task_recurrence_anchor_day ?? null,
           order: nextOrder,
           user_id: this.userId,
         })
@@ -427,18 +443,6 @@ export class ChecklistManager {
     }
   }
 
-  private nextRecurrenceDueDate(currentDueDate: string, recurrence: string, interval: number): string {
-    const date = new Date(currentDueDate);
-    if (recurrence === 'daily') {
-      date.setDate(date.getDate() + interval);
-    } else if (recurrence === 'weekly') {
-      date.setDate(date.getDate() + interval * 7);
-    } else if (recurrence === 'monthly') {
-      date.setMonth(date.getMonth() + interval);
-    }
-    return date.toISOString();
-  }
-
   private buildNextOccurrenceData(completedTask: Task, nextDueDate: string, nextOrder: number): Record<string, unknown> {
     const interval = completedTask.task_recurrence_interval ?? 1;
     let nextReminderTrigger: string | null = null;
@@ -461,6 +465,9 @@ export class ChecklistManager {
       reminder_timezone: completedTask.reminder_timezone ?? null,
       task_recurrence: completedTask.task_recurrence,
       task_recurrence_interval: interval,
+      task_recurrence_anchor_day: completedTask.task_recurrence === 'monthly'
+        ? getMonthlyTaskAnchorDay(completedTask.due_date, completedTask.task_recurrence_anchor_day)
+        : null,
       order: nextOrder,
     };
   }
@@ -470,7 +477,7 @@ export class ChecklistManager {
       return;
     }
     const interval = completedTask.task_recurrence_interval ?? 1;
-    const nextDueDate = this.nextRecurrenceDueDate(completedTask.due_date, completedTask.task_recurrence, interval);
+    const nextDueDate = getNextTaskDueDate(completedTask.due_date, completedTask.task_recurrence, interval, completedTask.task_recurrence_anchor_day);
     const ownedTasks = this.snapshot.tasks.filter((task) => task.user_id === this.userId);
     const nextOrder = ownedTasks.reduce((max, t) => Math.max(max, t.order ?? 0), -1) + 1;
     const newTaskData = {
@@ -495,7 +502,7 @@ export class ChecklistManager {
       return;
     }
     const interval = completedTask.task_recurrence_interval ?? 1;
-    const nextDueDate = this.nextRecurrenceDueDate(completedTask.due_date, completedTask.task_recurrence, interval);
+    const nextDueDate = getNextTaskDueDate(completedTask.due_date, completedTask.task_recurrence, interval, completedTask.task_recurrence_anchor_day);
     const ownedTasks = this.snapshot.tasks.filter((task) => task.user_id === this.userId);
     const nextOrder = ownedTasks.reduce((max, t) => Math.max(max, t.order ?? 0), -1) + 1;
     const now = new Date().toISOString();
