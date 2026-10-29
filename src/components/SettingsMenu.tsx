@@ -192,7 +192,7 @@ export default function SettingsMenu({
       <button
         type="button"
         onClick={() => setOpen(current => !current)}
-        className="inline-flex items-center gap-2 rounded-xl border border-zen-200/70 bg-surface/80 px-3 py-2 text-sm font-medium text-zen-600 transition-colors hover:bg-surface/60"
+        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-zen-100 bg-surface px-3 py-2 text-sm font-medium text-zen-700 transition-colors hover:bg-zen-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-600"
         aria-haspopup="dialog"
         aria-expanded={open}
         ref={buttonRef}
@@ -205,8 +205,10 @@ export default function SettingsMenu({
         ? createPortal(
             <div
               ref={panelRef}
+              role="dialog"
+              aria-label="Workspace settings"
               style={{ top: panelPosition.top, left: panelPosition.left }}
-              className="fixed z-[1000] w-80 max-w-[min(20rem,calc(100vw-1rem))] rounded-3xl border border-zen-200/80 bg-surface p-4 shadow-lift"
+              className="fixed z-[1000] max-h-[calc(100dvh-7rem)] w-80 max-w-[min(20rem,calc(100vw-1rem))] overflow-y-auto rounded-2xl border border-zen-100 bg-surface p-4 shadow-lift"
             >
               <div className="flex items-center justify-between">
                 <div>

@@ -198,6 +198,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Probes must reach the network, without cached or synthetic offline replies.
+  if (new URL(request.url).pathname === "/api/health") {
+    return;
+  }
+
   // Stale-while-revalidate for designated read-only API routes.
   if (isSWRApiRoute(request.url)) {
     event.respondWith(staleWhileRevalidate(request));
