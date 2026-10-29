@@ -1,5 +1,7 @@
 'use client';
 
+import MobileSectionNav from '@/components/MobileSectionNav';
+
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -63,6 +65,7 @@ export default function ZenInsightsPage() {
 }
 
 function ZenInsightsPageContent() {
+  const [mobileSection, setMobileSection] = useState('widgets');
   const [isEditMode, setIsEditMode] = useState(false);
   const { user, authChecked, signOut } = useAuthSession();
   const searchParams = useSearchParams();
@@ -210,9 +213,9 @@ function ZenInsightsPageContent() {
   const userName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? null;
 
   return (
-    <div className="relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
+    <div className="mobile-screen relative min-h-screen [overflow:clip] bg-gradient-to-br from-zen-50 via-sage-50 to-warm-50 dark:from-zen-50 dark:via-zen-100 dark:to-zen-200">
       <ParallaxBackground />
-      <div className="relative flex min-h-screen flex-col">
+      <div className="mobile-screen-frame relative flex min-h-screen flex-col">
         <ZenPageHeader
           title="Zen Insights"
           subtitle="Curate dashboards and highlight meaningful metrics"
@@ -234,8 +237,10 @@ function ZenInsightsPageContent() {
           }
         />
 
-        <main className="flex-1">
-          <section className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+        <main className="mobile-screen-main insights-main flex-1">
+          <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'widgets', label: 'Dashboard' }, { value: 'overview', label: 'Overview' }, { value: 'layout', label: 'Layout' }, { value: 'analytics', label: 'Analytics' }]} />
+          <section className="insights-content mx-auto max-w-7xl lg:space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+            <div data-mobile-panel={mobileSection === 'overview'} className="space-y-8">
             <DashboardHero
               userName={demoMode ? 'Demo User' : userName}
               userId={boardUserId}
@@ -265,6 +270,7 @@ function ZenInsightsPageContent() {
               </div>
             </div>
 
+            </div>
             {demoMode ? (
               <div className="rounded-3xl border border-dashed border-sage-300 bg-surface/70 p-4 text-sm text-sage-700 shadow-small backdrop-blur-sm dark:border-zen-700/40 dark:text-zen-200">
                 Demo mode: changes are stored locally in this browser.
@@ -277,8 +283,8 @@ function ZenInsightsPageContent() {
               </p>
             ) : null}
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="rounded-3xl border border-zen-200/60 bg-surface/80 p-6 shadow-medium backdrop-blur-sm dark:border-zen-700/40">
+            <div className="insights-board-layout grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div data-mobile-panel={mobileSection === 'widgets'} className="insights-widgets rounded-3xl border border-zen-200/60 bg-surface/80 p-6 shadow-medium backdrop-blur-sm dark:border-zen-700/40">
                 <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-sage-100/80 bg-sage-50/80 p-4 text-sm text-sage-700 dark:border-zen-700/40 dark:bg-zen-800/20 dark:text-zen-200 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-2 font-medium">
                     <span className="inline-flex items-center gap-1 rounded-full bg-surface/80 px-3 py-1 text-xs uppercase tracking-wide text-sage-600 dark:text-zen-900">
@@ -309,6 +315,7 @@ function ZenInsightsPageContent() {
                 ) : null}
                 <DashboardBoard userId={boardUserId} layout={layout} moveWidget={moveWidget} isEditable={isEditMode} />
               </div>
+              <div data-mobile-panel={mobileSection === 'layout'}>
               <WidgetVisibilityMenu
                 layout={layout}
                 onToggle={widgetId => {
@@ -323,13 +330,16 @@ function ZenInsightsPageContent() {
                 isEditable={isEditMode}
                 onRequestEditMode={() => setIsEditMode(true)}
               />
+              </div>
             </div>
 
+            <div data-mobile-panel={mobileSection === 'analytics'}>
             <ZenInsightsAnalytics
               tasks={demoMode ? [] : tasks}
               categories={demoMode ? [] : categories}
               notes={demoMode ? [] : notes}
             />
+            </div>
           </section>
         </main>
       </div>

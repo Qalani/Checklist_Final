@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import MobileSectionNav from '@/components/MobileSectionNav';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -41,6 +42,7 @@ function LoadingScreen() {
 }
 
 export default function HomePageClient() {
+  const [mobileSection, setMobileSection] = useState('today');
   const searchParams = useSearchParams();
   const demoMode = searchParams?.get('demo') === '1';
   const { user, authChecked, signOut } = useAuthSession();
@@ -145,7 +147,7 @@ export default function HomePageClient() {
   if (!user && !demoMode) return <SignedOutLanding />;
 
   return (
-    <div className="min-h-screen">
+    <div className="mobile-screen mobile-screen-frame home-screen min-h-screen">
       <header className="workspace-header border-b border-zen-100 bg-surface">
         <div className="mx-auto flex min-h-20 max-w-[1280px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <div className="flex items-center gap-2.5 text-sm font-medium text-zen-700">
@@ -179,9 +181,11 @@ export default function HomePageClient() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1280px] px-5 pb-10 pt-10 sm:px-8 sm:pt-12 lg:px-10">
-        <section
-          className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end"
+      <main className="mobile-screen-main home-main mx-auto max-w-[1280px] px-5 pb-10 pt-10 sm:px-8 sm:pt-12 lg:px-10">
+        <MobileSectionNav value={mobileSection} onChange={setMobileSection} sections={[{ value: 'today', label: 'Today' }, { value: 'workspace', label: 'Workspace' }]} />
+        <div className="home-content mobile-scroll">
+        <section data-mobile-panel={mobileSection === 'today'}
+          className="home-welcome mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end"
           aria-labelledby="home-heading"
         >
           <div>
@@ -217,6 +221,7 @@ export default function HomePageClient() {
         )}
 
         <section
+          data-mobile-panel={mobileSection === 'today'}
           aria-label="Your day at a glance"
           className="day-overview mb-10 grid rounded-2xl border border-sage-100 bg-sage-50 sm:grid-cols-3"
         >
@@ -286,7 +291,7 @@ export default function HomePageClient() {
           </Link>
         </section>
 
-        <section aria-labelledby="workspace-heading">
+        <section data-mobile-panel={mobileSection === 'workspace'} className="home-workspace" aria-labelledby="workspace-heading">
           <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="workspace-heading" className="text-lg font-semibold tracking-[-0.025em] text-zen-900">
               Your workspace
@@ -302,7 +307,8 @@ export default function HomePageClient() {
 
         <Link
           href={withDemo('/zen-insights')}
-          className="group mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-warm-100 bg-warm-50 px-6 py-5 transition-colors hover:border-warm-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warm-600 focus-visible:ring-offset-4 sm:flex-row sm:items-center"
+          data-mobile-panel={mobileSection === 'workspace'}
+          className="home-insights group mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-warm-100 bg-warm-50 px-6 py-5 transition-colors hover:border-warm-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warm-600 focus-visible:ring-offset-4 sm:flex-row sm:items-center"
         >
           <div className="flex items-center gap-4">
             <Sparkles aria-hidden="true" className="h-5 w-5 shrink-0 text-warm-700" />
@@ -317,7 +323,8 @@ export default function HomePageClient() {
             Explore insights <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
           </span>
         </Link>
-        <p className="mt-8 text-center text-xs text-zen-700">A little more clarity. A little less noise.</p>
+        <p className="mobile-desktop-only mt-8 text-center text-xs text-zen-700">A little more clarity. A little less noise.</p>
+        </div>
       </main>
     </div>
   );
