@@ -75,7 +75,8 @@ function startOfDay(date: Date): Date {
 
 function endOfDay(date: Date): Date {
   const start = startOfDay(date);
-  return new Date(start.getTime() + ONE_DAY_MS);
+  start.setDate(start.getDate() + 1);
+  return start;
 }
 
 export async function GET(request: Request) {
@@ -204,7 +205,7 @@ export async function GET(request: Request) {
       if (task.due_date) {
         const dueDate = new Date(task.due_date);
         const dueTime = dueDate.getTime();
-        if (!Number.isNaN(dueTime) && dueTime >= rangeStartMs && dueTime <= rangeEndMs) {
+        if (!Number.isNaN(dueTime) && dueTime >= rangeStartMs && dueTime < rangeEndMs) {
           const dueEnd = new Date(dueTime + THIRTY_MINUTES_MS);
           const reminderMetadata = buildReminderMetadata(task);
           const taskMetadata: CalendarTaskMetadata = {
@@ -232,10 +233,11 @@ export async function GET(request: Request) {
       }
 
       if (shouldScheduleReminder(task)) {
-        const occurrences = getUpcomingReminderOccurrences(task, { from: start, limit: 12 });
+        const occurrenceLimit = Math.min(730, Math.ceil((rangeEndMs - rangeStartMs) / ONE_DAY_MS) + 1);
+        const occurrences = getUpcomingReminderOccurrences(task, { from: start, limit: occurrenceLimit });
         occurrences.forEach((occurrence) => {
           const occurrenceTime = occurrence.getTime();
-          if (occurrenceTime < rangeStartMs || occurrenceTime > rangeEndMs) {
+          if (occurrenceTime < rangeStartMs || occurrenceTime >= rangeEndMs) {
             return;
           }
 
@@ -283,6 +285,14 @@ export async function GET(request: Request) {
           endDate = new Date(startDate.getTime() + duration);
         }
 
+        const eventRangeStart = calendarEvent.all_day
+          ? Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())
+          : rangeStartMs;
+        const eventRangeEnd = calendarEvent.all_day
+          ? Date.UTC(end.getFullYear(), end.getMonth(), end.getDate())
+          : rangeEndMs;
+        if (startDate.getTime() >= eventRangeEnd || endDate.getTime() <= eventRangeStart) return;
+
         const metadata: CalendarUserEventMetadata = {
           eventId: calendarEvent.id,
           canEdit: true,
@@ -310,6 +320,7 @@ export async function GET(request: Request) {
 
     const notes = (notesResult.data ?? []) as Note[];
     notes.forEach((note) => {
+      if (scopeParam === 'shared') return;
       const timestamp = note.updated_at ?? note.created_at;
       if (!timestamp) {
         return;
@@ -317,7 +328,7 @@ export async function GET(request: Request) {
 
       const noteDate = new Date(timestamp);
       const noteTime = noteDate.getTime();
-      if (Number.isNaN(noteTime) || noteTime < rangeStartMs || noteTime > rangeEndMs) {
+      if (Number.isNaN(noteTime) || noteTime < rangeStartMs || noteTime >= rangeEndMs) {
         return;
       }
 
@@ -346,13 +357,14 @@ export async function GET(request: Request) {
 
     const zenReminders = (remindersResult.data ?? []) as ZenReminder[];
     zenReminders.forEach((reminder) => {
+      if (scopeParam === 'shared') return;
       const remindDate = reminder.remind_at ? new Date(reminder.remind_at) : null;
       if (!remindDate) {
         return;
       }
 
       const remindTime = remindDate.getTime();
-      if (Number.isNaN(remindTime) || remindTime < rangeStartMs || remindTime > rangeEndMs) {
+      if (Number.isNaN(remindTime) || remindTime < rangeStartMs || remindTime >= rangeEndMs) {
         return;
       }
 

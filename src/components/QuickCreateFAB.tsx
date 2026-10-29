@@ -33,8 +33,9 @@ function getPageMode(pathname: string | null): PageMode | null {
   if (pathname.startsWith('/lists')) return 'list';
   if (pathname.startsWith('/notes')) return 'note';
   if (pathname.startsWith('/reminders')) return 'reminder';
+  if (pathname.startsWith('/calendar')) return null;
   if (pathname === '/' || pathname.startsWith('/friends')) return null;
-  return 'task'; // /tasks, /calendar, and any other authenticated page
+  return 'task'; // /tasks and other authenticated pages
 }
 
 const MODE_META: Record<PageMode, { label: string; icon: LucideIcon }> = {
@@ -48,11 +49,11 @@ const MODE_META: Record<PageMode, { label: string; icon: LucideIcon }> = {
  * Floating action button for fast content capture from anywhere in the app.
  *
  * Detects the current page and opens a context-appropriate quick-create form:
- * - /tasks, /calendar → full task form (title, description, due date, reminder, priority, category)
+ * - /tasks → full task form (title, description, due date, reminder, priority, category)
  * - /lists → list form (name, description)
  * - /notes → note form (title)
  * - /reminders → reminder form (title, description, date + time)
- * Hidden on /, /friends, /lists/share/*, and when not authenticated.
+ * Hidden on /, /friends, /calendar (which has its own event form), /lists/share/*, and when not authenticated.
  */
 export function QuickCreateFAB() {
   const pathname = usePathname();

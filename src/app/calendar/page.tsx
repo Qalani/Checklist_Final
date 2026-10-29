@@ -2,433 +2,690 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { format, startOfMonth, endOfMonth, compareAsc } from 'date-fns';
-import { Calendar as CalendarIcon, ChevronDown, ExternalLink, Filter, RefreshCcw, X } from 'lucide-react';
-
-import ParallaxBackground from '@/components/ParallaxBackground';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from 'react';
+import { addMonths, format, startOfMonth } from 'date-fns';
+import {
+  CalendarDays,
+  Check,
+  ChevronRight,
+  Plus,
+  RefreshCcw,
+  Search,
+  Upload,
+  X,
+} from 'lucide-react';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
-import ZenPageHeader from '@/components/ZenPageHeader';
-import AccountSummary from '@/components/AccountSummary';
-import type { CalendarViewType, CalendarViewEvent, CalendarViewProps } from '@/components/calendar/ScheduleXCalendarView';
+import {
+  CalendarEventDetails,
+  CalendarEventForm,
+  EVENT_LABELS,
+  calendarEventDate,
+  type CalendarSelection,
+} from '@/components/calendar/CalendarEventDialog';
+import type {
+  CalendarViewType,
+  CalendarViewEvent,
+  CalendarViewProps,
+} from '@/components/calendar/FullCalendarView';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { useCalendarData } from '@/features/calendar/useCalendarData';
+import {
+  useCalendarEvents,
+  type CreateCalendarEventInput,
+} from '@/features/calendar/useCalendarEvents';
 import type {
   CalendarEventRecord,
   CalendarEventType,
   CalendarScope,
-  CalendarTaskMetadata,
-  CalendarUserEventMetadata,
 } from '@/features/calendar/types';
+import type { CalendarEvent } from '@/types';
 
-const FullCalendarViewNoSSR = dynamic<CalendarViewProps>(async () => {
-  const mod = await import('@/components/calendar/ScheduleXCalendarView');
-  return mod.ScheduleXCalendarView;
-}, {
-  ssr: false,
-  loading: () => (
-    <div className="animate-pulse rounded-xl bg-white/5 h-[780px] w-full" aria-busy="true" aria-label="Loading calendar" />
-  ),
-});
-
-type RangeState = { start: Date; end: Date };
-
-type DatesChangePayload = {
-  range: RangeState;
-  view: CalendarViewType;
-  currentDate: Date;
-};
-
-const EVENT_COLORS: Record<CalendarEventType, { background: string; border: string; text: string }> = {
-  task_due: { background: 'rgba(14, 165, 233, 0.95)', border: 'rgba(14, 165, 233, 0.2)', text: '#ffffff' },
-  task_reminder: { background: 'rgba(59, 130, 246, 0.9)', border: 'rgba(37, 99, 235, 0.25)', text: '#ffffff' },
-  note: { background: 'rgba(249, 115, 22, 0.92)', border: 'rgba(249, 115, 22, 0.2)', text: '#ffffff' },
-  zen_reminder: { background: 'rgba(245, 158, 11, 0.95)', border: 'rgba(245, 158, 11, 0.25)', text: '#ffffff' },
-  event: { background: 'rgba(99, 102, 241, 0.95)', border: 'rgba(129, 140, 248, 0.25)', text: '#ffffff' },
-};
-
-function isTaskMetadata(metadata: CalendarEventRecord['metadata']): metadata is CalendarTaskMetadata {
-  return Boolean(metadata && typeof metadata === 'object' && 'taskId' in metadata);
-}
-
-function isUserEventMetadata(metadata: CalendarEventRecord['metadata']): metadata is CalendarUserEventMetadata {
-  return Boolean(metadata && typeof metadata === 'object' && 'eventId' in metadata);
-}
-
-function mapEventToView(record: CalendarEventRecord): CalendarViewEvent {
-  const palette = EVENT_COLORS[record.type] ?? {
-    background: 'rgba(148, 163, 184, 0.9)',
-    border: 'rgba(148, 163, 184, 0.3)',
-    text: '#0f172a',
-  };
-  return {
-    ...record,
-    backgroundColor: palette.background,
-    borderColor: palette.border,
-    textColor: palette.text,
-  };
-}
-
-function formatEventTime(event: CalendarEventRecord) {
-  const start = new Date(event.start);
-  const end = new Date(event.end);
-  if (event.allDay) {
-    return format(start, 'EEEE, MMMM d, yyyy');
-  }
-  const sameDay = start.toDateString() === end.toDateString();
-  if (sameDay) {
-    return `${format(start, 'EEEE, MMMM d')} · ${format(start, 'p')} – ${format(end, 'p')}`;
-  }
-  return `${format(start, 'EEE, MMM d p')} → ${format(end, 'EEE, MMM d p')}`;
-}
-
-function EventDialog({
-  event,
-  onClose,
-  onOpenTask,
-}: {
-  event: CalendarEventRecord | null;
-  onClose: () => void;
-  onOpenTask: (taskId?: string) => void;
-}) {
-  const isTaskEvent = event?.type === 'task_due' || event?.type === 'task_reminder';
-  const taskMetadata = isTaskMetadata(event?.metadata) ? event?.metadata : null;
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!event) return;
-
-    const handleKeyDown = (keyboardEvent: KeyboardEvent) => {
-      if (keyboardEvent.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      // Focus trap: keep Tab cycling within the dialog
-      if (keyboardEvent.key === 'Tab' && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (keyboardEvent.shiftKey && document.activeElement === first) {
-          keyboardEvent.preventDefault();
-          last.focus();
-        } else if (!keyboardEvent.shiftKey && document.activeElement === last) {
-          keyboardEvent.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-
-    // Auto-focus the close button when dialog opens
-    requestAnimationFrame(() => {
-      const closeBtn = dialogRef.current?.querySelector<HTMLElement>('button[aria-label="Close"]');
-      closeBtn?.focus();
-    });
-
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [event, onClose]);
-
-  if (!event) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-      <button
-        type="button"
-        className="absolute inset-0 bg-zen-900/50 backdrop-blur-sm"
-        aria-label="Close dialog"
-        onClick={onClose}
-      />
+const CalendarView = dynamic<CalendarViewProps>(
+  () =>
+    import('@/components/calendar/FullCalendarView').then(
+      (mod) => mod.FullCalendarView
+    ),
+  {
+    ssr: false,
+    loading: () => (
       <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-zen-200/70 bg-white/95 p-6 shadow-2xl backdrop-blur-lg dark:border-zen-800/70 dark:bg-zen-900/95"
+        className="flex min-h-[480px] items-center justify-center rounded-2xl border border-zen-200 bg-surface text-sm text-zen-500"
+        role="status"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">
-              {event.scope} · {event.type.split('_').join(' ')}
-            </p>
-            <h3 className="text-xl font-semibold text-zen-900 dark:text-zen-50">{event.title}</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zen-200/80 bg-white/80 text-zen-500 shadow-sm transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/70 dark:text-zen-300 dark:hover:text-zen-50"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="mt-4 space-y-3 text-sm text-zen-700 dark:text-zen-200">
-          <div className="rounded-2xl bg-zen-100/70 p-3 text-xs font-semibold text-zen-700 shadow-inner dark:bg-zen-800/40 dark:text-zen-100">
-            {formatEventTime(event)}
-          </div>
-          <p className="leading-relaxed text-zen-600 dark:text-zen-200/90">
-            {event.description ?? 'No additional details provided yet.'}
-          </p>
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zen-200/70 bg-white/80 p-3 text-xs font-semibold text-zen-600 shadow-sm dark:border-zen-800/70 dark:bg-zen-950/60 dark:text-zen-100">
-              <dt className="text-[10px] uppercase tracking-wide text-zen-400 dark:text-zen-500">Scope</dt>
-              <dd className="capitalize text-sm font-semibold">{event.scope}</dd>
-            </div>
-            {taskMetadata ? (
-              <div className="rounded-2xl border border-zen-200/70 bg-white/80 p-3 text-xs font-semibold text-zen-600 shadow-sm dark:border-zen-800/70 dark:bg-zen-950/60 dark:text-zen-100">
-                <dt className="text-[10px] uppercase tracking-wide text-zen-400 dark:text-zen-500">Reminder</dt>
-                <dd className="text-sm font-semibold">
-                  {taskMetadata.reminder?.minutesBefore
-                    ? `${taskMetadata.reminder.minutesBefore} minutes before`
-                    : 'No reminder configured'}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          {isTaskEvent ? (
-            <button
-              type="button"
-              onClick={() => onOpenTask(taskMetadata?.taskId)}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-zen-500 to-sage-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
-            >
-              Go to task
-              <ExternalLink className="h-4 w-4" />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-xl border border-zen-200/80 bg-white/90 px-4 py-2 text-sm font-semibold text-zen-600 shadow-sm transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/80 dark:text-zen-200 dark:hover:text-zen-50"
-          >
-            Close
-          </button>
-        </div>
+        Preparing your calendar…
       </div>
-    </div>
-  );
+    ),
+  }
+);
+
+type EventGroup = 'events' | 'tasks' | 'reminders' | 'notes';
+const GROUPS: { id: EventGroup; label: string; color: string }[] = [
+  { id: 'events', label: 'Events', color: 'bg-sage-600' },
+  { id: 'tasks', label: 'Tasks', color: 'bg-zen-600' },
+  { id: 'reminders', label: 'Reminders', color: 'bg-warm-600' },
+  { id: 'notes', label: 'Notes', color: 'bg-zen-400' },
+];
+const TYPE_GROUP: Record<CalendarEventType, EventGroup> = {
+  event: 'events',
+  task_due: 'tasks',
+  task_reminder: 'reminders',
+  zen_reminder: 'reminders',
+  note: 'notes',
+};
+const COLORS: Record<CalendarEventType, string> = {
+  event: '#267b6b',
+  task_due: '#466f8d',
+  task_reminder: '#7461aa',
+  zen_reminder: '#7461aa',
+  note: '#626f80',
+};
+const buttonClass =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zen-200 bg-surface px-3 py-2 text-sm font-medium text-zen-700 transition-colors hover:bg-zen-50 disabled:opacity-50';
+
+function toRecord(event: CalendarEvent): CalendarEventRecord {
+  return {
+    id: `event_${event.id}_${event.start_time.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    entityId: event.id,
+    type: 'event',
+    title: event.title,
+    description: event.description,
+    start: event.start_time,
+    end: event.end_time,
+    allDay: event.all_day,
+    scope: 'personal',
+    metadata: {
+      eventId: event.id,
+      canEdit: true,
+      location: event.location,
+      importSource: event.import_source,
+      importUid: event.import_uid,
+    },
+  };
 }
 
 export default function CalendarPage() {
   const router = useRouter();
-  const { user, authChecked, signOut } = useAuthSession();
+  const { user, authChecked } = useAuthSession();
   const [scope, setScope] = useState<CalendarScope>('all');
   const [view, setView] = useState<CalendarViewType>('dayGridMonth');
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
-  const [range, setRange] = useState<RangeState>(() => ({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) }));
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEventRecord | null>(null);
-  const [highlightsExpanded, setHighlightsExpanded] = useState(true);
+  const [viewReady, setViewReady] = useState(false);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [range, setRange] = useState(() => ({
+    start: startOfMonth(new Date()),
+    end: startOfMonth(addMonths(new Date(), 1)),
+  }));
+  const [groups, setGroups] = useState<EventGroup[]>([
+    'events',
+    'tasks',
+    'reminders',
+    'notes',
+  ]);
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<CalendarEventRecord | null>(null);
+  const [editor, setEditor] = useState<{
+    initial?: CalendarSelection;
+    event?: CalendarEventRecord;
+  } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!authChecked) {
-      return;
-    }
-    if (!user) {
-      router.replace('/');
-    }
-  }, [authChecked, router, user]);
+    if (authChecked && !user) router.replace('/');
+  }, [authChecked, user, router]);
 
-  const { events = [], isLoading, isValidating, error, refresh } = useCalendarData(user?.id ?? null, {
-    start: range.start,
-    end: range.end,
-    scope,
-    pause: !authChecked,
-  });
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 639px)').matches) setView('listWeek');
+    setViewReady(true);
+  }, []);
 
-  const filteredEvents = useMemo(
-    () => events.filter((event) => event.type !== 'task_reminder'),
-    [events],
-  );
-
-  const calendarEvents = useMemo(() => filteredEvents.map((event) => mapEventToView(event)), [filteredEvents]);
-
-  const upcomingHighlights = useMemo(
+  const { events, isLoading, isValidating, error, refresh, mutate } =
+    useCalendarData(user?.id ?? null, {
+      start: range.start,
+      end: range.end,
+      scope,
+      pause: !authChecked,
+    });
+  const { createEvent, updateEvent, deleteEvent, importFromIcs } =
+    useCalendarEvents(user?.id ?? null);
+  const filtered = useMemo(
     () =>
-      [...filteredEvents]
-        .sort((a, b) => compareAsc(new Date(a.start), new Date(b.start)))
-        .filter((event) => new Date(event.end) >= new Date())
-        .slice(0, 6),
-    [filteredEvents],
+      events.filter((event) => {
+        if (!groups.includes(TYPE_GROUP[event.type])) return false;
+        const query = search.trim().toLocaleLowerCase();
+        const location =
+          event.metadata && 'location' in event.metadata
+            ? event.metadata.location
+            : '';
+        return (
+          !query ||
+          `${event.title} ${event.description ?? ''} ${location ?? ''}`
+            .toLocaleLowerCase()
+            .includes(query)
+        );
+      }),
+    [events, groups, search]
+  );
+  const calendarEvents = useMemo<CalendarViewEvent[]>(
+    () =>
+      filtered.map((event) => ({
+        ...event,
+        backgroundColor: COLORS[event.type],
+        borderColor: COLORS[event.type],
+        textColor: '#ffffff',
+      })),
+    [filtered]
+  );
+  const upcoming = useMemo(
+    () =>
+      [...filtered]
+        .filter((event) => calendarEventDate(event, 'end') > new Date())
+        .sort(
+          (a, b) =>
+            calendarEventDate(a).getTime() - calendarEventDate(b).getTime()
+        )
+        .slice(0, 5),
+    [filtered]
   );
 
-  const handleDatesChange = useCallback(({ range, view, currentDate }: DatesChangePayload) => {
-    setRange((previousRange) => {
-      const startChanged = previousRange.start.getTime() !== range.start.getTime();
-      const endChanged = previousRange.end.getTime() !== range.end.getTime();
-
-      if (!startChanged && !endChanged) {
-        return previousRange;
-      }
-
-      return { start: new Date(range.start), end: new Date(range.end) };
-    });
-
-    setView((previousView) => (previousView === view ? previousView : view));
-
-    setCurrentDate((previousDate) => {
-      const nextDateTime = currentDate.getTime();
-      return previousDate.getTime() === nextDateTime ? previousDate : new Date(currentDate);
-    });
-  }, []);
-
-  const handleEventClick = useCallback((event: CalendarEventRecord) => {
-    setSelectedEvent(event);
-  }, []);
-
-  const handleScopeChange = useCallback((nextScope: CalendarScope) => {
-    setScope(nextScope);
-    setSelectedEvent(null);
-  }, []);
-
-  const handleOpenTask = useCallback(
-    (taskId?: string) => {
-      if (taskId) {
-        router.push(`/tasks?taskId=${taskId}`);
-      } else {
-        router.push('/tasks');
-      }
-      setSelectedEvent(null);
+  const handleDatesChange = useCallback<CalendarViewProps['onDatesChange']>(
+    (payload) => {
+      setRange((previous) =>
+        previous.start.getTime() === payload.range.start.getTime() &&
+        previous.end.getTime() === payload.range.end.getTime()
+          ? previous
+          : payload.range
+      );
+      setView(payload.view);
+      setCurrentDate((previous) =>
+        previous.getTime() === payload.currentDate.getTime()
+          ? previous
+          : payload.currentDate
+      );
     },
-    [router],
+    []
   );
+  const openCreate = useCallback((initial?: CalendarSelection) => {
+    setSelected(null);
+    setEditor(initial ? { initial } : {});
+    setActionError(null);
+  }, []);
+  const revalidate = () => {
+    void refresh().catch(() =>
+      setActionError('Your change was saved. Refresh to reload the calendar.')
+    );
+  };
+  const cacheSaved = async (saved: CalendarEvent) => {
+    const record = toRecord(saved);
+    await mutate(
+      (previous) =>
+        previous
+          ? {
+              ...previous,
+              events: [
+                ...previous.events.filter(
+                  (item) =>
+                    !(item.type === 'event' && item.entityId === saved.id)
+                ),
+                record,
+              ],
+            }
+          : {
+              events: [record],
+              range: {
+                start: range.start.toISOString(),
+                end: range.end.toISOString(),
+              },
+              generatedAt: new Date().toISOString(),
+            },
+      { revalidate: false }
+    );
+  };
+  const save = async (input: CreateCalendarEventInput) => {
+    const saved = editor?.event
+      ? await updateEvent(editor.event.entityId, input)
+      : await createEvent(input);
+    await cacheSaved(saved);
+    setActionError(null);
+    setEditor(null);
+    setSelected(null);
+    if (scope === 'shared') setScope('all');
+    if (!groups.includes('events'))
+      setGroups((previous) => [...previous, 'events']);
+    setSearch('');
+    setCurrentDate(
+      saved.all_day
+        ? new Date(`${saved.start_time.slice(0, 10)}T12:00:00`)
+        : new Date(saved.start_time)
+    );
+    setNotice(editor?.event ? 'Event updated.' : 'Event created.');
+    revalidate();
+  };
+  const remove = async () => {
+    if (!selected) return;
+    await deleteEvent(selected.entityId);
+    setActionError(null);
+    await mutate(
+      (previous) =>
+        previous
+          ? {
+              ...previous,
+              events: previous.events.filter(
+                (item) =>
+                  item.entityId !== selected.entityId || item.type !== 'event'
+              ),
+            }
+          : previous,
+      { revalidate: false }
+    );
+    setSelected(null);
+    setNotice('Event deleted.');
+    revalidate();
+  };
+  const moveEvent: NonNullable<CalendarViewProps['onEventMove']> = async (
+    record,
+    start,
+    end,
+    allDay
+  ) => {
+    try {
+      const saved = await updateEvent(record.entityId, {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        allDay,
+      });
+      await cacheSaved(saved);
+      setActionError(null);
+      setNotice('Event rescheduled.');
+      revalidate();
+    } catch (cause) {
+      setActionError(
+        cause instanceof Error
+          ? cause.message
+          : 'Unable to reschedule this event.'
+      );
+      throw cause;
+    }
+  };
+  const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || importing) return;
+    setImporting(true);
+    setActionError(null);
+    setNotice(null);
+    try {
+      if (!/\.ics$/i.test(file.name))
+        throw new Error('Choose an .ics calendar file.');
+      if (file.size > 5 * 1024 * 1024)
+        throw new Error('Choose a calendar file smaller than 5 MB.');
+      const result = await importFromIcs(file);
+      if (scope === 'shared') setScope('all');
+      setGroups((previous) =>
+        previous.includes('events') ? previous : [...previous, 'events']
+      );
+      setSearch('');
+      setNotice(
+        `${result.imported} imported, ${result.updated} updated.${result.truncated ? ` ${result.truncated} events exceeded the 500-event limit.` : ''}`
+      );
+      revalidate();
+    } catch (cause) {
+      setActionError(
+        cause instanceof Error
+          ? cause.message
+          : 'Unable to import this calendar.'
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+  const openSource = () => {
+    if (!selected) return;
+    router.push(
+      selected.type === 'note'
+        ? '/notes'
+        : selected.type === 'zen_reminder'
+          ? '/reminders'
+          : '/tasks'
+    );
+    setSelected(null);
+  };
+  const canEdit =
+    selected?.type === 'event' &&
+    Boolean(
+      selected.metadata &&
+      'canEdit' in selected.metadata &&
+      selected.metadata.canEdit === true
+    );
 
-  const statusChips = [
-    isLoading ? 'Syncing calendar' : null,
-    isValidating && !isLoading ? 'Refreshing' : null,
-    error ? 'Unable to load calendar' : null,
-  ].filter(Boolean);
-
-  const currentLabel = useMemo(() => format(currentDate, view === 'dayGridMonth' ? 'MMMM yyyy' : 'PPPP'), [currentDate, view]);
+  if (!authChecked || !user)
+    return (
+      <div
+        role="status"
+        className="flex min-h-[60vh] items-center justify-center text-sm text-zen-600"
+      >
+        Opening your calendar…
+      </div>
+    );
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-zen-50 via-white to-zen-100 dark:from-zen-950 dark:via-zen-900 dark:to-zen-950">
-      <ParallaxBackground />
-      <ZenPageHeader
-        title="Harmonic calendar"
-        subtitle="A grounded view of your commitments, rituals, and shared moments."
-        icon={CalendarIcon}
-        backHref="/"
-        backLabel="Overview"
-        actions={
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <ThemeSwitcher />
-            <div className="flex items-center gap-2 rounded-xl border border-zen-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-zen-600 shadow-soft backdrop-blur-sm dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200">
-              <Filter className="h-4 w-4" />
-              <select
-                className="bg-transparent text-sm font-semibold focus:outline-none"
-                value={scope}
-                onChange={(event) => handleScopeChange(event.target.value as CalendarScope)}
-                aria-label="Filter calendar scope"
-              >
-                <option value="all">All spaces</option>
-                <option value="personal">Personal</option>
-                <option value="shared">Shared</option>
-              </select>
+    <div className="min-h-screen bg-zen-50/50">
+      <header className="border-b border-zen-200/70 bg-surface/90">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <CalendarDays className="h-6 w-6 text-sage-600" />
+              <h1 className="text-2xl font-semibold tracking-tight text-zen-900">
+                Calendar
+              </h1>
+            </div>
+            <p className="mt-1 hidden text-sm text-zen-500 sm:block">
+              A little space for everything you have planned.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:block">
+              <ThemeSwitcher />
             </div>
             <button
               type="button"
-              onClick={() => refresh()}
-              className="inline-flex items-center gap-2 rounded-xl border border-zen-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-zen-600 shadow-soft transition hover:border-zen-300 hover:text-zen-800 dark:border-zen-700/60 dark:bg-zen-900/60 dark:text-zen-200 dark:hover:text-zen-50"
-              aria-label="Refresh calendar"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-sage-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sage-700"
+              onClick={() => openCreate()}
             >
-              <RefreshCcw className={`h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
+              <Plus className="h-4 w-4" />
+              New event
             </button>
-            <AccountSummary
-              email={user?.email ?? undefined}
-              syncing={isValidating}
-              onSignOut={signOut}
-            />
           </div>
-        }
-      />
-
-      <main className="relative mx-auto flex w-full flex-col gap-8 px-4 pb-16 pt-10 sm:px-6 lg:px-10">
-        <section className="grid gap-6 xl:grid-cols-[1.9fr,0.95fr]">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-zen-200/70 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/70">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">Visible range</p>
-                <p className="text-lg font-semibold text-zen-900 dark:text-zen-50">{currentLabel}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {statusChips.map((chip) => (
-                  <span
-                    key={chip}
-                    className="inline-flex items-center gap-2 rounded-full border border-zen-200/70 bg-zen-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zen-600 dark:border-zen-800/60 dark:bg-zen-900/70 dark:text-zen-100"
-                  >
-                    {chip}
-                  </span>
-                ))}
-              </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-[1600px] space-y-5 px-3 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-[140px] basis-full sm:max-w-sm sm:flex-1 sm:basis-auto">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-zen-500"
+              />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-label="Search this calendar view"
+                placeholder="Search this view"
+                className="min-h-11 w-full rounded-xl border border-zen-200 bg-surface py-2 pl-10 pr-3 text-base text-zen-900 placeholder:text-zen-500 sm:text-sm"
+              />
             </div>
-            <FullCalendarViewNoSSR
-              events={calendarEvents}
-              view={view}
-              date={currentDate}
-              loading={isLoading && events.length === 0}
-              onDatesChange={handleDatesChange}
-              onEventClick={handleEventClick}
+            <select
+              value={scope}
+              onChange={(event) => {
+                setScope(event.target.value as CalendarScope);
+                setSelected(null);
+              }}
+              aria-label="Filter calendar scope"
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-zen-200 bg-surface px-3 text-sm font-medium text-zen-700 sm:flex-none"
+            >
+              <option value="all">All spaces</option>
+              <option value="personal">Personal</option>
+              <option value="shared">Shared</option>
+            </select>
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={isValidating}
+              aria-label="Refresh calendar"
+              onClick={() => {
+                setActionError(null);
+                void refresh().catch(() =>
+                  setActionError('Unable to refresh. Please try again.')
+                );
+              }}
+            >
+              <RefreshCcw
+                aria-hidden="true"
+                className={`h-4 w-4 ${isValidating ? 'motion-safe:animate-spin' : ''}`}
+              />
+            </button>
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={importing}
+              onClick={() => importRef.current?.click()}
+              aria-label="Import .ics calendar"
+            >
+              <Upload className="h-4 w-4" />
+              <span>{importing ? 'Importing…' : 'Import'}</span>
+            </button>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".ics,text/calendar"
+              onChange={importFile}
+              className="hidden"
+              aria-label="Calendar file"
             />
           </div>
-          <aside className="rounded-3xl border border-zen-200/70 bg-white/85 shadow-xl backdrop-blur-lg dark:border-zen-800/60 dark:bg-zen-950/70">
-            <div className="flex items-center justify-between gap-2 p-6">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-zen-500 dark:text-zen-300">Up next</p>
-                <h2 className="font-display font-semibold text-lg text-zen-900 dark:text-zen-50">Upcoming highlights</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-900/60 dark:text-zen-100">
-                  {upcomingHighlights.length} items
-                </div>
+          <div
+            className="grid grid-cols-4 items-center gap-1.5 sm:flex sm:flex-wrap"
+            role="group"
+            aria-label="Calendar sources"
+          >
+            {GROUPS.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                aria-pressed={groups.includes(group.id)}
+                onClick={() =>
+                  setGroups((previous) =>
+                    previous.includes(group.id)
+                      ? previous.filter((id) => id !== group.id)
+                      : [...previous, group.id]
+                  )
+                }
+                className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl border px-1 text-xs transition-colors sm:px-3 sm:text-sm ${groups.includes(group.id) ? 'border-zen-200/70 bg-surface text-zen-800 shadow-soft' : 'border-transparent text-zen-500 line-through hover:bg-surface'}`}
+              >
+                <span
+                  className={`hidden h-4 w-4 items-center justify-center rounded sm:flex ${groups.includes(group.id) ? group.color : 'border border-zen-300'}`}
+                >
+                  {groups.includes(group.id) && (
+                    <Check className="h-3 w-3 text-white" />
+                  )}
+                </span>
+                {group.label}
+              </button>
+            ))}
+            {(search || groups.length !== 4) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setGroups(GROUPS.map((group) => group.id));
+                  setSearch('');
+                }}
+                className="col-span-4 min-h-11 rounded-xl px-3 text-sm text-sage-700 underline-offset-4 hover:underline"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
+        </div>
+        {(actionError || error) && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-400/40 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300"
+          >
+            <span>
+              {actionError || `Unable to load your calendar. ${error}`}
+            </span>
+            <button
+              type="button"
+              className="min-h-11 rounded-lg px-3 font-semibold underline"
+              onClick={() => {
+                setActionError(null);
+                void refresh().catch(() =>
+                  setActionError(
+                    'Unable to load the calendar. Please try again.'
+                  )
+                );
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+        {notice && (
+          <div
+            role="status"
+            className="flex items-center justify-between gap-3 rounded-xl border border-sage-300/50 bg-sage-100/50 px-4 py-2 text-sm text-sage-800"
+          >
+            <span>{notice}</span>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-sage-200/40"
+              onClick={() => setNotice(null)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_300px]">
+          <section aria-label="Your calendar" className="min-w-0">
+            {viewReady && (
+              <CalendarView
+                events={calendarEvents}
+                view={view}
+                date={currentDate}
+                onDatesChange={handleDatesChange}
+                onEventClick={(event) => setSelected(event)}
+                onSelect={(selection) => openCreate(selection)}
+                onEventMove={moveEvent}
+                loading={isLoading}
+              />
+            )}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1 text-xs leading-relaxed text-zen-500">
+              <span aria-live="polite">
+                {isLoading
+                  ? 'Loading your plans…'
+                  : `${filtered.length} ${filtered.length === 1 ? 'item' : 'items'} in this view`}
+                {isValidating && !isLoading ? ' · Updating…' : ''}
+              </span>
+              <span>
+                Local time · {Intl.DateTimeFormat().resolvedOptions().timeZone}
+              </span>
+            </div>
+            {!isLoading && filtered.length === 0 && view !== 'listWeek' && (
+              <div className="mt-4 rounded-2xl border border-dashed border-zen-200 p-5 text-center">
+                <p className="text-sm text-zen-600">
+                  {events.length
+                    ? 'No items match your filters.'
+                    : 'There’s room for something good.'}
+                </p>
                 <button
                   type="button"
-                  onClick={() => setHighlightsExpanded((prev) => !prev)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zen-200/70 bg-white/70 text-zen-500 shadow-sm transition hover:border-zen-300 hover:text-zen-700 dark:border-zen-700/60 dark:bg-zen-900/50 dark:text-zen-300 dark:hover:text-zen-50"
-                  aria-label={highlightsExpanded ? 'Collapse upcoming highlights' : 'Expand upcoming highlights'}
-                  aria-expanded={highlightsExpanded}
+                  className="mt-1 min-h-11 rounded-lg px-3 text-sm font-semibold text-sage-700"
+                  onClick={() =>
+                    events.length
+                      ? (setSearch(''),
+                        setGroups(GROUPS.map((group) => group.id)))
+                      : openCreate()
+                  }
                 >
-                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${highlightsExpanded ? '' : '-rotate-90'}`} />
+                  {events.length ? 'Reset filters' : 'Plan an event'}
                 </button>
               </div>
+            )}
+          </section>
+          <aside
+            className="hidden min-w-0 xl:block"
+            aria-label="Coming up in this view"
+          >
+            <div className="flex items-center justify-between border-b border-zen-200 pb-4 pt-2">
+              <h2 className="font-semibold text-zen-900">Coming up</h2>
+              <span className="text-xs text-zen-500">In this view</span>
             </div>
-            {highlightsExpanded && (
-              <div className="space-y-3 px-6 pb-6">
-                {upcomingHighlights.length === 0 ? (
-                  <p className="text-sm text-zen-500 dark:text-zen-300">No upcoming events in this range yet.</p>
-                ) : (
-                  upcomingHighlights.map((event) => (
-                    <button
-                      key={event.id}
-                      type="button"
-                      onClick={() => handleEventClick(event)}
-                      className="w-full rounded-2xl border border-zen-200/70 bg-gradient-to-br from-white via-zen-50 to-zen-100 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zen-300 hover:shadow-md dark:border-zen-800/60 dark:from-zen-900 dark:via-zen-900/90 dark:to-zen-800"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-zen-400 dark:text-zen-500">
-                            {event.type.replace('_', ' ')} · {event.scope}
-                          </span>
-                          <span className="text-base font-semibold text-zen-900 dark:text-zen-50">{event.title}</span>
-                          <span className="text-sm font-medium text-zen-600 dark:text-zen-200">{formatEventTime(event)}</span>
-                        </div>
-                        <span className="rounded-full bg-zen-100 px-3 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-800/70 dark:text-zen-100">
-                          {event.allDay ? 'All day' : 'Timed'}
-                        </span>
-                      </div>
-                    </button>
-                  ))
-                )}
+            {upcoming.length ? (
+              <div className="divide-y divide-zen-200/60">
+                {upcoming.map((event) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => setSelected(event)}
+                    className="group flex w-full items-start gap-3 rounded-lg px-1 py-5 text-left transition-colors hover:bg-surface"
+                  >
+                    <div className="w-10 shrink-0 text-center">
+                      <span className="block text-[11px] uppercase text-zen-500">
+                        {format(calendarEventDate(event), 'MMM')}
+                      </span>
+                      <span className="text-xl font-semibold text-zen-800">
+                        {format(calendarEventDate(event), 'd')}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-semibold text-zen-900">
+                        {event.title}
+                      </p>
+                      <p className="mt-1 text-xs text-zen-500">
+                        {event.allDay
+                          ? 'All day'
+                          : format(new Date(event.start), 'HH:mm')}{' '}
+                        · {EVENT_LABELS[event.type]}
+                      </p>
+                    </div>
+                    <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-zen-400 group-hover:text-sage-600" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8">
+                <CalendarDays className="mb-3 h-7 w-7 text-sage-500" />
+                <p className="text-sm text-zen-600">
+                  No more plans in this range.
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-zen-500">
+                  Browse another week or make a little time for yourself.
+                </p>
               </div>
             )}
+            <p className="mt-5 border-t border-zen-200 pt-4 text-xs leading-relaxed text-zen-500">
+              Select a date to make a plan. In week and day views, drag across a
+              time slot. You can move and resize your own events.
+            </p>
           </aside>
-        </section>
+        </div>
       </main>
-      <EventDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} onOpenTask={handleOpenTask} />
+      {editor && (
+        <CalendarEventForm
+          key={editor.event?.id ?? 'new'}
+          initial={editor.initial}
+          event={editor.event}
+          onClose={() => setEditor(null)}
+          onSave={save}
+        />
+      )}
+      {selected && !editor && (
+        <CalendarEventDetails
+          key={selected.id}
+          event={selected}
+          onClose={() => setSelected(null)}
+          onEdit={
+            canEdit
+              ? () => {
+                  setEditor({ event: selected });
+                  setSelected(null);
+                }
+              : undefined
+          }
+          onDelete={canEdit ? remove : undefined}
+          onOpenSource={selected.type !== 'event' ? openSource : undefined}
+        />
+      )}
     </div>
   );
 }
