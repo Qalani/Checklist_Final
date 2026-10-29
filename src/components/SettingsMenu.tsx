@@ -283,7 +283,7 @@ export default function SettingsMenu({
                     <BellRing className="h-4 w-4" />
                     Appearance & theme
                   </div>
-                  <ThemeSwitcher />
+                  <ThemeSwitcher inline />
                 </section>
 
                 <section className="space-y-3">

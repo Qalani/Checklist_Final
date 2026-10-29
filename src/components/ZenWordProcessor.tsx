@@ -341,7 +341,7 @@ export default function ZenWordProcessor({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="relative min-h-[320px] w-full rounded-b-[calc(theme(borderRadius.2xl)-2px)] bg-transparent px-4 py-4 text-base leading-relaxed text-zen-900 focus:outline-none focus:ring-0 prose prose-sm max-w-none before:pointer-events-none before:absolute before:left-4 before:top-4 before:text-base before:text-zen-400 before:opacity-60 before:transition-opacity before:content-[attr(data-placeholder)] data-[empty=false]:before:opacity-0 [&_a]:text-sage-600 [&_blockquote]:border-l-4 [&_blockquote]:border-sage-200 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h1]:text-3xl [&_h2]:text-2xl [&_h3]:text-xl [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify"
+          className="relative min-h-[320px] w-full rounded-b-[calc(theme(borderRadius.2xl)-2px)] bg-transparent px-4 py-4 text-base leading-relaxed text-zen-900 focus:outline-none focus:ring-0 prose prose-sm max-w-none before:pointer-events-none before:absolute before:left-4 before:top-4 before:text-base before:text-zen-400 before:opacity-60 before:transition-opacity before:content-[attr(data-placeholder)] data-[empty=false]:before:opacity-0 dark:data-[empty=true]:before:opacity-100 [&_a]:text-sage-600 [&_blockquote]:border-l-4 [&_blockquote]:border-sage-200 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h1]:text-3xl [&_h2]:text-2xl [&_h3]:text-xl [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify"
           data-placeholder={placeholder}
           data-empty={isContentEmpty}
         />

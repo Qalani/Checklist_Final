@@ -127,7 +127,7 @@ export function GlobalNav() {
         </nav>
       </div>
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col overflow-y-auto border-r border-zen-100 bg-surface px-4 pb-6 pt-8 lg:flex">
+      <aside className="workspace-sidebar fixed inset-y-0 left-0 z-40 hidden w-56 flex-col overflow-y-auto border-r border-zen-100 bg-surface px-4 pb-6 pt-8 lg:flex">
         <Link
           href={navigationHref('/')}
           aria-label="Zen Workspace home"

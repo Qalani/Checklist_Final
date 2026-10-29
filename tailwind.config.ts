@@ -1,5 +1,19 @@
 import type { Config } from "tailwindcss";
 
+// Keep text, fills and boundaries independent in dark mode. Borders accept a
+// complete colour so dark themes can use transparent decorative boundaries.
+// The fallback preserves both light palettes and their opacity utilities.
+const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
+const roleColors = (role: 'bg' | 'text' | 'border') => Object.fromEntries(
+  ['zen', 'sage', 'warm'].map(family => [family, Object.fromEntries(
+    shades.map(shade => [shade,
+      role === 'border'
+        ? `var(--color-border-${family}, rgb(var(--color-${family}-${shade}) / <alpha-value>))`
+        : `rgb(var(--color-${role}-${family}-${shade}, var(--color-${family}-${shade})) / <alpha-value>)`,
+    ]),
+  )]),
+);
+
 const config: Config = {
   darkMode: "class",
   content: [
@@ -10,6 +24,33 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      backgroundColor: {
+        ...roleColors('bg'),
+        white: 'rgb(var(--color-bg-white, 255 255 255) / <alpha-value>)',
+        red: {
+          50: 'rgb(var(--color-danger-surface, 254 242 242) / <alpha-value>)',
+          100: 'rgb(var(--color-danger-surface, 254 226 226) / <alpha-value>)',
+          200: 'rgb(var(--color-danger-hover, 254 202 202) / <alpha-value>)',
+        },
+      },
+      gradientColorStops: roleColors('bg'),
+      textColor: {
+        ...roleColors('text'),
+        red: {
+          500: 'rgb(var(--color-danger, 239 68 68) / <alpha-value>)',
+          600: 'rgb(var(--color-danger, 220 38 38) / <alpha-value>)',
+          700: 'rgb(var(--color-danger, 185 28 28) / <alpha-value>)',
+        },
+      },
+      borderColor: {
+        ...roleColors('border'),
+        red: {
+          100: 'var(--color-danger-border, rgb(254 226 226 / <alpha-value>))',
+          200: 'var(--color-danger-border, rgb(254 202 202 / <alpha-value>))',
+          300: 'var(--color-danger-border, rgb(252 165 165 / <alpha-value>))',
+        },
+      },
+      divideColor: roleColors('border'),
       fontFamily: {
         display: ['var(--font-display)', 'system-ui', '-apple-system', 'sans-serif'],
         body: ['var(--font-body)', 'system-ui', '-apple-system', 'sans-serif'],

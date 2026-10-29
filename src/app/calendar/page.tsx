@@ -378,7 +378,7 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-zen-50/50">
-      <header className="border-b border-zen-200/70 bg-surface/90">
+      <header className="workspace-header border-b border-zen-200/70 bg-surface/90">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div>
             <div className="flex items-center gap-2.5">
@@ -392,9 +392,7 @@ export default function CalendarPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="hidden sm:block">
-              <ThemeSwitcher />
-            </div>
+            <ThemeSwitcher />
             <button
               type="button"
               className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-sage-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sage-700"
