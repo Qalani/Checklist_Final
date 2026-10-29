@@ -9,6 +9,7 @@ import {
   normalizeReminderRecurrence,
 } from '@/utils/reminders';
 import { extractErrorMessage } from '@/utils/extract-error-message';
+import { getMonthlyTaskAnchorDay, isSameLocalTaskDate } from '@/utils/task-recurrence';
 import RichTextTextarea from './RichTextTextarea';
 import {
   PRESET_COLORS,
@@ -321,6 +322,14 @@ export default function TaskForm({
         reminder_timezone: timezoneForSave,
         task_recurrence: taskRecurrence || null,
         task_recurrence_interval: parsedInterval,
+        task_recurrence_anchor_day: taskRecurrence === 'monthly'
+          ? getMonthlyTaskAnchorDay(
+              dueDateISO,
+              task?.task_recurrence === 'monthly' && isSameLocalTaskDate(task.due_date, dueDateISO)
+                ? task.task_recurrence_anchor_day
+                : null,
+            )
+          : null,
       });
 
       if (result && typeof result === 'object' && 'error' in result && result.error) {

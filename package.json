@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
+    "test:reminder-scheduler": "node scripts/check-reminder-scheduler.mjs",
     "test:e2e": "playwright test",
     "build:capacitor": "node scripts/build-capacitor.js",
     "build:android": "npm run build:capacitor && npx cap sync android",

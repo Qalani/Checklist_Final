@@ -1,0 +1,3 @@
+# The scheduler authenticates its own dedicated secret before privileged work.
+[functions.send-reminder-notifications]
+verify_jwt = false

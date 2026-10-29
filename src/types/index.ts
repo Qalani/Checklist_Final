@@ -56,6 +56,7 @@ export interface Task extends Record<string, unknown> {
   reminder_timezone?: string | null;
   task_recurrence?: 'daily' | 'weekly' | 'monthly' | null;
   task_recurrence_interval?: number | null;
+  task_recurrence_anchor_day?: number | null;
   access_role?: 'owner' | 'editor' | 'viewer';
 }
 

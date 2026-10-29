@@ -45,3 +45,4 @@ android/app/build/
 android/build/
 android/.idea/
 test-results/
+supabase/.temp/

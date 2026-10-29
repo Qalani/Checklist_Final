@@ -5,37 +5,33 @@
  * looks up the FCM device tokens for those users, and delivers a native
  * push notification via the FCM HTTP v1 API.
  *
- * Deploy & schedule with Supabase's built-in pg_cron or call it from an
- * external cron service every minute:
- *
- *   supabase functions deploy send-reminder-notifications
- *
- * Required environment variables (set in Supabase Dashboard → Edge Functions):
- *   SUPABASE_URL                – your project URL
- *   SUPABASE_SERVICE_ROLE_KEY   – service-role key (bypasses RLS for reads)
- *   FCM_PROJECT_ID              – Firebase project ID
- *   FCM_SERVICE_ACCOUNT_JSON    – base64-encoded Firebase service account JSON
- *
- * To schedule it every minute inside Supabase (requires pg_cron extension):
- *   SELECT cron.schedule(
- *     'send-reminder-notifications',
- *     '* * * * *',
- *     $$SELECT net.http_post(
- *       url := 'https://<project-ref>.supabase.co/functions/v1/send-reminder-notifications',
- *       headers := '{"Authorization": "Bearer <anon-key>"}'::jsonb
- *     )$$
- *   );
+ * Scheduler setup, required secrets, and deployment: docs/reminder-scheduler.md.
+ * Only POST requests authenticated with the dedicated scheduler secret may
+ * initialize a service-role client or read reminder/device data.
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.75.0';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const FCM_PROJECT_ID = Deno.env.get('FCM_PROJECT_ID')!;
-// Base64-encoded service account JSON downloaded from Firebase Console.
-const FCM_SERVICE_ACCOUNT_JSON = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON')!;
+function jsonResponse(body: Record<string, unknown>, status = 200, headers = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers },
+  });
+}
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+async function matchesSecret(provided: string, expected: string): Promise<boolean> {
+  // Compare fixed-length hashes without an early exit for the first mismatch.
+  const encoder = new TextEncoder();
+  const [actualHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(provided)),
+    crypto.subtle.digest('SHA-256', encoder.encode(expected)),
+  ]);
+  const actual = new Uint8Array(actualHash);
+  const wanted = new Uint8Array(expectedHash);
+  let difference = 0;
+  for (let i = 0; i < wanted.length; i++) difference |= actual[i] ^ wanted[i];
+  return difference === 0;
+}
 
 // ── FCM authentication ────────────────────────────────────────────────────────
 
@@ -44,8 +40,9 @@ interface ServiceAccount {
   private_key: string;
 }
 
-async function getFcmAccessToken(): Promise<string> {
-  const sa: ServiceAccount = JSON.parse(atob(FCM_SERVICE_ACCOUNT_JSON));
+async function getFcmAccessToken(encodedServiceAccount: string): Promise<string> {
+  const sa: ServiceAccount = JSON.parse(atob(encodedServiceAccount));
+  if (!sa.client_email || !sa.private_key) throw new Error('Invalid FCM configuration');
 
   const encodeB64Url = (data: Uint8Array) =>
     btoa(String.fromCharCode(...data))
@@ -90,21 +87,27 @@ async function getFcmAccessToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    signal: AbortSignal.timeout(10_000),
   });
+  if (!res.ok) throw new Error('FCM authentication failed');
   const json = await res.json();
-  return json.access_token as string;
+  if (typeof json.access_token !== 'string' || !json.access_token) {
+    throw new Error('FCM authentication failed');
+  }
+  return json.access_token;
 }
 
 // ── FCM delivery ──────────────────────────────────────────────────────────────
 
 async function sendFcmNotification(
+  projectId: string,
   accessToken: string,
   deviceToken: string,
   title: string,
   body: string,
 ): Promise<void> {
-  await fetch(
-    `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`,
+  const response = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`,
     {
       method: 'POST',
       headers: {
@@ -123,14 +126,41 @@ async function sendFcmNotification(
           },
         },
       }),
+      signal: AbortSignal.timeout(10_000),
     },
   );
+  if (!response.ok) throw new Error('FCM delivery failed');
+  const result = await response.json();
+  if (typeof result.name !== 'string' || !result.name) throw new Error('FCM delivery failed');
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
-Deno.serve(async () => {
+Deno.serve(async (request: Request) => {
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405, { Allow: 'POST' });
+  }
+
+  const schedulerSecret = Deno.env.get('REMINDER_CRON_SECRET');
+  if (!schedulerSecret || schedulerSecret.length < 32) {
+    return jsonResponse({ error: 'Reminder scheduler is not configured' }, 503);
+  }
+  const providedSecret = request.headers.get('x-reminder-cron-secret') ?? '';
+  if (!providedSecret || !(await matchesSecret(providedSecret, schedulerSecret))) {
+    return jsonResponse({ error: 'Unauthorized' }, 401);
+  }
+
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const fcmProjectId = Deno.env.get('FCM_PROJECT_ID');
+    const fcmServiceAccount = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
+    if (!supabaseUrl || !serviceRoleKey || !fcmProjectId || !fcmServiceAccount) {
+      return jsonResponse({ error: 'Reminder scheduler is not configured' }, 503);
+    }
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     const now = new Date();
     const windowEnd = new Date(now.getTime() + 60_000); // next 60 s
 
@@ -138,13 +168,12 @@ Deno.serve(async () => {
       .from('zen_reminders')
       .select('id, user_id, title, description, remind_at')
       .gte('remind_at', now.toISOString())
-      .lte('remind_at', windowEnd.toISOString());
+      .lt('remind_at', windowEnd.toISOString())
+      .abortSignal(AbortSignal.timeout(10_000));
 
     if (remindersError) throw remindersError;
     if (!reminders?.length) {
-      return new Response(JSON.stringify({ sent: 0 }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ sent: 0 });
     }
 
     const userIds = [...new Set(reminders.map((r) => r.user_id as string))];
@@ -152,9 +181,11 @@ Deno.serve(async () => {
     const { data: tokens, error: tokensError } = await supabase
       .from('push_tokens')
       .select('user_id, token')
-      .in('user_id', userIds);
+      .in('user_id', userIds)
+      .abortSignal(AbortSignal.timeout(10_000));
 
     if (tokensError) throw tokensError;
+    if (!tokens?.length) return jsonResponse({ sent: 0 });
 
     const tokensByUser = new Map<string, string[]>();
     for (const t of tokens ?? []) {
@@ -163,29 +194,36 @@ Deno.serve(async () => {
       tokensByUser.set(t.user_id as string, arr);
     }
 
-    const accessToken = await getFcmAccessToken();
+    const accessToken = await getFcmAccessToken(fcmServiceAccount);
     let sent = 0;
+    let failed = 0;
 
     for (const reminder of reminders) {
       const deviceTokens = tokensByUser.get(reminder.user_id as string) ?? [];
       for (const deviceToken of deviceTokens) {
-        await sendFcmNotification(
-          accessToken,
-          deviceToken,
-          reminder.title as string,
-          (reminder.description as string | null) ?? 'Time for your Zen reminder',
-        );
-        sent++;
+        try {
+          await sendFcmNotification(
+            fcmProjectId,
+            accessToken,
+            deviceToken,
+            reminder.title as string,
+            (reminder.description as string | null) ?? 'Time for your Zen reminder',
+          );
+          sent++;
+        } catch {
+          failed++;
+        }
       }
     }
 
-    return new Response(JSON.stringify({ sent }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    if (failed > 0) {
+      console.error('Reminder notification deliveries failed', { sent, failed });
+      return jsonResponse({ error: 'Some reminder notifications could not be sent', sent, failed }, 502);
+    }
+    return jsonResponse({ sent });
+  } catch {
+    // Database/provider errors may contain credentials, device tokens, or user data.
+    console.error('Reminder notification dispatch failed');
+    return jsonResponse({ error: 'Reminder notifications could not be sent' }, 500);
   }
 });
