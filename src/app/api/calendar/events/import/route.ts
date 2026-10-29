@@ -1,7 +1,8 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { authenticateRequest, supabaseAdmin } from '@/lib/api/supabase-admin';
 import { checkRateLimit, rateLimitHeaders } from '@/lib/rate-limiter';
+import { calendarTimeToDate, CalendarTimezoneError, registerCalendarTimezones } from '@/features/calendar/ics';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -9,6 +10,7 @@ export const maxDuration = 30;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 500;
+const RECURRING_IMPORT_ERROR = 'Recurring calendar events are not supported. Export individual occurrences and import those instead.';
 
 interface CalendarEventRow {
   user_id: string;
@@ -104,33 +106,45 @@ export async function POST(request: Request) {
   }
 
   const component = new ICAL.Component(parsed);
+  try {
+    registerCalendarTimezones(component, ICAL);
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof CalendarTimezoneError ? error.message : 'Unable to read timezones in this calendar file.',
+    }, { status: 400 });
+  }
   const vevents = component.getAllSubcomponents('vevent');
 
   if (!vevents || vevents.length === 0) {
     return NextResponse.json({ error: 'No events were found in this file.' }, { status: 400 });
   }
+  if (vevents.some((vevent: any) => ['rrule', 'rdate', 'recurrence-id'].some((name) => vevent.getFirstProperty?.(name)))) {
+    return NextResponse.json({ error: RECURRING_IMPORT_ERROR }, { status: 400 });
+  }
 
   const candidateRecords: CalendarEventRow[] = [];
 
-  vevents.forEach((vevent: any) => {
+  for (const vevent of vevents) {
     try {
       const event = new ICAL.Event(vevent);
       if (!event.startDate) {
-        return;
+        continue;
       }
 
-      const startJs = event.startDate.toJSDate();
+      const startProperty = vevent.getFirstProperty?.('dtstart');
+      const endProperty = vevent.getFirstProperty?.('dtend') ?? startProperty;
+      const startJs = calendarTimeToDate(event.startDate, startProperty);
       if (Number.isNaN(startJs.getTime())) {
-        return;
+        continue;
       }
 
       let endJs: Date | null = null;
       if (event.endDate) {
-        endJs = event.endDate.toJSDate();
+        endJs = calendarTimeToDate(event.endDate, endProperty);
       } else if (event.duration) {
         const endClone = event.startDate.clone();
         endClone.addDuration(event.duration);
-        endJs = endClone.toJSDate();
+        endJs = calendarTimeToDate(endClone, startProperty);
       }
 
       if (!endJs || Number.isNaN(endJs.getTime())) {
@@ -156,9 +170,12 @@ export async function POST(request: Request) {
         import_uid: uid,
       });
     } catch (error) {
+      if (error instanceof CalendarTimezoneError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
       console.warn('Skipped invalid event during import', error);
     }
-  });
+  }
 
   if (candidateRecords.length === 0) {
     return NextResponse.json({ error: 'No valid events were found in this file.' }, { status: 400 });
@@ -178,11 +195,11 @@ export async function POST(request: Request) {
 
   const importUids = records.map((record) => record.import_uid);
 
-  let existingUids = new Set<string>();
+  const existingIds = new Map<string, string>();
   if (importUids.length > 0) {
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from('calendar_events')
-      .select('import_uid')
+      .select('id, import_uid')
       .eq('user_id', userId)
       .eq('import_source', sourceName)
       .in('import_uid', importUids);
@@ -195,15 +212,21 @@ export async function POST(request: Request) {
       );
     }
 
-    existingUids = new Set((existingRows ?? []).map((row) => row.import_uid as string));
+    (existingRows ?? []).forEach((row) => {
+      existingIds.set(row.import_uid as string, row.id as string);
+    });
   }
 
-  const createdCount = records.filter((record) => !existingUids.has(record.import_uid)).length;
+  const createdCount = records.filter((record) => !existingIds.has(record.import_uid)).length;
   const updatedCount = records.length - createdCount;
 
+  const recordsWithIds = records.map((record) => ({
+    ...record,
+    id: existingIds.get(record.import_uid) ?? randomUUID(),
+  }));
   const { error: upsertError } = await supabaseAdmin
     .from('calendar_events')
-    .upsert(records, { onConflict: 'user_id,import_source,import_uid' });
+    .upsert(recordsWithIds, { onConflict: 'id' });
 
   if (upsertError) {
     console.error('Failed to upsert imported events', upsertError);

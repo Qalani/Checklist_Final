@@ -53,7 +53,8 @@ function startOfDay(date: Date): Date {
 
 function endOfDay(date: Date): Date {
   const s = startOfDay(date);
-  return new Date(s.getTime() + ONE_DAY_MS);
+  s.setDate(s.getDate() + 1);
+  return s;
 }
 
 function buildReminderMetadata(task: Task): CalendarReminderMetadata | null {
@@ -100,7 +101,7 @@ async function fetchCalendarPayloadOffline(
   );
 }
 
-function buildCalendarPayload(
+export function buildCalendarPayload(
   userId: string,
   startIso: string,
   endIso: string,
@@ -147,7 +148,7 @@ function buildCalendarPayload(
     if (task.due_date) {
       const dueDate = new Date(task.due_date);
       const dueTime = dueDate.getTime();
-      if (!isNaN(dueTime) && dueTime >= rangeStartMs && dueTime <= rangeEndMs) {
+      if (!isNaN(dueTime) && dueTime >= rangeStartMs && dueTime < rangeEndMs) {
         const dueEnd = new Date(dueTime + THIRTY_MINUTES_MS);
         const reminderMetadata = buildReminderMetadata(task);
         const taskMetadata: CalendarTaskMetadata = {
@@ -175,10 +176,13 @@ function buildCalendarPayload(
     }
 
     if (shouldScheduleReminder(task)) {
-      const occurrences = getUpcomingReminderOccurrences(task, { from: start, limit: 12 });
+      // A month grid can cover six weeks. Include every daily occurrence in
+      // the visible range rather than silently stopping after twelve reminders.
+      const occurrenceLimit = Math.min(730, Math.ceil((rangeEndMs - rangeStartMs) / ONE_DAY_MS) + 1);
+      const occurrences = getUpcomingReminderOccurrences(task, { from: start, limit: occurrenceLimit });
       occurrences.forEach((occurrence) => {
         const occurrenceTime = occurrence.getTime();
-        if (occurrenceTime < rangeStartMs || occurrenceTime > rangeEndMs) return;
+        if (occurrenceTime < rangeStartMs || occurrenceTime >= rangeEndMs) return;
         const reminderEnd = new Date(occurrenceTime + THIRTY_MINUTES_MS);
         const reminderMetadata = buildReminderMetadata(task);
         const metadata: CalendarTaskMetadata = {
@@ -217,6 +221,20 @@ function buildCalendarPayload(
         endDate = new Date(startDate.getTime() + (calendarEvent.all_day ? ONE_DAY_MS : THIRTY_MINUTES_MS));
       }
 
+      // Include events that span into this range, with an exclusive end like
+      // the calendar views use. An event ending at midnight belongs to the
+      // preceding day only.
+      // User-created all-day events store calendar dates at UTC midnight.
+      // Compare those dates with the visible LOCAL calendar dates, so changing
+      // device timezone cannot shift an all-day event out of a boundary day.
+      const eventRangeStart = calendarEvent.all_day
+        ? Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())
+        : rangeStartMs;
+      const eventRangeEnd = calendarEvent.all_day
+        ? Date.UTC(end.getFullYear(), end.getMonth(), end.getDate())
+        : rangeEndMs;
+      if (startDate.getTime() >= eventRangeEnd || endDate.getTime() <= eventRangeStart) return;
+
       const metadata: CalendarUserEventMetadata = {
         eventId: calendarEvent.id,
         canEdit: true,
@@ -243,11 +261,12 @@ function buildCalendarPayload(
   }
 
   notes.forEach((note) => {
+    if (scope === 'shared') return;
     const timestamp = note.updated_at ?? note.created_at;
     if (!timestamp) return;
     const noteDate = new Date(timestamp);
     const noteTime = noteDate.getTime();
-    if (isNaN(noteTime) || noteTime < rangeStartMs || noteTime > rangeEndMs) return;
+    if (isNaN(noteTime) || noteTime < rangeStartMs || noteTime >= rangeEndMs) return;
 
     const noteStart = startOfDay(noteDate);
     const noteEnd = endOfDay(noteDate);
@@ -272,10 +291,11 @@ function buildCalendarPayload(
   });
 
   zenReminders.forEach((reminder) => {
+    if (scope === 'shared') return;
     const remindDate = reminder.remind_at ? new Date(reminder.remind_at) : null;
     if (!remindDate) return;
     const remindTime = remindDate.getTime();
-    if (isNaN(remindTime) || remindTime < rangeStartMs || remindTime > rangeEndMs) return;
+    if (isNaN(remindTime) || remindTime < rangeStartMs || remindTime >= rangeEndMs) return;
 
     const remindEnd = new Date(remindTime + THIRTY_MINUTES_MS);
     const reminderMetadata: CalendarZenReminderMetadata = {
@@ -318,11 +338,6 @@ async function fetchCalendarPayload(
     return fetchCalendarPayloadOffline(userId, startIso, endIso, scope);
   }
 
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  const rangeStartMs = start.getTime();
-  const rangeEndMs = end.getTime();
-
   const [ownedTasksResult, sharedTasksResult, notesResult, remindersResult, calendarEventsResult] =
     await Promise.all([
       supabase.from('tasks').select('*').eq('user_id', userId),
@@ -356,10 +371,10 @@ async function fetchCalendarPayload(
 export function useCalendarData(userId: string | null, options: UseCalendarOptions): CalendarDataResult {
   const { start, end, scope, pause = false } = options;
 
-  const startIso = useMemo(() => start.toISOString(), [start]);
-  const endIso = useMemo(() => end.toISOString(), [end]);
+  const startIso = useMemo(() => Number.isNaN(start.getTime()) ? '' : start.toISOString(), [start]);
+  const endIso = useMemo(() => Number.isNaN(end.getTime()) ? '' : end.toISOString(), [end]);
 
-  const rangeValid = start.getTime() <= end.getTime();
+  const rangeValid = Boolean(startIso && endIso) && start.getTime() < end.getTime();
   const shouldFetch = Boolean(userId) && !pause && rangeValid;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<CalendarResponsePayload>(
@@ -405,11 +420,21 @@ export function useCalendarData(userId: string | null, options: UseCalendarOptio
       )
       .subscribe();
 
+    const remindersChannel = supabase
+      .channel(`calendar:zen-reminders:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'zen_reminders', filter: `user_id=eq.${userId}` },
+        () => { void mutate(); },
+      )
+      .subscribe();
+
     return () => {
       void tasksChannel.unsubscribe();
       void notesChannel.unsubscribe();
       void collaboratorsChannel.unsubscribe();
       void calendarEventsChannel.unsubscribe();
+      void remindersChannel.unsubscribe();
     };
   }, [mutate, shouldFetch, userId]);
 

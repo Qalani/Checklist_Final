@@ -123,8 +123,8 @@ export async function PATCH(request: Request) {
       const startDate = parseOptionalIsoDate(payload.start, 'start');
       const endDate = parseOptionalIsoDate(payload.end, 'end');
 
-      if (endDate.getTime() < startDate.getTime()) {
-        return NextResponse.json({ error: 'End time must be on or after the start time.' }, { status: 400 });
+      if (endDate.getTime() <= startDate.getTime()) {
+        return NextResponse.json({ error: 'End time must be after the start time.' }, { status: 400 });
       }
 
       updates.start_time = startDate.toISOString();

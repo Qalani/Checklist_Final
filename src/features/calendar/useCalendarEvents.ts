@@ -6,6 +6,7 @@ import { db } from '@/lib/local-db';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
 import type { CalendarEvent } from '@/types';
+import { calendarTimeToDate, CalendarTimezoneError, registerCalendarTimezones } from './ics';
 
 export interface CreateCalendarEventInput {
   title: string;
@@ -35,6 +36,7 @@ export interface ImportCalendarEventsResult {
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 500;
+const RECURRING_IMPORT_ERROR = 'Recurring calendar events are not supported. Export individual occurrences and import those instead.';
 
 async function sha256Hex(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -74,8 +76,8 @@ export function useCalendarEvents(userId: string | null) {
         throw new Error('start and end must be valid ISO date strings.');
       }
 
-      if (endDate.getTime() < startDate.getTime()) {
-        throw new Error('End time must be on or after the start time.');
+      if (endDate.getTime() <= startDate.getTime()) {
+        throw new Error('End time must be after the start time.');
       }
 
       const eventData = {
@@ -124,6 +126,9 @@ export function useCalendarEvents(userId: string | null) {
         throw new Error(error?.message || 'Unable to create event.');
       }
 
+      // The server write has succeeded; a browser storage failure must not
+      // make the UI report that the event failed to save.
+      await db.calendar_events.put(data as CalendarEvent).catch(() => undefined);
       return data as CalendarEvent;
     },
     [userId],
@@ -173,8 +178,8 @@ export function useCalendarEvents(userId: string | null) {
           throw new Error('start and end must be valid ISO date strings.');
         }
 
-        if (endDate.getTime() < startDate.getTime()) {
-          throw new Error('End time must be on or after the start time.');
+        if (endDate.getTime() <= startDate.getTime()) {
+          throw new Error('End time must be after the start time.');
         }
 
         dbUpdates.start_time = startDate.toISOString();
@@ -191,7 +196,7 @@ export function useCalendarEvents(userId: string | null) {
 
       if (!isOnline()) {
         const existing = await db.calendar_events.get(eventId);
-        if (!existing) {
+        if (!existing || existing.user_id !== userId) {
           throw new Error('Event not found.');
         }
         const now = new Date().toISOString();
@@ -221,7 +226,43 @@ export function useCalendarEvents(userId: string | null) {
         throw new Error('Event not found.');
       }
 
+      await db.calendar_events.put(data as CalendarEvent).catch(() => undefined);
       return data as CalendarEvent;
+    },
+    [userId],
+  );
+
+  const deleteEvent = useCallback(
+    async (eventId: string): Promise<void> => {
+      if (!userId) {
+        throw new Error('You must be signed in to delete events.');
+      }
+
+      if (!isOnline()) {
+        const existing = await db.calendar_events.get(eventId);
+        if (!existing || existing.user_id !== userId) {
+          throw new Error('Event not found.');
+        }
+        await enqueue({
+          table_name: 'calendar_events',
+          operation: 'DELETE',
+          payload: { id: eventId, user_id: userId },
+        });
+        await db.calendar_events.delete(eventId);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .delete()
+        .eq('id', eventId)
+        .eq('user_id', userId)
+        .select('id')
+        .maybeSingle();
+
+      if (error) throw new Error(error.message || 'Unable to delete event. Please try again.');
+      if (!data) throw new Error('Event not found.');
+      await db.calendar_events.delete(eventId).catch(() => undefined);
     },
     [userId],
   );
@@ -257,10 +298,14 @@ export function useCalendarEvents(userId: string | null) {
       }
 
       const component = new ICAL.Component(parsed);
+      registerCalendarTimezones(component, ICAL);
       const vevents = component.getAllSubcomponents('vevent');
 
       if (!vevents || vevents.length === 0) {
         throw new Error('No events were found in this file.');
+      }
+      if (vevents.some((vevent: any) => ['rrule', 'rdate', 'recurrence-id'].some((name) => vevent.getFirstProperty?.(name)))) {
+        throw new Error(RECURRING_IMPORT_ERROR);
       }
 
       const sourceName = sanitizeSourceName(file.name);
@@ -284,16 +329,18 @@ export function useCalendarEvents(userId: string | null) {
           const event = new ICAL.Event(vevent as any);
           if (!event.startDate) continue;
 
-          const startJs = event.startDate.toJSDate() as Date;
+          const startProperty = vevent.getFirstProperty?.('dtstart');
+          const endProperty = vevent.getFirstProperty?.('dtend') ?? startProperty;
+          const startJs = calendarTimeToDate(event.startDate, startProperty);
           if (isNaN(startJs.getTime())) continue;
 
           let endJs: Date | null = null;
           if (event.endDate) {
-            endJs = event.endDate.toJSDate() as Date;
+            endJs = calendarTimeToDate(event.endDate, endProperty);
           } else if (event.duration) {
             const endClone = event.startDate.clone();
             endClone.addDuration(event.duration);
-            endJs = endClone.toJSDate() as Date;
+            endJs = calendarTimeToDate(endClone, startProperty);
           }
 
           if (!endJs || isNaN(endJs.getTime())) {
@@ -324,7 +371,8 @@ export function useCalendarEvents(userId: string | null) {
             import_source: sourceName,
             import_uid: uid,
           });
-        } catch {
+        } catch (error) {
+          if (error instanceof CalendarTimezoneError) throw error;
           // skip invalid events
         }
       }
@@ -347,11 +395,11 @@ export function useCalendarEvents(userId: string | null) {
 
       const importUids = records.map((r) => r.import_uid);
 
-      let existingUids = new Set<string>();
+      const existingIds = new Map<string, string>();
       if (importUids.length > 0) {
         const { data: existingRows, error: existingError } = await supabase
           .from('calendar_events')
-          .select('import_uid')
+          .select('id, import_uid')
           .eq('user_id', userId)
           .eq('import_source', sourceName)
           .in('import_uid', importUids);
@@ -360,18 +408,32 @@ export function useCalendarEvents(userId: string | null) {
           throw new Error('Unable to import events right now. Please try again later.');
         }
 
-        existingUids = new Set((existingRows ?? []).map((row) => row.import_uid as string));
+        (existingRows ?? []).forEach((row) => {
+          existingIds.set(row.import_uid as string, row.id as string);
+        });
       }
 
-      const createdCount = records.filter((r) => !existingUids.has(r.import_uid)).length;
+      const createdCount = records.filter((r) => !existingIds.has(r.import_uid)).length;
       const updatedCount = records.length - createdCount;
 
-      const { error: upsertError } = await supabase
+      // The import uniqueness index is partial, so PostgREST cannot infer it
+      // from an onConflict column list. Reuse existing primary keys instead;
+      // reimporting the same file updates its events without a schema change.
+      const recordsWithIds = records.map((record) => ({
+        ...record,
+        id: existingIds.get(record.import_uid) ?? crypto.randomUUID(),
+      }));
+      const { data: savedEvents, error: upsertError } = await supabase
         .from('calendar_events')
-        .upsert(records, { onConflict: 'user_id,import_source,import_uid' });
+        .upsert(recordsWithIds, { onConflict: 'id' })
+        .select();
 
       if (upsertError) {
         throw new Error(upsertError.message || 'Unable to save imported events. Please try again.');
+      }
+
+      if (savedEvents?.length) {
+        await db.calendar_events.bulkPut(savedEvents as CalendarEvent[]).catch(() => undefined);
       }
 
       return {
@@ -384,5 +446,5 @@ export function useCalendarEvents(userId: string | null) {
     [userId],
   );
 
-  return { createEvent, updateEvent, importFromIcs };
+  return { createEvent, updateEvent, deleteEvent, importFromIcs };
 }

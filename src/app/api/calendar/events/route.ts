@@ -116,8 +116,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  if (endDate.getTime() < startDate.getTime()) {
-    return NextResponse.json({ error: 'End time must be on or after the start time.' }, { status: 400 });
+  if (endDate.getTime() <= startDate.getTime()) {
+    return NextResponse.json({ error: 'End time must be after the start time.' }, { status: 400 });
   }
 
   const normalizedAllDay = typeof allDay === 'boolean' ? allDay : false;
