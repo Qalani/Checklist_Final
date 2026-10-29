@@ -14,7 +14,7 @@ const MAX_RETRIES = 3;
  *
  * States it cycles through:
  * 1. Nothing rendered — online, queue empty, no recent flush
- * 2. Top banner      — offline (with pending count if > 0)
+ * 2. Bottom notice   — offline (with pending count if > 0)
  * 3. Bottom-right    — online, queue draining ("Syncing N changes…")
  * 4. Bottom-right    — queue just flushed to 0 ("Synced ✓"), auto-dismisses
  *    after 3 seconds
@@ -55,6 +55,7 @@ export function OfflineIndicator() {
   useEffect(() => {
     const prev = prevCountRef.current;
     prevCountRef.current = pendingCount;
+    setShowSynced(false);
 
     if (isOnline && prev !== null && prev > 0 && pendingCount === 0) {
       setShowSynced(true);
@@ -102,7 +103,7 @@ export function OfflineIndicator() {
       )}
 
       {/* "Synced" toast — queue just flushed while online */}
-      {showSynced && pendingCount === 0 && (
+      {isOnline && showSynced && pendingCount === 0 && (
         <div
           role="status"
           aria-live="polite"
@@ -125,20 +126,22 @@ export function OfflineIndicator() {
         </div>
       )}
 
-      {/* Offline banner — spans the full top of the viewport */}
+      {/* Keep connection feedback clear of the header and mobile navigation. */}
       {!isOnline && (
         <div
           role="status"
-          aria-live="assertive"
-          className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-2 bg-warm-500 px-4 py-2 text-sm font-medium text-white shadow-md"
+          aria-live="polite"
+          className="fixed bottom-28 left-4 right-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-warm-200 bg-surface px-4 py-3 text-sm text-zen-900 shadow-medium lg:bottom-6 lg:left-auto lg:right-6"
         >
-          <WifiOff className="h-4 w-4 shrink-0" />
-          <span>You&rsquo;re offline</span>
-          {pendingCount > 0 && (
-            <span className="opacity-80">
-              &nbsp;&middot;&nbsp;{pendingCount} change{pendingCount === 1 ? '' : 's'} pending sync
-            </span>
-          )}
+          <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-warm-700" />
+          <div>
+            <p className="font-medium">You&rsquo;re offline</p>
+            <p className="mt-1 text-xs leading-relaxed text-zen-700">
+              {pendingCount > 0
+                ? `${pendingCount} change${pendingCount === 1 ? '' : 's'} saved on this device. We’ll sync when you reconnect.`
+                : 'You can keep working. We’ll reconnect automatically.'}
+            </p>
+          </div>
         </div>
       )}
     </>

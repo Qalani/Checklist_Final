@@ -3,7 +3,18 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, CalendarDays, CheckSquare, ListTodo, Sparkles, StickyNote, Users } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Bell,
+  CalendarDays,
+  CheckSquare,
+  Leaf,
+  ListTodo,
+  Sparkles,
+  StickyNote,
+  Users,
+} from 'lucide-react';
 
 import AuthPanel from '@/components/AuthPanel';
 import SettingsMenu from '@/components/SettingsMenu';
@@ -14,14 +25,17 @@ import { useListsOverview } from '@/features/home/hooks/useListsOverview';
 import { useNotesOverview } from '@/features/home/hooks/useNotesOverview';
 import { useRemindersOverview } from '@/features/home/hooks/useRemindersOverview';
 import { useTasksOverview } from '@/features/home/hooks/useTasksOverview';
-import type { FeatureCardProps } from '@/features/home/components/FeatureCard';
-import { FeatureCard } from '@/features/home/components/FeatureCard';
+import { FeatureCard, type FeatureCardProps } from '@/features/home/components/FeatureCard';
 import { useNotificationPermission } from '@/lib/hooks/useNotificationPermission';
 
 function LoadingScreen() {
   return (
-    <div className="relative flex min-h-screen items-center justify-center">
-      <div className="h-12 w-12 animate-spin rounded-full border-4 border-zen-200 border-t-zen-500" />
+    <div
+      role="status"
+      aria-label="Loading your workspace"
+      className="flex min-h-screen items-center justify-center"
+    >
+      <div className="h-8 w-8 rounded-full border-2 border-zen-200 border-t-sage-600 motion-safe:animate-spin" />
     </div>
   );
 }
@@ -29,315 +43,281 @@ function LoadingScreen() {
 export default function HomePageClient() {
   const searchParams = useSearchParams();
   const demoMode = searchParams?.get('demo') === '1';
-
   const { user, authChecked, signOut } = useAuthSession();
-  const targetUserId = demoMode ? null : user?.id ?? null;
-
+  const targetUserId = demoMode ? null : (user?.id ?? null);
   const tasksOverview = useTasksOverview(targetUserId, demoMode);
   const listsOverview = useListsOverview(targetUserId, demoMode);
   const notesOverview = useNotesOverview(targetUserId, demoMode);
   const friendsOverview = useFriendsOverview(targetUserId, demoMode);
   const remindersOverview = useRemindersOverview(targetUserId, demoMode);
-  const { permission: notificationPermission, statusMessage: notificationStatus, requestPermission } =
-    useNotificationPermission();
-
-  const userEmail = useMemo(() => {
-    if (demoMode) {
-      return 'Demo session';
-    }
-    return user?.email ?? user?.user_metadata?.email ?? null;
-  }, [demoMode, user]);
-
-  const tasksLoading = tasksOverview.loading;
-  const listsLoading = listsOverview.loading;
-  const notesLoading = notesOverview.loading;
-  const friendsLoading = friendsOverview.loading;
-  const remindersLoading = remindersOverview.loading;
+  const {
+    permission: notificationPermission,
+    statusMessage: notificationStatus,
+    requestPermission,
+  } = useNotificationPermission();
+  const userEmail = demoMode ? 'Demo session' : (user?.email ?? user?.user_metadata?.email ?? null);
+  const initials = demoMode ? 'ZW' : (userEmail?.slice(0, 2).toUpperCase() ?? 'ZW');
+  const withDemo = (path: string) => (demoMode ? `${path}?demo=1` : path);
 
   const featureCards = useMemo<FeatureCardProps[]>(
-    () => {
-      // Compute a human-readable "time until" string for an upcoming reminder
-      const upcomingReminderFooter = (() => {
-        if (!remindersOverview.upcomingReminder?.remind_at) return undefined;
-        const msUntil = new Date(remindersOverview.upcomingReminder.remind_at).getTime() - Date.now();
-        if (msUntil <= 0) return undefined;
-        const minsUntil = Math.round(msUntil / 60_000);
-        if (minsUntil < 60) return `Next reminder in ${minsUntil}m`;
-        const hoursUntil = Math.round(minsUntil / 60);
-        return `Next reminder in ${hoursUntil}h`;
-      })();
-
-      const tasksFooter = (() => {
-        if (tasksLoading) return undefined;
-        if (tasksOverview.overdueTasks > 0) {
-          return `${tasksOverview.overdueTasks} task${tasksOverview.overdueTasks === 1 ? '' : 's'} overdue`;
-        }
-        return tasksOverview.openTasks === 0 ? 'All caught up' : 'All tasks on track';
-      })();
-
-      return [
-        {
-          key: 'calendar',
-          title: 'Calendar',
-          description: 'Visualise tasks, reminders, and notes on a shared timeline.',
-          href: '/calendar',
-          icon: CalendarDays,
-          loading: tasksLoading,
-          primary: tasksOverview.nextDueTask
-            ? `Next: ${tasksOverview.nextDueTask.title}`
-            : 'No upcoming due dates',
-          secondary:
-            tasksOverview.nextDueTask?.due_date
-              ? new Date(tasksOverview.nextDueTask.due_date).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : 'Stay in control at a glance',
-          footerText: tasksLoading ? undefined : tasksOverview.overdueTasks > 0
-            ? `${tasksOverview.overdueTasks} task${tasksOverview.overdueTasks === 1 ? '' : 's'} need attention`
-            : 'View full timeline',
-          accentGradient: 'bg-gradient-to-br from-zen-500 to-warm-500',
-          accentText: 'text-white',
-          badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-zen-600 dark:text-zen-900',
-          footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
-        },
-        {
-          key: 'reminders',
-          title: 'Zen Reminders',
-          description: 'Schedule gentle nudges to pause, breathe, and reset throughout your day.',
-          href: '/reminders',
-          icon: Bell,
-          loading: remindersLoading,
-          primary: remindersOverview.upcomingReminder
-            ? `Next: ${remindersOverview.upcomingReminder.title}`
-            : 'No reminders scheduled',
-          secondary: remindersOverview.upcomingReminder?.remind_at
-            ? new Date(remindersOverview.upcomingReminder.remind_at).toLocaleString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : `${remindersOverview.totalReminders} saved reminders`,
-          footerText: remindersLoading ? undefined : upcomingReminderFooter ?? (
-            remindersOverview.totalReminders === 0 ? 'Schedule your first reminder' : 'No upcoming reminders'
-          ),
-          accentGradient: 'bg-gradient-to-br from-sage-500 to-zen-500',
-          accentText: 'text-white',
-          badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-sage-700 dark:text-zen-900',
-          footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
-        },
-        {
-          key: 'tasks',
-          title: 'Tasks',
-          description: 'Orchestrate priorities with calm confidence and crystal-clear visibility.',
-          href: '/tasks',
-          icon: CheckSquare,
-          loading: tasksLoading,
-          primary: `${tasksOverview.openTasks} active tasks`,
-          secondary: `${tasksOverview.completedTasks} completed`,
-          footerText: tasksFooter,
-          accentGradient: 'bg-gradient-to-br from-zen-500 to-zen-600',
-          accentText: 'text-white',
-          badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-zen-600 dark:text-zen-900',
-          footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
-        },
-        {
-          key: 'lists',
-          title: 'Lists',
-          description: 'Design polished rituals, runbooks, and checklists that evolve with your goals.',
-          href: '/lists',
-          icon: ListTodo,
-          loading: listsLoading,
-          primary: `${listsOverview.totalLists} curated lists`,
-          secondary: '',
-          footerText: listsLoading ? undefined : listsOverview.totalLists === 0 ? 'Create your first list' : undefined,
-          accentGradient: 'bg-gradient-to-br from-sage-400 to-sage-500',
-          accentText: 'text-zen-900',
-          badgeBg: 'bg-sage-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-sage-700 dark:text-zen-900',
-          footerBg: 'bg-sage-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-sage-100/80 dark:group-hover:bg-zen-900/25',
-        },
-        {
-          key: 'notes',
-          title: 'Notes',
-          description: 'Capture layered insights, decisions, and reflections in a soothing editor.',
-          href: '/notes',
-          icon: StickyNote,
-          loading: notesLoading,
-          primary: `${notesOverview.totalNotes} saved notes`,
-          secondary: '',
-          footerText: notesLoading ? undefined : notesOverview.totalNotes === 0 ? 'Write your first note' : undefined,
-          accentGradient: 'bg-gradient-to-br from-warm-400 to-warm-500',
-          accentText: 'text-white',
-          badgeBg: 'bg-warm-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-warm-600 dark:text-zen-900',
-          footerBg: 'bg-warm-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-warm-100/80 dark:group-hover:bg-zen-900/25',
-        },
-        {
-          key: 'friends',
-          title: 'Friends',
-          description: 'Nurture accountability and momentum with the people who keep you grounded.',
-          href: '/friends',
-          icon: Users,
-          loading: friendsLoading,
-          primary: `${friendsOverview.totalFriends} connected friends`,
-          secondary: '',
-          footerText: friendsLoading ? undefined : friendsOverview.totalFriends === 0 ? 'Invite someone to connect' : undefined,
-          accentGradient: 'bg-gradient-to-br from-zen-500 to-sage-500',
-          accentText: 'text-white',
-          badgeBg: 'bg-zen-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-zen-600 dark:text-zen-900',
-          footerBg: 'bg-zen-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-zen-100/80 dark:group-hover:bg-zen-900/25',
-        },
-        {
-          key: 'zen-insights',
-          title: 'Zen Insights',
-          description: 'Curate dashboards and surface meaningful metrics to guide focused, intentional work.',
-          href: '/zen-insights',
-          icon: Sparkles,
-          loading: false,
-          primary: 'Activity trends & analytics',
-          secondary: 'Customisable dashboard widgets',
-          footerText: 'View your insights',
-          accentGradient: 'bg-gradient-to-br from-warm-400 to-sage-500',
-          accentText: 'text-white',
-          badgeBg: 'bg-warm-100/80 dark:bg-zen-800/40',
-          badgeText: 'text-warm-600 dark:text-zen-900',
-          footerBg: 'bg-warm-50/80 dark:bg-zen-800/25',
-          footerHoverBg: 'group-hover:bg-warm-100/80 dark:group-hover:bg-zen-900/25',
-        },
-      ];
-    },
-    [
-      friendsLoading,
-      friendsOverview.totalFriends,
-      listsLoading,
-      listsOverview.totalLists,
-      notesLoading,
-      notesOverview.totalNotes,
-      remindersLoading,
-      remindersOverview.totalReminders,
-      remindersOverview.upcomingReminder,
-      tasksLoading,
-      tasksOverview.completedTasks,
-      tasksOverview.nextDueTask,
-      tasksOverview.openTasks,
-      tasksOverview.overdueTasks,
+    () => [
+      {
+        key: 'tasks',
+        title: 'Tasks',
+        description: 'Make room for what matters. One task at a time.',
+        href: '/tasks',
+        icon: CheckSquare,
+        tone: 'blue',
+        loading: tasksOverview.loading,
+        primary: `${tasksOverview.openTasks} active task${tasksOverview.openTasks === 1 ? '' : 's'}`,
+        secondary: `${tasksOverview.completedTasks} completed${tasksOverview.overdueTasks > 0 ? ` · ${tasksOverview.overdueTasks} overdue` : ''}`,
+        footerText: tasksOverview.openTasks === 0 ? 'Add your first task' : 'View tasks',
+      },
+      {
+        key: 'calendar',
+        title: 'Calendar',
+        description: 'See your tasks and reminders together in one place.',
+        href: '/calendar',
+        icon: CalendarDays,
+        tone: 'lavender',
+        loading: tasksOverview.loading,
+        primary: tasksOverview.nextDueTask ? tasksOverview.nextDueTask.title : 'A little breathing room',
+        secondary: tasksOverview.nextDueTask?.due_date
+          ? `Next due ${new Date(tasksOverview.nextDueTask.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+          : 'No upcoming due dates',
+        footerText: 'Open calendar',
+      },
+      {
+        key: 'reminders',
+        title: 'Zen Reminders',
+        description: 'Gentle nudges to pause, reset, and keep your rhythm.',
+        href: '/reminders',
+        icon: Bell,
+        tone: 'mint',
+        loading: remindersOverview.loading,
+        primary: `${remindersOverview.totalReminders} saved reminder${remindersOverview.totalReminders === 1 ? '' : 's'}`,
+        secondary: remindersOverview.upcomingReminder
+          ? `Next: ${remindersOverview.upcomingReminder.title}`
+          : 'Your next pause is up to you',
+        footerText: remindersOverview.totalReminders === 0 ? 'Set a reminder' : 'View reminders',
+      },
+      {
+        key: 'lists',
+        title: 'Lists',
+        description: 'A simple home for plans, routines, and everything in between.',
+        href: '/lists',
+        icon: ListTodo,
+        tone: 'mint',
+        loading: listsOverview.loading,
+        primary: `${listsOverview.totalLists} list${listsOverview.totalLists === 1 ? '' : 's'}`,
+        secondary: 'Bring a little order to your everyday',
+        footerText: listsOverview.totalLists === 0 ? 'Create a list' : 'Explore lists',
+      },
+      {
+        key: 'notes',
+        title: 'Notes',
+        description: 'Catch a thought. Clear your mind. Come back when you need it.',
+        href: '/notes',
+        icon: StickyNote,
+        tone: 'lavender',
+        loading: notesOverview.loading,
+        primary: `${notesOverview.totalNotes} saved note${notesOverview.totalNotes === 1 ? '' : 's'}`,
+        secondary: 'A space for ideas and reflections',
+        footerText: notesOverview.totalNotes === 0 ? 'Write your first note' : 'Open notes',
+      },
+      {
+        key: 'friends',
+        title: 'Friends',
+        description: 'Share the journey with the people who keep you grounded.',
+        href: '/friends',
+        icon: Users,
+        tone: 'blue',
+        loading: friendsOverview.loading,
+        primary: `${friendsOverview.totalFriends} connection${friendsOverview.totalFriends === 1 ? '' : 's'}`,
+        secondary: 'A little support goes a long way',
+        footerText: friendsOverview.totalFriends === 0 ? 'Invite a friend' : 'Connect with friends',
+      },
     ],
+    [tasksOverview, listsOverview, notesOverview, friendsOverview, remindersOverview]
   );
 
-  if (!authChecked && !demoMode) {
-    return <LoadingScreen />;
-  }
-
-  if (!user && !demoMode) {
-    return <SignedOutLanding />;
-  }
+  if (!authChecked && !demoMode) return <LoadingScreen />;
+  if (!user && !demoMode) return <SignedOutLanding />;
 
   return (
-    <div className="relative flex min-h-screen flex-col">
-      <header className="flex flex-col gap-6 border-b border-zen-200/60 bg-surface/70 px-6 py-6 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between lg:px-12 dark:border-zen-700/40">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-zen-500">Zen Workspace</p>
-          <h1 className="mt-2 font-display font-semibold text-3xl text-zen-900 sm:text-4xl">Find clarity in your day</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zen-600 dark:text-zen-200">
-            A composed control center for mindful teams and focused individuals. Glide between priorities, reflections, and
-            relationships without the noise.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {userEmail ? <span className="hidden text-sm text-zen-500 dark:text-zen-200 sm:inline">{userEmail}</span> : null}
-          <SettingsMenu
-            userEmail={userEmail}
-            onSignOut={signOut}
-            notificationPermission={notificationPermission}
-            onRequestNotificationPermission={() => {
-              void requestPermission();
-            }}
-          />
+    <div className="min-h-screen">
+      <header className="border-b border-zen-100 bg-surface">
+        <div className="mx-auto flex min-h-20 max-w-[1280px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
+          <div className="flex items-center gap-2.5 text-sm font-medium text-zen-700">
+            <Leaf aria-hidden="true" className="h-4 w-4 text-sage-700" />
+            <span>Overview</span>
+            {demoMode && (
+              <span className="ml-1 rounded-md bg-warm-100 px-2 py-1 text-xs text-warm-700">Demo</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-zen-700 md:block" suppressHydrationWarning>
+              {new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'long' })}
+            </span>
+            <span className="mx-1 hidden h-5 w-px bg-zen-100 md:block" aria-hidden="true" />
+            <SettingsMenu
+              userEmail={userEmail}
+              onSignOut={signOut}
+              notificationPermission={notificationPermission}
+              onRequestNotificationPermission={() => {
+                void requestPermission();
+              }}
+            />
+            <span
+              title={userEmail ?? 'Your account'}
+              aria-label={userEmail ?? 'Your account'}
+              className="hidden h-10 w-10 items-center justify-center rounded-full bg-warm-100 text-xs font-semibold text-warm-700 sm:flex"
+            >
+              {initials}
+            </span>
+          </div>
         </div>
       </header>
 
-      {notificationStatus ? (
-        <div className="mx-6 mt-4 rounded-2xl border border-zen-200/70 bg-warm-50/80 px-4 py-3 text-sm text-zen-700 shadow-soft lg:mx-12 dark:border-zen-700/40 dark:bg-zen-900/60 dark:text-zen-100">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-zen-100 px-2 py-1 text-xs font-semibold text-zen-600 dark:bg-zen-800/80 dark:text-zen-100">
-              Notifications
-            </div>
-            <div className="space-y-2">
-              <p>{notificationStatus}</p>
-              <p className="text-xs text-zen-500 dark:text-zen-300">
-                If notifications stay blocked, open your browser&apos;s site settings (usually behind the lock icon) and allow alerts for Zen
-                Workspace.
+      <main className="mx-auto max-w-[1280px] px-5 pb-10 pt-10 sm:px-8 sm:pt-12 lg:px-10">
+        <section
+          className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end"
+          aria-labelledby="home-heading"
+        >
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-sage-700">
+              Your space to focus
+            </p>
+            <h1
+              id="home-heading"
+              className="font-display text-[28px] font-semibold leading-tight tracking-[-0.045em] text-zen-900 sm:text-[36px]"
+            >
+              Find clarity in your day<span className="text-sage-600">.</span>
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-zen-700 sm:text-[15px]">
+              A calmer place for your plans, thoughts, and everyday progress.
+            </p>
+          </div>
+          <Link
+            href={withDemo('/tasks')}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-3 self-start rounded-xl bg-sage-700 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-sage-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-600 focus-visible:ring-offset-4 sm:self-auto"
+          >
+            View my tasks <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
+        </section>
+
+        {notificationStatus?.startsWith('Unable to') && (
+          <div
+            role="status"
+            className="mb-6 flex items-start gap-3 rounded-xl border border-zen-100 bg-surface p-4 text-sm text-zen-700"
+          >
+            <Bell aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-sage-700" />
+            <p>{notificationStatus} You can manage alerts in Settings.</p>
+          </div>
+        )}
+
+        <section
+          aria-label="Your day at a glance"
+          className="day-overview mb-10 grid rounded-2xl border border-sage-100 bg-sage-50 sm:grid-cols-3"
+        >
+          <Link
+            href={withDemo('/tasks')}
+            className="day-overview-item rounded-t-2xl p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600 sm:rounded-l-2xl sm:rounded-tr-none sm:p-6"
+          >
+            <p className="mb-2 flex items-center gap-2 text-xs font-medium text-sage-700">
+              <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" /> On your plate
+            </p>
+            <p className="text-sm font-semibold text-zen-900">
+              {tasksOverview.loading
+                ? 'Loading tasks…'
+                : `${tasksOverview.openTasks} task${tasksOverview.openTasks === 1 ? '' : 's'} to focus on`}
+            </p>
+            <p className="mt-1.5 text-xs text-zen-700">
+              {tasksOverview.loading
+                ? 'Getting your latest progress'
+                : tasksOverview.overdueTasks > 0
+                  ? `${tasksOverview.overdueTasks} overdue · take it one step at a time`
+                  : 'At your pace. You’ve got this.'}
+            </p>
+          </Link>
+          <Link
+            href={withDemo('/calendar')}
+            className="day-overview-item border-t border-sage-100 p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600 sm:border-l sm:border-t-0 sm:p-6"
+          >
+            <p className="mb-2 flex items-center gap-2 text-xs font-medium text-sage-700">
+              <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" /> Next on the calendar
+            </p>
+            <p className="text-sm font-semibold text-zen-900">
+              {tasksOverview.loading
+                ? 'Checking your calendar…'
+                : (tasksOverview.nextDueTask?.title ?? 'Nothing scheduled')}
+            </p>
+            <p className="mt-1.5 text-xs text-zen-700">
+              {!tasksOverview.loading && tasksOverview.nextDueTask?.due_date
+                ? new Date(tasksOverview.nextDueTask.due_date).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Space to plan what comes next'}
+            </p>
+          </Link>
+          <Link
+            href={withDemo('/reminders')}
+            className="day-overview-item rounded-b-2xl border-t border-sage-100 p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600 sm:rounded-r-2xl sm:rounded-bl-none sm:border-l sm:border-t-0 sm:p-6"
+          >
+            <p className="mb-2 flex items-center gap-2 text-xs font-medium text-sage-700">
+              <Leaf className="h-3.5 w-3.5" aria-hidden="true" /> A moment to reset
+            </p>
+            <p className="text-sm font-semibold text-zen-900">
+              {remindersOverview.loading
+                ? 'Checking reminders…'
+                : (remindersOverview.upcomingReminder?.title ?? 'Make time for a pause')}
+            </p>
+            <p className="mt-1.5 text-xs text-zen-700">
+              {!remindersOverview.loading && remindersOverview.upcomingReminder?.remind_at
+                ? new Date(remindersOverview.upcomingReminder.remind_at).toLocaleTimeString(undefined, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Set a gentle reminder for yourself'}
+            </p>
+          </Link>
+        </section>
+
+        <section aria-labelledby="workspace-heading">
+          <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="workspace-heading" className="text-lg font-semibold tracking-[-0.025em] text-zen-900">
+              Your workspace
+            </h2>
+            <p className="text-xs text-zen-700">A place for everything on your mind.</p>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {featureCards.map((card) => (
+              <FeatureCard key={card.key} card={{ ...card, href: withDemo(card.href) }} />
+            ))}
+          </div>
+        </section>
+
+        <Link
+          href={withDemo('/zen-insights')}
+          className="group mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-warm-100 bg-warm-50 px-6 py-5 transition-colors hover:border-warm-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warm-600 focus-visible:ring-offset-4 sm:flex-row sm:items-center"
+        >
+          <div className="flex items-center gap-4">
+            <Sparkles aria-hidden="true" className="h-5 w-5 shrink-0 text-warm-700" />
+            <div>
+              <h2 className="text-sm font-semibold text-zen-900">A wider view of your progress</h2>
+              <p className="mt-1 text-xs leading-relaxed text-zen-700">
+                Notice your patterns and find a rhythm that works for you.
               </p>
-              {notificationPermission === 'default' || notificationPermission === 'denied' ? (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void requestPermission();
-                    }}
-                    className="inline-flex items-center gap-2 rounded-full border border-zen-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zen-700 transition hover:border-zen-400 hover:text-zen-900 dark:border-zen-700/60 dark:bg-zen-900/80 dark:text-zen-100"
-                  >
-                    Retry permission
-                  </button>
-                </div>
-              ) : null}
             </div>
           </div>
-        </div>
-      ) : null}
-
-      <main className="flex-1 px-6 pb-16 pt-10 lg:px-12">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
-          <section className="space-y-6">
-            <h2 className="font-display font-semibold text-xl text-zen-900">Your Zen toolkit</h2>
-            <p className="max-w-3xl text-sm text-zen-600 dark:text-zen-200">
-              Every workspace pairs poised visuals with purposeful structure. Select a card to dive straight in, or move at a
-              measured pace—either way, your focus stays unruffled.
-            </p>
-            <div className="grid gap-6 sm:grid-cols-2">
-              {featureCards.map(card => (
-                <FeatureCard key={card.key} card={card} />
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-zen-200/60 bg-surface/70 p-8 text-sm text-zen-600 shadow-soft backdrop-blur-xl dark:border-zen-700/40 dark:text-zen-200">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-zen-900">Ready for a composed reset?</h3>
-                <p className="mt-1 max-w-xl text-sm text-zen-600 dark:text-zen-200">
-                  Step into any workspace to rebalance priorities, capture nuanced thinking, or spark momentum with your
-                  inner circle.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {featureCards.map(card => (
-                  <Link
-                    key={card.key}
-                    href={card.href}
-                    className="inline-flex items-center justify-center rounded-xl border border-zen-200/80 bg-surface/80 px-4 py-2 text-sm font-medium text-zen-700 transition hover:border-zen-400 hover:text-zen-600 dark:border-zen-700/50 dark:text-zen-200"
-                  >
-                    Go to {card.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </section>
-        </div>
+          <span className="inline-flex min-h-8 shrink-0 items-center gap-3 text-sm font-medium text-warm-700">
+            Explore insights <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+          </span>
+        </Link>
+        <p className="mt-8 text-center text-xs text-zen-700">A little more clarity. A little less noise.</p>
       </main>
     </div>
   );
@@ -354,7 +334,9 @@ function SignedOutLanding() {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-zen-500">Zen Workspace</p>
-              <p className="text-sm text-zen-600 dark:text-zen-200">Composed productivity for mindful teams</p>
+              <p className="text-sm text-zen-600 dark:text-zen-200">
+                Composed productivity for mindful teams
+              </p>
             </div>
           </div>
           <div className="w-full sm:w-auto">
@@ -366,9 +348,12 @@ function SignedOutLanding() {
       <main className="flex flex-1 flex-col items-center justify-center gap-12 px-6 pb-16 pt-4 sm:px-8 lg:flex-row lg:px-12">
         <div className="max-w-xl space-y-6 text-center lg:text-left">
           <div className="space-y-3">
-            <h1 className="font-display font-semibold text-3xl text-zen-900 sm:text-4xl">Sign in to continue</h1>
+            <h1 className="font-display font-semibold text-3xl text-zen-900 sm:text-4xl">
+              Sign in to continue
+            </h1>
             <p className="text-sm text-zen-600 dark:text-zen-200">
-              Access serene task boards, curated rituals, and shared notes—everything you need to keep momentum with ease.
+              Access serene task boards, curated rituals, and shared notes—everything you need to keep
+              momentum with ease.
             </p>
           </div>
 
@@ -402,7 +387,9 @@ function SignedOutLanding() {
             >
               Preview a guided demo
             </Link>
-            <span className="text-xs text-zen-500 dark:text-zen-300">No account yet? Explore the interface first.</span>
+            <span className="text-xs text-zen-500 dark:text-zen-300">
+              No account yet? Explore the interface first.
+            </span>
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Sora } from "next/font/google";
+import { Suspense } from "react";
+import localFont from "next/font/local";
 import { ThemeProvider } from "@/lib/theme-context";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
@@ -11,15 +12,16 @@ import { GlobalNav } from "@/components/GlobalNav";
 import { QuickCreateFAB } from "@/components/QuickCreateFAB";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "./fonts/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-body",
   display: "swap",
 });
 
-const sora = Sora({
-  subsets: ["latin"],
-  weight: ["300", "400", "600"],
+const sora = localFont({
+  src: "./fonts/sora-latin-wght-normal.woff2",
+  weight: "100 800",
   variable: "--font-display",
   display: "swap",
 });
@@ -56,12 +58,12 @@ export default function RootLayout({
           Skip to main content
         </a>
         <ThemeProvider>
-          <GlobalNav />
+          <Suspense fallback={null}><GlobalNav /></Suspense>
           <QuickCreateFAB />
-          {/* pb-28 offsets the floating mobile pill nav; lg:pl-16 offsets the desktop sidebar */}
+          {/* Keep content clear of the mobile navigation and labeled desktop sidebar. */}
           {/* pt-[env(safe-area-inset-top)] ensures content clears the phone's status bar on mobile */}
           <ErrorBoundary>
-            <div id="main-content" className="pb-28 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pl-16 lg:pt-0">{children}</div>
+            <div id="main-content" className="pb-28 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pl-56 lg:pt-0">{children}</div>
           </ErrorBoundary>
         </ThemeProvider>
         <ServiceWorkerRegistration />

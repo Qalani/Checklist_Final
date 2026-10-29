@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 export interface FeatureCardProps {
@@ -12,14 +11,15 @@ export interface FeatureCardProps {
   loading?: boolean;
   primary: string;
   secondary?: string;
-  footerText?: string;
-  accentGradient: string;
-  accentText: string;
-  badgeBg: string;
-  badgeText: string;
-  footerBg: string;
-  footerHoverBg: string;
+  footerText: string;
+  tone: 'blue' | 'mint' | 'lavender';
 }
+
+const tones = {
+  blue: 'bg-zen-100 text-zen-700',
+  mint: 'bg-sage-100 text-sage-700',
+  lavender: 'bg-warm-100 text-warm-700',
+};
 
 export function FeatureCard({ card }: { card: FeatureCardProps }) {
   const Icon = card.icon;
@@ -27,59 +27,42 @@ export function FeatureCard({ card }: { card: FeatureCardProps }) {
   return (
     <Link
       href={card.href}
-      className="group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--color-surface))]"
+      className="workspace-card group flex h-full flex-col rounded-2xl border border-zen-100 bg-surface p-6 transition-colors hover:border-zen-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-600 focus-visible:ring-offset-4 focus-visible:ring-offset-zen-50"
       aria-label={`Go to ${card.title}`}
     >
-      <motion.article
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="flex h-full flex-col overflow-hidden rounded-3xl border border-zen-200/60 bg-surface/75 shadow-soft backdrop-blur-xl transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lift dark:border-zen-700/40"
-      >
-        <div className="flex flex-1 flex-col justify-between gap-6 p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl ${card.accentGradient} ${card.accentText} shadow-medium transition group-hover:scale-[1.02]`}
-              >
-                <Icon className="h-6 w-6" />
-              </div>
-              <div>
-                <div
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${card.badgeBg} ${card.badgeText}`}
-                >
-                  {card.title}
-                </div>
-                <p className="mt-3 text-sm text-zen-600 dark:text-zen-200">{card.description}</p>
-              </div>
-            </div>
-            <ArrowRight className="h-5 w-5 text-zen-300 transition-transform group-hover:translate-x-1 dark:text-zen-400" />
-          </div>
-          <dl className="grid gap-2 text-sm">
-            {card.loading ? (
-              <>
-                <div className="h-6 w-3/4 animate-pulse rounded-lg bg-zen-200/60 dark:bg-zen-700/40" />
-                <div className="h-3.5 w-1/2 animate-pulse rounded-md bg-zen-200/40 dark:bg-zen-700/30" />
-              </>
-            ) : (
-              <>
-                <div className="text-lg font-semibold text-zen-900">{card.primary}</div>
-                {card.secondary ? <div className="text-xs text-zen-500 dark:text-zen-300">{card.secondary}</div> : null}
-              </>
-            )}
-          </dl>
-        </div>
-        <div
-          className={`flex items-center justify-between border-t border-zen-200/50 px-6 py-4 text-sm text-zen-600 transition-colors dark:border-zen-700/40 dark:text-zen-200 ${card.footerBg} ${card.footerHoverBg}`}
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[card.tone]}`}
         >
-          {card.loading ? (
-            <div className="h-3.5 w-2/5 animate-pulse rounded-md bg-zen-200/60 dark:bg-zen-700/40" />
-          ) : (
-            <span>{card.footerText ?? `Open ${card.title}`}</span>
-          )}
-          <ArrowRight className="h-4 w-4 opacity-40 transition-transform group-hover:translate-x-0.5" />
-        </div>
-      </motion.article>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <h3 className="text-base font-semibold tracking-[-0.02em] text-zen-900">{card.title}</h3>
+      </div>
+      <p className="mt-4 min-h-[2.75rem] text-sm leading-relaxed text-zen-700">{card.description}</p>
+      <div className="mb-5 mt-5 min-h-[3rem]" aria-busy={card.loading || undefined}>
+        {card.loading ? (
+          <div
+            role="status"
+            aria-label={`Loading ${card.title}`}
+            className="space-y-2 motion-safe:animate-pulse"
+          >
+            <div className="h-5 w-3/4 rounded bg-zen-100" />
+            <div className="h-3 w-1/2 rounded bg-zen-100" />
+          </div>
+        ) : (
+          <>
+            <p className="text-[17px] font-semibold tracking-[-0.02em] text-zen-900">{card.primary}</p>
+            {card.secondary && <p className="mt-1 text-xs leading-relaxed text-zen-700">{card.secondary}</p>}
+          </>
+        )}
+      </div>
+      <div className="mt-auto flex min-h-11 items-center justify-between gap-3 border-t border-zen-100 pt-4 text-sm font-medium text-zen-700 group-hover:text-sage-700">
+        <span>{card.footerText}</span>
+        <ArrowUpRight
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 transition-transform motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5"
+        />
+      </div>
     </Link>
   );
 }
