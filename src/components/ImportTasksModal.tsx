@@ -3,22 +3,18 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Upload, X, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-
-interface ImportResult {
-  imported: number;
-  skipped: number;
-  truncated: number;
-  errors: string[];
-}
+import { importTaskFile, type ImportResult } from '@/features/imports/file-import';
+import type { Category, Task } from '@/types';
 
 interface ImportTasksModalProps {
   open: boolean;
   onClose: () => void;
   onImported: () => void;
+  categories: Category[];
+  onImportTask: (input: Partial<Task>) => Promise<void | { error?: string }>;
 }
 
-export default function ImportTasksModal({ open, onClose, onImported }: ImportTasksModalProps) {
+export default function ImportTasksModal({ open, onClose, onImported, categories, onImportTask }: ImportTasksModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -49,33 +45,11 @@ export default function ImportTasksModal({ open, onClose, onImported }: ImportTa
     setResult(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      if (!token) {
-        setError('You must be signed in to import tasks.');
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      const response = await fetch('/api/tasks/import', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      const json = await response.json();
-
-      if (!response.ok) {
-        setError(json.error ?? 'Import failed. Please try again.');
-        return;
-      }
-
-      setResult(json as ImportResult);
+      const imported = await importTaskFile(selectedFile, categories, onImportTask);
+      setResult(imported);
       onImported();
-    } catch {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Import failed. Please try again.');
     } finally {
       setImporting(false);
     }

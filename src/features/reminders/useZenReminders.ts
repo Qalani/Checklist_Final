@@ -3,8 +3,9 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows, cacheDelete, mergePendingRows, shouldQueueWrite } from '@/lib/offline-cache';
 import { enqueue } from '@/lib/sync-queue';
-import { isOnline } from '@/lib/network-status';
+import { isOnline, onStatusChange } from '@/lib/network-status';
 import type { ZenReminder } from '@/types';
 import { extractErrorMessage } from '@/utils/extract-error-message';
 
@@ -106,8 +107,9 @@ export async function fetchZenReminders(userId: string): Promise<ZenReminder[]> 
     throw new Error(error.message || 'Failed to load reminders.');
   }
 
-  const rows = data ?? [];
-  return rows.map(mapRowToReminder);
+  const rows = (data ?? []).map(mapRowToReminder);
+  await cacheRows('zen_reminders', rows, userId);
+  return mergePendingRows('zen_reminders', rows, userId);
 }
 
 export function useZenReminders(userId: string | null): UseZenRemindersResult {
@@ -182,6 +184,17 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
   );
 
   useEffect(() => {
+    if (!userId) return;
+    const refreshCachedView = () => { void runRefresh(true); };
+    const unsubscribe = onStatusChange(refreshCachedView);
+    window.addEventListener('zen-sync-complete', refreshCachedView);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('zen-sync-complete', refreshCachedView);
+    };
+  }, [runRefresh, userId]);
+
+  useEffect(() => {
     if (!userId) {
       reset();
       return;
@@ -208,6 +221,12 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'zen_reminders', filter: `user_id=eq.${userId}` },
         payload => {
+          if (payload.eventType === 'DELETE') {
+            const removedId = (payload.old as { id?: string } | null)?.id;
+            if (removedId) void cacheDelete('zen_reminders', removedId);
+          } else if (payload.new) {
+            void cacheRows('zen_reminders', [payload.new], userId);
+          }
           setState(prev => {
             const reminders = remindersRef.current;
 
@@ -267,7 +286,7 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         return { error: extractErrorMessage(error, 'Please provide a valid reminder time.') };
       }
 
-      if (!isOnline()) {
+      if (await shouldQueueWrite(userId)) {
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const reminder: ZenReminder = {
@@ -280,8 +299,10 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
           created_at: now,
           updated_at: now,
         };
-        await db.zen_reminders.put(reminder);
-        await enqueue({ table_name: 'zen_reminders', operation: 'INSERT', payload: reminder as Record<string, unknown> });
+        await db.transaction('rw', [db.zen_reminders, db.sync_queue], async () => {
+          await db.zen_reminders.put(reminder);
+          await enqueue({ user_id: userId, table_name: 'zen_reminders', operation: 'INSERT', payload: reminder as Record<string, unknown> });
+        });
         setState(prev => {
           const next = [...prev.reminders, reminder];
           next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
@@ -311,6 +332,7 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
       }
 
       const mapped = mapRowToReminder(data as ZenReminderRow);
+      await cacheRows('zen_reminders', [mapped], userId);
       setState(prev => {
         const next = [...prev.reminders, mapped];
         next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
@@ -358,6 +380,24 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
       const optimisticReminder: ZenReminder = { ...existingReminder, ...updates, updated_at: now } as ZenReminder;
 
       // Apply optimistic update immediately
+
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.zen_reminders, db.sync_queue], async () => {
+          await db.zen_reminders.put(optimisticReminder);
+          await enqueue({ user_id: userId, table_name: 'zen_reminders', operation: 'UPDATE', payload: optimisticReminder as Record<string, unknown> });
+        });
+        setState(prev => {
+          const index = prev.reminders.findIndex(r => r.id === id);
+          if (index === -1) return prev;
+          const next = [...prev.reminders];
+          next[index] = optimisticReminder;
+          next.sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime());
+          remindersRef.current = next;
+          return { ...prev, reminders: next };
+        });
+        return { reminder: optimisticReminder };
+      }
+
       setState(prev => {
         const index = prev.reminders.findIndex(r => r.id === id);
         if (index === -1) return prev;
@@ -367,12 +407,6 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         remindersRef.current = next;
         return { ...prev, reminders: next };
       });
-
-      if (!isOnline()) {
-        await db.zen_reminders.put(optimisticReminder);
-        await enqueue({ table_name: 'zen_reminders', operation: 'UPDATE', payload: optimisticReminder as Record<string, unknown> });
-        return { reminder: optimisticReminder };
-      }
 
       const { data, error } = await supabase
         .from('zen_reminders')
@@ -398,6 +432,7 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
       }
 
       const mapped = mapRowToReminder(data as ZenReminderRow);
+      await cacheRows('zen_reminders', [mapped], userId);
       setState(prev => {
         const index = prev.reminders.findIndex(reminder => reminder.id === mapped.id);
         if (index === -1) {
@@ -424,17 +459,25 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
       const reminderToDelete = remindersRef.current.find(r => r.id === id);
 
       // Optimistically remove from UI immediately
+
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.zen_reminders, db.sync_queue], async () => {
+          await db.zen_reminders.delete(id);
+          await enqueue({ user_id: userId, table_name: 'zen_reminders', operation: 'DELETE', payload: { id } });
+        });
+        setState(prev => {
+          const filtered = prev.reminders.filter(r => r.id !== id);
+          remindersRef.current = filtered;
+          return { ...prev, reminders: filtered };
+        });
+        return;
+      }
+
       setState(prev => {
         const filtered = prev.reminders.filter(r => r.id !== id);
         remindersRef.current = filtered;
         return { ...prev, reminders: filtered };
       });
-
-      if (!isOnline()) {
-        await db.zen_reminders.delete(id);
-        await enqueue({ table_name: 'zen_reminders', operation: 'DELETE', payload: { id } });
-        return;
-      }
 
       const { error } = await supabase
         .from('zen_reminders')
@@ -458,6 +501,7 @@ export function useZenReminders(userId: string | null): UseZenRemindersResult {
         }
         return { error: message };
       }
+      await cacheDelete('zen_reminders', id);
     },
     [userId],
   );

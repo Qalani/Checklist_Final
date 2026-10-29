@@ -7,6 +7,8 @@ describe('verified network status', () => {
   let documentListeners: Array<[string, EventListenerOrEventListenerObject]>;
   let originalOnline: PropertyDescriptor | undefined;
   const originalFetch = global.fetch;
+  const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const settle = async () => {
     // Flush the request, publication, and retry scheduling microtasks.
@@ -19,6 +21,8 @@ describe('verified network status', () => {
 
   beforeEach(() => {
     jest.resetModules();
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     jest.useFakeTimers();
     originalOnline = Object.getOwnPropertyDescriptor(navigator, 'onLine');
     setBrowserOnline(true);
@@ -46,6 +50,10 @@ describe('verified network status', () => {
     jest.useRealTimers();
     jest.restoreAllMocks();
     global.fetch = originalFetch;
+    if (originalSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+    if (originalSupabaseKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseKey;
     if (originalOnline) Object.defineProperty(navigator, 'onLine', originalOnline);
     else delete (navigator as { onLine?: boolean }).onLine;
     delete (window as unknown as { Capacitor?: unknown }).Capacitor;
@@ -167,7 +175,40 @@ describe('verified network status', () => {
     expect(network.isOnline()).toBe(true);
   });
 
-  it('uses the native connection hint instead of probing Capacitor bundled files', async () => {
+  it('keeps native Wi-Fi edits local when Supabase is unreachable and recovers on an upstream probe', async () => {
+    (window as unknown as { Capacitor: unknown }).Capacitor = { isNativePlatform: () => true };
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co/';
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'public-anon-key';
+    fetchMock.mockRejectedValueOnce(new TypeError('No Internet access'));
+    const listener = jest.fn();
+    network.onStatusChange(listener);
+    expect(navigator.onLine).toBe(true);
+    expect(network.isOnline()).toBe(false);
+    await settle();
+    expect(network.isOnline()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith('https://project.supabase.co/auth/v1/health', expect.objectContaining({
+      cache: 'no-store', headers: { apikey: 'public-anon-key' }, signal: expect.any(AbortSignal),
+    }));
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/health', expect.anything());
+    jest.advanceTimersByTime(15_000);
+    await settle();
+    expect(network.isOnline()).toBe(true);
+    expect(listener.mock.calls).toEqual([[false], [true]]);
+  });
+
+  it('times out a native upstream probe rather than trusting its Wi-Fi hint', async () => {
+    (window as unknown as { Capacitor: unknown }).Capacitor = { isNativePlatform: () => true };
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co';
+    fetchMock.mockImplementationOnce((_url, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    }));
+    const result = network.checkHttpConnectivity();
+    jest.advanceTimersByTime(5_000);
+    expect(await result).toBe(false);
+    expect(network.isOnline()).toBe(false);
+  });
+
+  it('uses the native hint only when no upstream is configured', async () => {
     (window as unknown as { Capacitor: unknown }).Capacitor = { isNativePlatform: () => true };
     setBrowserOnline(false);
     const listener = jest.fn();

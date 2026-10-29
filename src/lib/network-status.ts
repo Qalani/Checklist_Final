@@ -56,12 +56,16 @@ function startMonitoring(): void {
 }
 
 /**
- * Data consumers use the browser hint until the first probe completes, so
- * offline cold-start reads and writes can immediately use local storage.
- * After verification this is the same status used by the UI and sync engine.
+ * Web consumers use the browser hint until the first probe completes. Native
+ * consumers with a configured upstream start with local storage until verified.
+ * After verification every consumer uses the same status as the UI and sync engine.
  */
 export function isOnline(): boolean {
-  return online ?? (typeof navigator === 'undefined' || navigator.onLine);
+  if (online !== null) return online;
+  // A native WebView's local origin and Wi-Fi hint cannot establish access to
+  // Supabase. Keep cold-start edits local until its first upstream probe wins.
+  if (typeof window !== 'undefined' && isNativeShell() && process.env.NEXT_PUBLIC_SUPABASE_URL) return false;
+  return typeof navigator === 'undefined' || navigator.onLine;
 }
 
 /** Avoid displaying an offline notice until connectivity has been verified. */
@@ -86,9 +90,11 @@ export function onStatusChange(callback: StatusCallback): () => void {
 export function checkHttpConnectivity(): Promise<boolean> {
   if (typeof window === 'undefined') return Promise.resolve(true);
 
-  // Capacitor serves its static export from a local origin. Probing that
-  // origin only checks the bundled files, not the internet connection.
-  if (isNativeShell()) {
+  // Capacitor's origin serves bundled files even without Internet. Probe the
+  // configured upstream instead, using only the public client API key.
+  const native = isNativeShell();
+  const upstream = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (native && !upstream) {
     publishStatus(navigator.onLine);
     scheduleRecheck();
     return Promise.resolve(navigator.onLine);
@@ -101,10 +107,13 @@ export function checkHttpConnectivity(): Promise<boolean> {
   const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
   const promise = (async () => {
     try {
-      await fetch('/api/health', {
+      const url = native ? `${upstream!.replace(/\/+$/, '')}/auth/v1/health` : '/api/health';
+      const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      await fetch(url, {
         method: 'GET',
         cache: 'no-store',
         signal: controller.signal,
+        ...(native && publicKey ? { headers: { apikey: publicKey } } : {}),
       });
       // Any real HTTP response proves reachability. A server error (including
       // a missing health route) is not the same as being offline.

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { onStatusChange } from '@/lib/network-status';
 
 import { DEFAULT_DASHBOARD_LAYOUT, normalizeLayout, reorderWidgets } from '../layout-metadata';
 import { fetchDashboardLayout, persistDashboardLayout } from '../persistence';
@@ -49,10 +50,14 @@ export function useDashboardLayout(userId: string | null): UseDashboardLayoutRes
       return fetchDashboardLayout(userId);
     },
     {
-      revalidateOnFocus: false,
-      keepPreviousData: true,
+      revalidateOnFocus: true,
+      keepPreviousData: false,
     },
   );
+
+  useEffect(() => onStatusChange(online => {
+    if (online && userId) void mutate();
+  }), [mutate, userId]);
 
   const layout = useMemo(() => {
     if (userId) {

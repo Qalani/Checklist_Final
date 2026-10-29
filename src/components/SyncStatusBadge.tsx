@@ -17,7 +17,7 @@ interface SyncStatusBadgeProps {
  * entry in the local sync queue.  Renders nothing when the item is synced.
  *
  * - Pending: amber clock — write is queued and will be replayed when online
- * - Error:   red warning + "Retry" button — max retries exhausted
+ * - Error:   red warning + "Retry" button — repeated sync failures
  */
 export function SyncStatusBadge({ tableName, id }: SyncStatusBadgeProps) {
   const { status, entry } = useSyncStatus(tableName, id);
@@ -40,7 +40,7 @@ export function SyncStatusBadge({ tableName, id }: SyncStatusBadgeProps) {
   return (
     <span className="inline-flex items-center gap-1.5 shrink-0">
       <span
-        title="Sync failed — max retries reached"
+        title="Sync has failed repeatedly — automatic retries continue"
         className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-600"
       >
         <AlertTriangle className="w-3.5 h-3.5" />

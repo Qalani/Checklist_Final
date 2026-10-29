@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows, cacheDelete, shouldQueueWrite } from '@/lib/offline-cache';
 import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
 import { extractErrorMessage } from '@/utils/extract-error-message';
@@ -29,6 +30,11 @@ export class ChecklistManager {
   private subscribers = new Set<Subscriber>();
   private channels: RealtimeChannel[] = [];
   private refreshPromise: Promise<void> | null = null;
+  private handleSync = () => { if (this.userId) void this.refresh(true); };
+
+  constructor() {
+    if (typeof window !== 'undefined') window.addEventListener('zen-sync-complete', this.handleSync);
+  }
 
   subscribe(subscriber: Subscriber) {
     this.subscribers.add(subscriber);
@@ -45,6 +51,7 @@ export class ChecklistManager {
   dispose() {
     this.unsubscribeFromRealtime();
     this.subscribers.clear();
+    if (typeof window !== 'undefined') window.removeEventListener('zen-sync-complete', this.handleSync);
   }
 
   async setUser(userId: string | null) {
@@ -162,10 +169,12 @@ export class ChecklistManager {
         delete sanitizedInput.user_id;
         delete sanitizedInput.order;
 
-        if (!isOnline()) {
+        if (await shouldQueueWrite(this.userId!)) {
           const updatedTask = this.normalizeTask({ ...existingTask, ...sanitizedInput } as Task, existingTask);
-          await db.tasks.put(updatedTask);
-          await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: updatedTask as Record<string, unknown> });
+          await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+            await db.tasks.put(updatedTask);
+            await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'UPDATE', payload: updatedTask as Record<string, unknown> });
+          });
           this.setSnapshot((prev) => ({
             ...prev,
             tasks: prev.tasks
@@ -206,6 +215,7 @@ export class ChecklistManager {
         }
 
         const updatedTask = this.normalizeTask((data ?? existingTask) as Task, existingTask);
+        await cacheRows('tasks', [updatedTask], this.userId!);
         this.setSnapshot((prev) => ({
           ...prev,
           tasks: prev.tasks
@@ -216,9 +226,9 @@ export class ChecklistManager {
         return {};
       }
 
-      const { data: sessionResult } = await supabase.auth.getSession();
-      if (!sessionResult.session) {
-        throw new Error('You must be signed in to add tasks.');
+      if (isOnline()) {
+        const { data: sessionResult } = await supabase.auth.getSession();
+        if (!sessionResult.session) throw new Error('You must be signed in to add tasks.');
       }
 
       const trimmedTitle = typeof taskData.title === 'string' ? taskData.title.trim() : '';
@@ -233,7 +243,7 @@ export class ChecklistManager {
         -1,
       ) + 1;
 
-      if (!isOnline()) {
+      if (await shouldQueueWrite(this.userId!)) {
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const newTask: Task = {
@@ -260,8 +270,10 @@ export class ChecklistManager {
           updated_at: now,
         };
         const normalizedNew = this.normalizeTask(newTask);
-        await db.tasks.put(normalizedNew);
-        await enqueue({ table_name: 'tasks', operation: 'INSERT', payload: normalizedNew as Record<string, unknown> });
+        await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+          await db.tasks.put(normalizedNew);
+          await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'INSERT', payload: normalizedNew as Record<string, unknown> });
+        });
         this.setSnapshot((prev) => {
           const existingTasks = prev.tasks.filter((task) => task.id !== normalizedNew.id);
           return {
@@ -304,6 +316,7 @@ export class ChecklistManager {
       }
 
       const normalizedTask = this.normalizeTask(savedTask as Task);
+      await cacheRows('tasks', [normalizedTask], this.userId!);
 
       this.setSnapshot((prev) => {
         const existingTasks = prev.tasks.filter((task) => task.id !== normalizedTask.id);
@@ -335,9 +348,11 @@ export class ChecklistManager {
       return;
     }
 
-    if (!isOnline()) {
-      await db.tasks.delete(id);
-      await enqueue({ table_name: 'tasks', operation: 'DELETE', payload: { id } });
+    if (await shouldQueueWrite(this.userId!)) {
+      await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+        await db.tasks.delete(id);
+        await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'DELETE', payload: { id } });
+      });
       this.setSnapshot((prev) => ({
         ...prev,
         tasks: prev.tasks.filter((task) => task.id !== id),
@@ -367,6 +382,8 @@ export class ChecklistManager {
         tasks: [...prev.tasks, targetTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
         error: error.message || 'Unable to delete task. Please try again.',
       }));
+    } else {
+      await cacheDelete('tasks', id);
     }
   }
 
@@ -389,11 +406,13 @@ export class ChecklistManager {
       return false;
     }
 
-    if (!isOnline()) {
+    if (await shouldQueueWrite(this.userId!)) {
       try {
         const updatedTask = this.normalizeTask({ ...targetTask, completed }, targetTask);
-        await db.tasks.put(updatedTask);
-        await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: { id, completed } });
+        await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+          await db.tasks.put(updatedTask);
+          await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'UPDATE', payload: { id, completed } });
+        });
         this.setSnapshot((prev) => ({
           ...prev,
           tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
@@ -440,6 +459,7 @@ export class ChecklistManager {
     }
 
     const updatedTask = this.normalizeTask(data as Task, targetTask);
+    await cacheRows('tasks', [updatedTask], this.userId!);
     this.setSnapshot((prev) => ({
       ...prev,
       tasks: prev.tasks.map((task) => (task.id === updatedTask.id ? { ...task, ...updatedTask } : task)),
@@ -499,6 +519,7 @@ export class ChecklistManager {
       return;
     }
     const normalizedNew = this.normalizeTask(newTask as Task);
+    await cacheRows('tasks', [normalizedNew], this.userId!);
     this.setSnapshot((prev) => ({
       ...prev,
       tasks: [...prev.tasks, normalizedNew].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -525,8 +546,10 @@ export class ChecklistManager {
       updated_at: now,
     } as Task;
     const normalizedNew = this.normalizeTask(newTask);
-    await db.tasks.put(normalizedNew);
-    await enqueue({ table_name: 'tasks', operation: 'INSERT', payload: normalizedNew as Record<string, unknown> });
+    await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+      await db.tasks.put(normalizedNew);
+      await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'INSERT', payload: normalizedNew as Record<string, unknown> });
+    });
     this.setSnapshot((prev) => ({
       ...prev,
       tasks: [...prev.tasks, normalizedNew].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -563,10 +586,12 @@ export class ChecklistManager {
       updatedReorderedTasks.map((task) => [task.id, task] as const),
     );
 
-    if (!isOnline()) {
+    if (await shouldQueueWrite(this.userId!)) {
       for (const task of updatedReorderedTasks) {
-        await db.tasks.put({ ...task });
-        await enqueue({ table_name: 'tasks', operation: 'UPDATE', payload: { id: task.id, order: task.order } });
+        await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+          await db.tasks.put({ ...task });
+          await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'UPDATE', payload: { id: task.id, order: task.order } });
+        });
       }
       this.setSnapshot((prev) => ({
         ...prev,
@@ -591,6 +616,7 @@ export class ChecklistManager {
         }
       }
 
+      await cacheRows('tasks', updatedReorderedTasks, this.userId!);
       this.setSnapshot((prev) => ({
         ...prev,
         tasks: prev.tasks
@@ -612,12 +638,14 @@ export class ChecklistManager {
       throw new Error('You must be signed in to add categories.');
     }
 
-    if (!isOnline()) {
+    if (await shouldQueueWrite(this.userId!)) {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       const savedCategory: Category = { id, user_id: this.userId as string, name: input.name, color: input.color, created_at: now };
-      await db.categories.put(savedCategory);
-      await enqueue({ table_name: 'categories', operation: 'INSERT', payload: savedCategory as Record<string, unknown> });
+      await db.transaction('rw', db.categories, db.sync_queue, async () => {
+        await db.categories.put(savedCategory);
+        await enqueue({ user_id: this.userId!, table_name: 'categories', operation: 'INSERT', payload: savedCategory as Record<string, unknown> });
+      });
       this.setSnapshot((prev) => {
         const categories = prev.categories.some((c) => c.id === savedCategory.id)
           ? prev.categories.map((c) => (c.id === savedCategory.id ? { ...c, ...savedCategory } : c))
@@ -646,6 +674,7 @@ export class ChecklistManager {
       throw new Error(insertError?.message || 'Unable to save category. Please try again.');
     }
 
+    await cacheRows('categories', [savedCategory], this.userId!);
     this.setSnapshot((prev) => {
       const categories = prev.categories.some((category) => category.id === savedCategory.id)
         ? prev.categories.map((category) =>
@@ -680,11 +709,22 @@ export class ChecklistManager {
       ? { name: previousCategory.name, color: previousCategory.color }
       : null;
 
-    if (!isOnline()) {
+    if (await shouldQueueWrite(this.userId!)) {
       if (!previousCategory) throw new Error('Category not found.');
       const updatedCategory: Category = { ...previousCategory, ...updates };
-      await db.categories.put(updatedCategory);
-      await enqueue({ table_name: 'categories', operation: 'UPDATE', payload: updatedCategory as Record<string, unknown> });
+      await db.transaction('rw', db.categories, db.tasks, db.sync_queue, async () => {
+        await db.transaction('rw', db.categories, db.sync_queue, async () => {
+          await db.categories.put(updatedCategory);
+          await enqueue({ user_id: this.userId!, table_name: 'categories', operation: 'UPDATE', payload: updatedCategory as Record<string, unknown> });
+        });
+        for (const task of this.snapshot.tasks.filter(task => task.user_id === this.userId && task.category === previousCategory.name)) {
+          const updated = { ...task, category: updatedCategory.name, category_color: updatedCategory.color };
+          await db.transaction('rw', db.tasks, db.sync_queue, async () => {
+            await db.tasks.put(updated);
+            await enqueue({ user_id: this.userId!, table_name: 'tasks', operation: 'UPDATE', payload: { id: task.id, category: updatedCategory.name, category_color: updatedCategory.color } });
+          });
+        }
+      });
       this.setSnapshot((prev) => ({
         ...prev,
         categories: sortCategories(
@@ -692,7 +732,7 @@ export class ChecklistManager {
         ),
         tasks: previousCategorySnapshot
           ? prev.tasks.map((task) =>
-              task.category === previousCategorySnapshot.name
+              task.user_id === this.userId && task.category === previousCategorySnapshot.name
                 ? { ...task, category: updatedCategory.name, category_color: updatedCategory.color }
                 : task,
             )
@@ -715,6 +755,7 @@ export class ChecklistManager {
     }
 
     const updatedCategory = data as Category;
+    await cacheRows('categories', [updatedCategory], this.userId!);
     this.setSnapshot((prev) => ({
       ...prev,
       categories: sortCategories(
@@ -724,7 +765,7 @@ export class ChecklistManager {
       ),
       tasks: previousCategorySnapshot
         ? prev.tasks.map((task) =>
-            task.category === previousCategorySnapshot.name
+            task.user_id === this.userId && task.category === previousCategorySnapshot.name
               ? {
                   ...task,
                   category: updatedCategory.name,
@@ -746,6 +787,7 @@ export class ChecklistManager {
         .eq('user_id', this.userId)
         .eq('category', previousCategorySnapshot.name);
 
+      if (!tasksError) await cacheRows('tasks', this.snapshot.tasks.filter(task => task.user_id === this.userId), this.userId!);
       if (tasksError) {
         await this.refresh(true);
         throw new Error(
@@ -760,9 +802,11 @@ export class ChecklistManager {
       throw new Error('You must be signed in to delete categories.');
     }
 
-    if (!isOnline()) {
-      await db.categories.delete(id);
-      await enqueue({ table_name: 'categories', operation: 'DELETE', payload: { id } });
+    if (await shouldQueueWrite(this.userId!)) {
+      await db.transaction('rw', db.categories, db.sync_queue, async () => {
+        await db.categories.delete(id);
+        await enqueue({ user_id: this.userId!, table_name: 'categories', operation: 'DELETE', payload: { id } });
+      });
       this.setSnapshot((prev) => ({
         ...prev,
         categories: sortCategories(prev.categories.filter((category) => category.id !== id)),
@@ -781,6 +825,7 @@ export class ChecklistManager {
       throw new Error(error.message || 'Unable to delete category. Please try again.');
     }
 
+    await cacheDelete('categories', id);
     this.setSnapshot((prev) => ({
       ...prev,
       categories: sortCategories(prev.categories.filter((category) => category.id !== id)),
@@ -964,6 +1009,8 @@ export class ChecklistManager {
 
   private applyTaskChange(payload: RealtimePostgresChangesPayload<Task>) {
     const { eventType, new: newTask, old: oldTask } = payload;
+    if (eventType === 'DELETE' && oldTask?.id) void cacheDelete('tasks', oldTask.id);
+    else if (newTask && 'id' in newTask && newTask.id) void cacheRows('tasks', [this.normalizeTask(newTask as Task)], this.userId ?? undefined);
 
     if (eventType === 'INSERT' && newTask) {
       this.setSnapshot((prev) => {
@@ -1010,6 +1057,8 @@ export class ChecklistManager {
 
   private applyCategoryChange(payload: RealtimePostgresChangesPayload<Category>) {
     const { eventType, new: newCategory, old: oldCategory } = payload;
+    if (eventType === 'DELETE' && oldCategory?.id) void cacheDelete('categories', oldCategory.id);
+    else if (newCategory && 'id' in newCategory && newCategory.id) void cacheRows('categories', [newCategory], this.userId ?? undefined);
 
     if (eventType === 'INSERT' && newCategory) {
       this.setSnapshot((prev) => {

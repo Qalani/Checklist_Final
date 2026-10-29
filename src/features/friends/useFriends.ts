@@ -4,6 +4,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Friend, FriendRequest } from '@/types';
 import { extractErrorMessage } from '@/utils/extract-error-message';
+import { isOnline, onStatusChange } from '@/lib/network-status';
+import { readAccountCache, writeAccountCache } from '@/lib/account-cache';
 
 export type FriendsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -91,11 +93,23 @@ function mapRequestRow(row: FriendRequestRow): FriendRequest {
   } satisfies FriendRequest;
 }
 
-export async function fetchFriendsData(userId: string): Promise<{
+export interface FriendsSnapshot {
   friends: Friend[];
   incoming: FriendRequest[];
   outgoing: FriendRequest[];
-}> {
+}
+
+export function readFriendsSnapshot(userId: string): FriendsSnapshot {
+  const cached = readAccountCache<FriendsSnapshot>('friends', userId);
+  return {
+    friends: Array.isArray(cached?.friends) ? cached.friends.filter(row => row && row.user_id === userId) : [],
+    incoming: Array.isArray(cached?.incoming) ? cached.incoming.filter(row => row && row.target_id === userId && row.status === 'pending') : [],
+    outgoing: Array.isArray(cached?.outgoing) ? cached.outgoing.filter(row => row && row.requester_id === userId && row.status === 'pending') : [],
+  };
+}
+
+export async function fetchFriendsData(userId: string): Promise<FriendsSnapshot> {
+  if (!isOnline()) return readFriendsSnapshot(userId);
   const [friendsResult, requestsResult] = await Promise.all([
     supabase
       .from('friends')
@@ -124,11 +138,13 @@ export async function fetchFriendsData(userId: string): Promise<{
   const friendRows = (friendsResult.data ?? []).map(mapFriendRow);
   const requestRows = (requestsResult.data ?? []).map(mapRequestRow);
 
-  return {
+  const snapshot = {
     friends: friendRows,
     incoming: requestRows.filter(request => request.status === 'pending' && request.target_id === userId),
     outgoing: requestRows.filter(request => request.status === 'pending' && request.requester_id === userId),
   };
+  writeAccountCache('friends', userId, snapshot);
+  return snapshot;
 }
 
 export function useFriends(userId: string | null): UseFriendsResult {
@@ -156,6 +172,7 @@ export function useFriends(userId: string | null): UseFriendsResult {
 
         try {
           const data = await fetchFriendsData(userId);
+          if (currentUserRef.current !== userId) return;
           setState({
             status: 'ready',
             syncing: false,
@@ -165,6 +182,7 @@ export function useFriends(userId: string | null): UseFriendsResult {
             error: null,
           });
         } catch (error) {
+          if (currentUserRef.current !== userId) return;
           const message = extractErrorMessage(error, 'Failed to load friends.');
           setState(prev => ({
             ...prev,
@@ -207,6 +225,8 @@ export function useFriends(userId: string | null): UseFriendsResult {
     }
 
     currentUserRef.current = userId;
+    const cached = readFriendsSnapshot(userId);
+    setState({ status: 'ready', syncing: false, friends: cached.friends, incomingRequests: cached.incoming, outgoingRequests: cached.outgoing, error: null });
     void runRefresh(true);
   }, [runRefresh, state.status, userId]);
 
@@ -270,10 +290,16 @@ export function useFriends(userId: string | null): UseFriendsResult {
     };
   }, [runRefresh, userId]);
 
+  useEffect(() => onStatusChange(online => {
+    if (online && userId) void runRefresh(true);
+  }), [runRefresh, userId]);
+
   const addFriend = useCallback<UseFriendsResult['addFriend']>(async (email) => {
     if (!userId) {
       return { error: 'You need to be signed in to add friends.' };
     }
+
+    if (!isOnline()) return { error: 'You’re offline. Reconnect to send a friend request.' };
 
     const normalizedEmail = email.trim();
 
@@ -295,6 +321,9 @@ export function useFriends(userId: string | null): UseFriendsResult {
     }
 
     const request = mapRequestRow(data as FriendRequestRow);
+    const cached = readFriendsSnapshot(userId);
+    writeAccountCache('friends', userId, { ...cached, outgoing: [...cached.outgoing.filter(row => row.id !== request.id), request] });
+    if (currentUserRef.current !== userId) return { request };
     setState(prev => ({
       ...prev,
       outgoingRequests: prev.outgoingRequests.some(existing => existing.id === request.id)
@@ -316,6 +345,8 @@ export function useFriends(userId: string | null): UseFriendsResult {
       return { error: 'You need to be signed in to manage friends.' };
     }
 
+    if (!isOnline()) return { error: 'You’re offline. Reconnect to remove a friend.' };
+
     const { error } = await supabase.rpc('remove_friend', {
       target_friend_id: friendUserId,
     });
@@ -324,7 +355,9 @@ export function useFriends(userId: string | null): UseFriendsResult {
       return { error: extractErrorMessage(error, 'Unable to remove that friend.') };
     }
 
-    setState(prev => ({
+    const cached = readFriendsSnapshot(userId);
+    writeAccountCache('friends', userId, { ...cached, friends: cached.friends.filter(friend => friend.friend_id !== friendUserId) });
+    if (currentUserRef.current === userId) setState(prev => ({
       ...prev,
       friends: prev.friends.filter(friend => friend.friend_id !== friendUserId),
     }));
@@ -338,6 +371,8 @@ export function useFriends(userId: string | null): UseFriendsResult {
         return { error: 'You need to be signed in to manage friend requests.' };
       }
 
+      if (!isOnline()) return { error: 'You’re offline. Reconnect to respond to a friend request.' };
+
       const { error } = await supabase.rpc('respond_to_friend_request', {
         request_id: requestId,
         action,
@@ -347,6 +382,8 @@ export function useFriends(userId: string | null): UseFriendsResult {
         return { error: extractErrorMessage(error, 'Unable to update that friend request.') };
       }
 
+      const cached = readFriendsSnapshot(userId);
+      writeAccountCache('friends', userId, { ...cached, incoming: cached.incoming.filter(row => row.id !== requestId) });
       await runRefresh(true);
       return undefined;
     },

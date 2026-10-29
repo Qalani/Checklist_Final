@@ -47,6 +47,9 @@ export interface UseListsResult extends ListsState {
 }
 
 export interface ListMembershipRow {
+  id?: string;
+  user_id?: string;
+  created_at?: string;
   role: ListMemberRole;
   list_id: string;
   list: {

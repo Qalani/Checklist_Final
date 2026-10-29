@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // Service-worker coverage needs a production build and its own server.
+  testIgnore: '**/offline.spec.ts',
   timeout: 60_000,
   expect: {
     timeout: 30_000,

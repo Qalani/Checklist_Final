@@ -2,6 +2,9 @@ import { fetchDashboardLayout, persistDashboardLayout } from '@/features/dashboa
 import { DEFAULT_DASHBOARD_LAYOUT, normalizeLayout } from '@/features/dashboard/layout-metadata';
 import type { DashboardLayout } from '@/features/dashboard/types';
 
+let mockOnline = true;
+jest.mock('@/lib/network-status', () => ({ isOnline: () => mockOnline }));
+
 const storage = new Map<string, DashboardLayout>();
 
 class QueryBuilder {
@@ -44,6 +47,8 @@ jest.mock('@/lib/supabase', () => ({
 describe('dashboard layout persistence', () => {
   beforeEach(() => {
     storage.clear();
+    localStorage.clear();
+    mockOnline = true;
   });
 
   it('returns the default layout when no data exists', async () => {
@@ -52,6 +57,30 @@ describe('dashboard layout persistence', () => {
     const loadedTypes = layout.widgets.map(widget => widget.type).sort();
     expect(loadedTypes).toEqual(defaultTypes);
     expect(layout.widgets.every(widget => widget.visible)).toBe(true);
+  });
+
+  it('keeps an offline edit across reloads and replays it before loading server data', async () => {
+    const layout = normalizeLayout(DEFAULT_DASHBOARD_LAYOUT);
+    layout.widgets[0].visible = false;
+    mockOnline = false;
+    await persistDashboardLayout('offline-user', layout);
+    expect(storage.has('offline-user')).toBe(false);
+    expect((await fetchDashboardLayout('offline-user')).widgets[0].visible).toBe(false);
+    mockOnline = true;
+    expect((await fetchDashboardLayout('offline-user')).widgets[0].visible).toBe(false);
+    expect(storage.get('offline-user')?.widgets[0].visible).toBe(false);
+  });
+
+  it('does not replay another account’s pending layout on account switch', async () => {
+    const layout = normalizeLayout(DEFAULT_DASHBOARD_LAYOUT);
+    layout.widgets[0].visible = false;
+    mockOnline = false;
+    await persistDashboardLayout('alice', layout);
+    expect((await fetchDashboardLayout('bob')).widgets[0].visible).toBe(true);
+    mockOnline = true;
+    await fetchDashboardLayout('bob');
+    expect(storage.has('alice')).toBe(false);
+    expect((await fetchDashboardLayout('alice')).widgets[0].visible).toBe(false);
   });
 
   it('persists widget visibility toggles across saves', async () => {

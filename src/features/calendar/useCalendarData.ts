@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 import useSWR, { type KeyedMutator } from 'swr';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
-import { isOnline } from '@/lib/network-status';
+import { cacheRows, mergePendingRows, getCachedTasks } from '@/lib/offline-cache';
+import { isOnline, onStatusChange } from '@/lib/network-status';
 import type { Task, Note, ZenReminder, CalendarEvent } from '@/types';
 import { getUpcomingReminderOccurrences, shouldScheduleReminder } from '@/utils/reminders';
 import type {
@@ -75,14 +76,14 @@ function buildReminderMetadata(task: Task): CalendarReminderMetadata | null {
   };
 }
 
-async function fetchCalendarPayloadOffline(
+export async function fetchCalendarPayloadOffline(
   userId: string,
   startIso: string,
   endIso: string,
   scope: CalendarScope,
 ): Promise<CalendarResponsePayload> {
-  const [ownedTasks, notes, zenReminders, calendarEvents] = await Promise.all([
-    db.tasks.where('user_id').equals(userId).toArray(),
+  const [tasks, notes, zenReminders, calendarEvents] = await Promise.all([
+    getCachedTasks(userId),
     db.notes.where('user_id').equals(userId).toArray(),
     db.zen_reminders.where('user_id').equals(userId).toArray(),
     db.calendar_events.where('user_id').equals(userId).toArray(),
@@ -93,8 +94,8 @@ async function fetchCalendarPayloadOffline(
     startIso,
     endIso,
     scope,
-    ownedTasks as Task[],
-    [],
+    tasks.filter(task => task.user_id === userId),
+    tasks.filter(task => task.user_id !== userId).map(task => ({ role: task.access_role ?? 'viewer', task })),
     notes as Note[],
     zenReminders as ZenReminder[],
     calendarEvents as CalendarEvent[],
@@ -354,17 +355,35 @@ async function fetchCalendarPayload(
   if (calendarEventsResult.error) throw new Error(calendarEventsResult.error.message);
 
   type SharedTaskRow = { role?: 'owner' | 'editor' | 'viewer' | null; task?: Task | Task[] | null };
+  const ownedTasks = (ownedTasksResult.data ?? []) as Task[];
+  const sharedTaskRows = (sharedTasksResult.data ?? []) as SharedTaskRow[];
+  const sharedTasks = sharedTaskRows.flatMap(row => {
+    const task = Array.isArray(row.task) ? row.task[0] : row.task;
+    return task ? [{ ...task, access_role: row.role ?? 'viewer' } as Task] : [];
+  });
+  await Promise.all([
+    cacheRows('tasks', [...ownedTasks, ...sharedTasks], userId),
+    cacheRows('notes', notesResult.data ?? [], userId),
+    cacheRows('zen_reminders', remindersResult.data ?? [], userId),
+    cacheRows('calendar_events', calendarEventsResult.data ?? [], userId),
+  ]);
+  const [tasks, notes, reminders, calendarEvents] = await Promise.all([
+    mergePendingRows('tasks', [...ownedTasks, ...sharedTasks], userId),
+    mergePendingRows('notes', (notesResult.data ?? []) as Note[], userId),
+    mergePendingRows('zen_reminders', (remindersResult.data ?? []) as ZenReminder[], userId),
+    mergePendingRows('calendar_events', (calendarEventsResult.data ?? []) as CalendarEvent[], userId),
+  ]);
 
   return buildCalendarPayload(
     userId,
     startIso,
     endIso,
     scope,
-    (ownedTasksResult.data ?? []) as Task[],
-    (sharedTasksResult.data ?? []) as SharedTaskRow[],
-    (notesResult.data ?? []) as Note[],
-    (remindersResult.data ?? []) as ZenReminder[],
-    (calendarEventsResult.data ?? []) as CalendarEvent[],
+    tasks.filter(task => task.user_id === userId),
+    tasks.filter(task => task.user_id !== userId).map(task => ({ role: task.access_role ?? 'viewer', task })),
+    notes,
+    reminders,
+    calendarEvents,
   );
 }
 
@@ -382,6 +401,17 @@ export function useCalendarData(userId: string | null, options: UseCalendarOptio
     () => fetchCalendarPayload(userId!, startIso, endIso, scope),
     { revalidateOnFocus: false },
   );
+
+  useEffect(() => {
+    if (!userId || !shouldFetch) return;
+    const refreshCachedView = () => { void mutate(); };
+    const unsubscribe = onStatusChange(refreshCachedView);
+    window.addEventListener('zen-sync-complete', refreshCachedView);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('zen-sync-complete', refreshCachedView);
+    };
+  }, [mutate, shouldFetch, userId]);
 
   useEffect(() => {
     if (!userId || !shouldFetch) return;

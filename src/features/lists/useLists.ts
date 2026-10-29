@@ -1,8 +1,9 @@
 import { MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/local-db';
+import { cacheRows, cacheDelete, shouldQueueWrite } from '@/lib/offline-cache';
 import { enqueue } from '@/lib/sync-queue';
-import { isOnline } from '@/lib/network-status';
+import { isOnline, onStatusChange } from '@/lib/network-status';
 import { extractErrorMessage } from '@/utils/extract-error-message';
 import type { List, ListItem, ListMember } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -93,6 +94,17 @@ export function useLists(userId: string | null): UseListsResult {
     },
     [userId],
   );
+
+  useEffect(() => {
+    if (!userId) return;
+    const refreshCachedView = () => { void runRefresh(true); };
+    const unsubscribe = onStatusChange(refreshCachedView);
+    window.addEventListener('zen-sync-complete', refreshCachedView);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('zen-sync-complete', refreshCachedView);
+    };
+  }, [runRefresh, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -203,6 +215,12 @@ export function useLists(userId: string | null): UseListsResult {
           return;
         }
 
+        if (payload.eventType === 'DELETE') {
+          void cacheDelete('list_items', row.id);
+        } else {
+          void cacheRows('list_items', [mapListItem(row)], userId);
+        }
+
         setState(prev => {
           const updatedLists = prev.lists.map(list => {
             if (list.id !== row.list_id) {
@@ -287,7 +305,7 @@ export function useLists(userId: string | null): UseListsResult {
             .map((item, index) => ({ ...item, position: index }))
         : [];
 
-      if (!isOnline()) {
+      if (await shouldQueueWrite(userId)) {
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
         const newList: List = {
@@ -302,21 +320,23 @@ export function useLists(userId: string | null): UseListsResult {
           public_share_enabled: false,
           items: [],
         };
-        await db.lists.put(newList);
-        await db.list_members.put({ id: crypto.randomUUID(), list_id: id, user_id: userId, role: 'owner', created_at: now });
-        await enqueue({ table_name: 'lists', operation: 'INSERT', payload: { id, name: input.name, description: input.description ?? null, user_id: userId, created_at: now } });
+        await db.transaction('rw', [db.lists, db.list_members, db.list_items, db.sync_queue], async () => {
+          await db.lists.put(newList);
+          await db.list_members.put({ id: crypto.randomUUID(), list_id: id, user_id: userId, role: 'owner', created_at: now });
+          await enqueue({ user_id: userId, table_name: 'lists', operation: 'INSERT', payload: { id, name: input.name, description: input.description ?? null, user_id: userId, created_at: now } });
 
-        if (initialItems.length > 0) {
-          const mappedItems: ListItem[] = [];
-          for (const item of initialItems) {
-            const itemId = crypto.randomUUID();
-            const newItem: ListItem = { id: itemId, list_id: id, content: item.content, completed: item.completed, position: item.position, created_at: now };
-            await db.list_items.put(newItem);
-            await enqueue({ table_name: 'list_items', operation: 'INSERT', payload: newItem as Record<string, unknown> });
-            mappedItems.push(newItem);
+          if (initialItems.length > 0) {
+            const mappedItems: ListItem[] = [];
+            for (const item of initialItems) {
+              const itemId = crypto.randomUUID();
+              const newItem: ListItem = { id: itemId, list_id: id, content: item.content, completed: item.completed, position: item.position, created_at: now };
+              await db.list_items.put(newItem);
+              await enqueue({ user_id: userId, table_name: 'list_items', operation: 'INSERT', payload: newItem as Record<string, unknown> });
+              mappedItems.push(newItem);
+            }
+            newList.items = mappedItems.sort((a, b) => a.position - b.position);
           }
-          newList.items = mappedItems.sort((a, b) => a.position - b.position);
-        }
+        });
 
         setState(prev => ({
           ...prev,
@@ -413,6 +433,10 @@ export function useLists(userId: string | null): UseListsResult {
             newList.items = mappedItems.sort((a, b) => a.position - b.position);
           }
 
+          await cacheRows('lists', [newList], userId);
+          await cacheRows('list_items', newList.items ?? [], userId);
+          // The membership trigger has run; cache its real row for offline reads.
+          await fetchLists(userId).catch(() => undefined);
           setState(prev => ({
             ...prev,
             lists: [...prev.lists, newList],
@@ -448,10 +472,12 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to update this list.' };
       }
 
-      if (!isOnline()) {
+      if (await shouldQueueWrite(userId)) {
         const updated: List = { ...existing, name: input.name, description: input.description ?? null };
-        await db.lists.put(updated);
-        await enqueue({ table_name: 'lists', operation: 'UPDATE', payload: { id, name: input.name, description: input.description ?? null } });
+        await db.transaction('rw', [db.lists, db.sync_queue], async () => {
+          await db.lists.put(updated);
+          await enqueue({ user_id: userId, table_name: 'lists', operation: 'UPDATE', payload: { id, name: input.name, description: input.description ?? null } });
+        });
         setState(prev => ({
           ...prev,
           lists: prev.lists.map(list =>
@@ -477,6 +503,7 @@ export function useLists(userId: string | null): UseListsResult {
         }
 
         if (data) {
+          await cacheRows('lists', [{ ...existing, ...data }], userId);
           setState(prev => ({
             ...prev,
             lists: prev.lists.map(list =>
@@ -514,9 +541,13 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'Only owners can delete a list.' };
       }
 
-      if (!isOnline()) {
-        await db.lists.delete(id);
-        await enqueue({ table_name: 'lists', operation: 'DELETE', payload: { id } });
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.lists, db.list_members, db.list_items, db.sync_queue], async () => {
+          await db.lists.delete(id);
+          await db.list_items.where('list_id').equals(id).delete();
+          await db.list_members.where('list_id').equals(id).delete();
+          await enqueue({ user_id: userId, table_name: 'lists', operation: 'DELETE', payload: { id } });
+        });
         setState(prev => ({ ...prev, lists: prev.lists.filter(list => list.id !== id) }));
         return;
       }
@@ -531,6 +562,7 @@ export function useLists(userId: string | null): UseListsResult {
           throw new Error(error.message || 'Unable to delete list.');
         }
 
+        await cacheDelete('lists', id);
         setState(prev => ({
           ...prev,
           lists: prev.lists.filter(list => list.id !== id),
@@ -558,14 +590,16 @@ export function useLists(userId: string | null): UseListsResult {
         return { error: 'You do not have permission to add items to this list.' };
       }
 
-      if (!isOnline()) {
+      if (await shouldQueueWrite(userId)) {
         const itemId = crypto.randomUUID();
         const now = new Date().toISOString();
         const existingItems = Array.isArray(targetList.items) ? targetList.items : [];
         const nextPosition = existingItems.reduce((max, i) => Math.max(max, i.position), -1) + 1;
         const item: ListItem = { id: itemId, list_id: listId, content, completed: false, position: nextPosition, created_at: now };
-        await db.list_items.put(item);
-        await enqueue({ table_name: 'list_items', operation: 'INSERT', payload: item as Record<string, unknown> });
+        await db.transaction('rw', [db.list_items, db.sync_queue], async () => {
+          await db.list_items.put(item);
+          await enqueue({ user_id: userId, table_name: 'list_items', operation: 'INSERT', payload: item as Record<string, unknown> });
+        });
         setState(prev => ({
           ...prev,
           lists: prev.lists.map(list =>
@@ -594,6 +628,7 @@ export function useLists(userId: string | null): UseListsResult {
         }
 
         const item = mapListItem(newRow);
+        await cacheRows('list_items', [item], userId);
 
         setState(prev => ({
           ...prev,
@@ -653,7 +688,23 @@ export function useLists(userId: string | null): UseListsResult {
       if (!existingItem) return { error: 'List item not found.' };
       const now = new Date().toISOString();
       const optimisticItem: ListItem = { ...existingItem, ...payload, updated_at: now } as ListItem;
-      await db.list_items.put(optimisticItem);
+
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.list_items, db.sync_queue], async () => {
+          await db.list_items.put(optimisticItem);
+          await enqueue({ user_id: userId, table_name: 'list_items', operation: 'UPDATE', payload: optimisticItem as Record<string, unknown> });
+        });
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === optimisticItem.list_id
+              ? { ...list, items: (list.items ?? []).map(i => (i.id === itemId ? optimisticItem : i)) }
+              : list,
+          ),
+        }));
+        return { item: optimisticItem };
+      }
+
       setState(prev => ({
         ...prev,
         lists: prev.lists.map(list =>
@@ -662,11 +713,6 @@ export function useLists(userId: string | null): UseListsResult {
             : list,
         ),
       }));
-
-      if (!isOnline()) {
-        await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: optimisticItem as Record<string, unknown> });
-        return { item: optimisticItem };
-      }
 
       try {
         const { data, error } = await supabase
@@ -686,6 +732,7 @@ export function useLists(userId: string | null): UseListsResult {
         }
 
         const item = mapListItem(row);
+        await cacheRows('list_items', [item], userId);
 
         setState(prev => ({
           ...prev,
@@ -701,10 +748,14 @@ export function useLists(userId: string | null): UseListsResult {
 
         return { item };
       } catch (error) {
-        // Server request failed — queue the optimistic change for background sync
-        // so it persists when connectivity is restored.
-        await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: optimisticItem as Record<string, unknown> });
-        return { item: optimisticItem };
+        await db.list_items.put(existingItem);
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list => list.id === targetList.id
+            ? { ...list, items: (list.items ?? []).map(item => item.id === itemId ? existingItem : item) }
+            : list),
+        }));
+        return { error: extractErrorMessage(error, 'Unable to update list item.') };
       }
     },
     [userId],
@@ -729,6 +780,23 @@ export function useLists(userId: string | null): UseListsResult {
       const itemToDelete = (targetList.items ?? []).find(item => item.id === itemId);
 
       // Optimistically remove from UI immediately
+
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.list_items, db.sync_queue], async () => {
+          await db.list_items.delete(itemId);
+          await enqueue({ user_id: userId, table_name: 'list_items', operation: 'DELETE', payload: { id: itemId } });
+        });
+        setState(prev => ({
+          ...prev,
+          lists: prev.lists.map(list =>
+            list.id === targetList.id
+              ? { ...list, items: (list.items ?? []).filter(item => item.id !== itemId) }
+              : list,
+          ),
+        }));
+        return;
+      }
+
       setState(prev => ({
         ...prev,
         lists: prev.lists.map(list =>
@@ -737,12 +805,6 @@ export function useLists(userId: string | null): UseListsResult {
             : list,
         ),
       }));
-
-      if (!isOnline()) {
-        await db.list_items.delete(itemId);
-        await enqueue({ table_name: 'list_items', operation: 'DELETE', payload: { id: itemId } });
-        return;
-      }
 
       try {
         const { error } = await supabase
@@ -753,6 +815,7 @@ export function useLists(userId: string | null): UseListsResult {
         if (error) {
           throw new Error(error.message || 'Unable to delete list item.');
         }
+        await cacheDelete('list_items', itemId);
       } catch (error) {
         // Revert: restore the item in its original position
         if (itemToDelete) {
@@ -805,11 +868,13 @@ export function useLists(userId: string | null): UseListsResult {
         nextItems.push({ ...item, position: index } as ListItem);
       }
 
-      if (!isOnline()) {
-        for (const item of nextItems) {
-          await db.list_items.put(item);
-          await enqueue({ table_name: 'list_items', operation: 'UPDATE', payload: { id: item.id, position: item.position } });
-        }
+      if (await shouldQueueWrite(userId)) {
+        await db.transaction('rw', [db.list_items, db.sync_queue], async () => {
+          for (const item of nextItems) {
+            await db.list_items.put(item);
+            await enqueue({ user_id: userId, table_name: 'list_items', operation: 'UPDATE', payload: { id: item.id, position: item.position } });
+          }
+        });
         setState(prev => ({
           ...prev,
           lists: prev.lists.map(list => (list.id === listId ? { ...list, items: nextItems } : list)),
@@ -838,6 +903,7 @@ export function useLists(userId: string | null): UseListsResult {
         if (error) {
           throw new Error(error.message || 'Unable to reorder list items.');
         }
+        await cacheRows('list_items', nextItems, userId);
       } catch (error) {
         setState(prev => ({
           ...prev,

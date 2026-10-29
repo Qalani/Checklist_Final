@@ -13,6 +13,7 @@ import type {
 // Sync queue entry stored locally while offline
 export interface SyncQueueEntry {
   id?: number; // auto-increment primary key
+  user_id?: string; // actor who queued the change, not necessarily the row owner
   table_name: string;
   operation: 'INSERT' | 'UPDATE' | 'DELETE';
   payload: Record<string, unknown>;
@@ -20,7 +21,10 @@ export interface SyncQueueEntry {
   retries: number;
 }
 
+export interface CacheScope { key: string; user_id: string; table_name: string; row_ids: string[]; }
+
 class ZenWorkspaceDB extends Dexie {
+  cache_scopes!: Table<CacheScope, string>;
   tasks!: Table<Task, string>;
   categories!: Table<Category, string>;
   notes!: Table<Note, string>;
@@ -49,6 +53,11 @@ class ZenWorkspaceDB extends Dexie {
       calendar_events: 'id, updated_at, user_id',
       // ++id = auto-incrementing integer primary key
       sync_queue: '++id, table_name, queued_at',
+    });
+
+    this.version(2).stores({
+      sync_queue: '++id, table_name, queued_at, user_id',
+      cache_scopes: 'key, user_id, table_name',
     });
   }
 }

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/generate-offline-manifest.js",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
@@ -13,7 +13,8 @@
     "build:capacitor": "node scripts/build-capacitor.js",
     "build:android": "npm run build:capacitor && npx cap sync android",
     "open:android": "npx cap open android",
-    "cap:sync": "npx cap sync"
+    "cap:sync": "npx cap sync",
+    "test:offline": "playwright test --config playwright.offline.config.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -62,6 +63,7 @@
     "autoprefixer": "^10.4.16",
     "eslint": "^9.39.4",
     "eslint-config-next": "15.5.7",
+    "fake-indexeddb": "6.2.6",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "postcss": "^8.4.32",
