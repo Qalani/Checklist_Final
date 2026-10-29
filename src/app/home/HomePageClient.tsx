@@ -146,7 +146,7 @@ export default function HomePageClient() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-zen-100 bg-surface">
+      <header className="workspace-header border-b border-zen-100 bg-surface">
         <div className="mx-auto flex min-h-20 max-w-[1280px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <div className="flex items-center gap-2.5 text-sm font-medium text-zen-700">
             <Leaf aria-hidden="true" className="h-4 w-4 text-sage-700" />

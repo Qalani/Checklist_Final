@@ -146,9 +146,7 @@ body {
   --color-bg-warm-700: 85 61 107;
   --color-bg-warm-800: 112 83 136;
   --color-bg-warm-900: 72 52 92;
-  --color-border-zen: 83 97 123;
-  --color-border-sage: 66 126 136;
-  --color-border-warm: 128 98 153;
+  --color-navigation: 12 17 28;
 }
 
 :root[data-theme='forest-dark'] {
@@ -214,9 +212,7 @@ body {
   --color-bg-warm-700: 96 72 37;
   --color-bg-warm-800: 124 97 52;
   --color-bg-warm-900: 82 62 34;
-  --color-border-zen: 84 110 95;
-  --color-border-sage: 69 132 94;
-  --color-border-warm: 144 115 68;
+  --color-navigation: 13 23 18;
 }
 
 /* Existing low-numbered dark text utilities remain readable on dark fills. */
@@ -231,7 +227,12 @@ body {
   --color-danger: 255 163 174;
   --color-danger-surface: 64 32 42;
   --color-danger-hover: 84 40 52;
-  --color-danger-border: 141 79 91;
+  /* Surface changes define the layout; outlines are reserved for focus. */
+  --color-border-zen: transparent;
+  --color-border-sage: transparent;
+  --color-border-warm: transparent;
+  --color-danger-border: transparent;
+  --color-calendar-grid: rgb(var(--color-zen-300) / 0.1);
 }
 
 @layer base {
@@ -260,7 +261,13 @@ body {
 @layer base {
   :root[data-theme$='dark'] {
     accent-color: rgb(var(--color-sage-500));
-    scrollbar-color: rgb(var(--color-border-zen)) rgb(var(--color-zen-50));
+    scrollbar-color: rgb(var(--color-bg-zen-300)) rgb(var(--color-zen-50));
+  }
+
+  :where(:root[data-theme$='dark']) *,
+  :where(:root[data-theme$='dark']) ::before,
+  :where(:root[data-theme$='dark']) ::after {
+    border-color: transparent;
   }
 
   :root[data-theme$='dark'] :is(button, a, input, select, textarea, [tabindex]):focus-visible {
@@ -285,16 +292,25 @@ body {
   }
 }
 
+[data-theme$='dark'] .workspace-header {
+  background-color: rgb(var(--color-zen-50) / 0.95);
+}
+
+[data-theme$='dark'] .workspace-sidebar {
+  background-color: rgb(var(--color-navigation));
+}
+
 [data-theme$='dark'] .workspace-card {
-  box-shadow: 0 4px 20px rgb(0 0 0 / 0.14);
+  box-shadow: none;
 }
 
-[data-theme$='dark'] nav [aria-current='page'] {
-  box-shadow: inset 3px 0 rgb(var(--color-sage-500));
+[data-theme$='dark'] .workspace-card:hover {
+  background-color: rgb(var(--color-bg-zen-100) / 0.8);
 }
 
-[data-theme$='dark'] :is(input:not([type='checkbox']):not([type='radio']), textarea, select) {
-  border-color: rgb(var(--color-zen-400) / 0.7);
+/* Loading arcs communicate progress; they are not decorative outlines. */
+[data-theme$='dark'] :is(.animate-spin, .motion-safe\:animate-spin).rounded-full {
+  border-top-color: rgb(var(--color-sage-600));
 }
 
 /* Quiet, shared surfaces for the workspace overview. */
@@ -344,7 +360,7 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.125rem 0.75rem 0.875rem;
-  border: 1px solid rgb(var(--color-sage-200));
+  border: 1px solid var(--color-border-sage, rgb(var(--color-sage-200)));
   border-radius: 1rem;
   background: rgb(var(--color-surface));
   box-shadow: 0 8px 24px rgb(var(--color-zen-900) / 0.1);

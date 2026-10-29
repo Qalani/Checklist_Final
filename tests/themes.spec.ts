@@ -1,7 +1,8 @@
 import { test, expect, TEST_USER_ID } from './calendar-fixture';
+import type { Locator } from '@playwright/test';
 
 // Measure the rendered colours, including opacity, rather than comparing tokens.
-async function contrast(locator: import('@playwright/test').Locator) {
+async function contrast(locator: Locator) {
   return locator.evaluate(element => {
     const rgb = (value: string) => value.match(/[\d.]+/g)!.map(Number);
     const luminance = (channels: number[]) => channels.slice(0, 3).map(value => {
@@ -24,6 +25,12 @@ async function contrast(locator: import('@playwright/test').Locator) {
   });
 }
 
+async function expectBorderless(locator: Locator, sides = ['top', 'right', 'bottom', 'left']) {
+  for (const side of sides) {
+    await expect(locator).toHaveCSS(`border-${side}-color`, 'rgba(0, 0, 0, 0)');
+  }
+}
+
 for (const theme of ['midnight-dark', 'forest-dark']) {
   test(`${theme}: readable actions, forms and calendar on desktop and mobile`, async ({ page, calendarApi }, testInfo) => {
     calendarApi.events.push({id:'theme-event',user_id:TEST_USER_ID,title:'Design review',start_time:'2026-10-29T11:00:00Z',end_time:'2026-10-29T12:00:00Z',all_day:false});
@@ -32,6 +39,17 @@ for (const theme of ['midnight-dark', 'forest-dark']) {
     await page.goto('/');
     await expect(page.getByRole('heading', {name:'Find clarity in your day'})).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    const header = page.locator('#main-content header').first();
+    const sidebar = page.getByRole('complementary');
+    const taskCard = page.getByRole('link', {name:'Go to Tasks', exact:true});
+    const cardFooter = taskCard.locator(':scope > div').last();
+    await expectBorderless(header, ['bottom']);
+    await expectBorderless(sidebar, ['right']);
+    await expectBorderless(taskCard);
+    await expectBorderless(cardFooter, ['top']);
+    await taskCard.hover();
+    await expectBorderless(taskCard);
+    await expectBorderless(cardFooter, ['top']);
     const primary = page.getByRole('link',{name:'View my tasks'});
     expect(await contrast(primary)).toBeGreaterThanOrEqual(4.5);
     await primary.hover();
@@ -46,6 +64,12 @@ for (const theme of ['midnight-dark', 'forest-dark']) {
     await title.fill('Plan a clear day');
     expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
     await title.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(title).toBeFocused();
+    await expect(title).toHaveCSS('outline-style', 'solid');
+    await expect(title).toHaveCSS('outline-width', '2px');
+    await expect(title).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)');
     await page.keyboard.press('Tab');
     await page.screenshot({path:testInfo.outputPath(`${theme}-task-form.png`)});
     await page.goto('/calendar');
@@ -90,4 +114,5 @@ test('theme choices work by keyboard, persist and remain inside mobile settings'
   await expect(page.locator('html')).toHaveAttribute('data-theme-mode','light');
   await expect(page.locator('html')).not.toHaveClass(/dark/);
   await expect.poll(()=>page.locator('body').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(250, 252, 255)');
+  await expect(page.locator('#main-content header').first()).toHaveCSS('border-bottom-color', 'rgb(231, 238, 244)');
 });

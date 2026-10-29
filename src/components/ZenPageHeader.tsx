@@ -23,7 +23,7 @@ export default function ZenPageHeader({
   footer,
 }: ZenPageHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-zen-100 bg-surface/95 backdrop-blur-xl">
+    <header className="workspace-header sticky top-0 z-30 border-b border-zen-100 bg-surface/95 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-5 py-5 sm:px-8 lg:px-10">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-center gap-3">

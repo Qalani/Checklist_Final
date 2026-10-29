@@ -1,12 +1,15 @@
 import type { Config } from "tailwindcss";
 
-// Keep text, fills and boundaries independent in dark mode. The fallback
-// preserves both light palettes, including opacity and hover utilities.
+// Keep text, fills and boundaries independent in dark mode. Borders accept a
+// complete colour so dark themes can use transparent decorative boundaries.
+// The fallback preserves both light palettes and their opacity utilities.
 const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
 const roleColors = (role: 'bg' | 'text' | 'border') => Object.fromEntries(
   ['zen', 'sage', 'warm'].map(family => [family, Object.fromEntries(
     shades.map(shade => [shade,
-      `rgb(var(--color-${role}-${family}${role === 'border' ? '' : `-${shade}`}, var(--color-${family}-${shade})) / <alpha-value>)`,
+      role === 'border'
+        ? `var(--color-border-${family}, rgb(var(--color-${family}-${shade}) / <alpha-value>))`
+        : `rgb(var(--color-${role}-${family}-${shade}, var(--color-${family}-${shade})) / <alpha-value>)`,
     ]),
   )]),
 );
@@ -42,9 +45,9 @@ const config: Config = {
       borderColor: {
         ...roleColors('border'),
         red: {
-          100: 'rgb(var(--color-danger-border, 254 226 226) / <alpha-value>)',
-          200: 'rgb(var(--color-danger-border, 254 202 202) / <alpha-value>)',
-          300: 'rgb(var(--color-danger-border, 252 165 165) / <alpha-value>)',
+          100: 'var(--color-danger-border, rgb(254 226 226 / <alpha-value>))',
+          200: 'var(--color-danger-border, rgb(254 202 202 / <alpha-value>))',
+          300: 'var(--color-danger-border, rgb(252 165 165 / <alpha-value>))',
         },
       },
       divideColor: roleColors('border'),
