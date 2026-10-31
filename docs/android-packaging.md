@@ -129,3 +129,24 @@ Editors use the available safe viewport and scroll above the keyboard; the note
 editor expands into the remaining height. Bottom navigation hides while typing
 and keeps accessible touch targets. Large text can increase control height rather
 than clipping the label.
+
+
+## CodeQL scanning
+
+The advanced workflow at `.github/workflows/codeql.yml` scans Actions,
+JavaScript/TypeScript, Python, and Java/Kotlin. Kotlin uses manual build mode:
+CodeQL initializes before a clean Android debug build, with Gradle build caches
+and incremental Kotlin compilation disabled for that scan only. The scan does
+not need production Supabase credentials or release signing keys.
+
+When moving from GitHub's default CodeQL setup, switch the repository to advanced
+setup in **Settings → Advanced Security → CodeQL analysis → Switch to advanced**
+and confirm disabling the default setup. GitHub rejects advanced workflow uploads
+while default setup remains enabled. The workflow supports manual runs from the
+Actions tab after that one-time settings change.
+
+A Java/Kotlin scan using `build-mode: none` cannot extract Kotlin. Adding Kotlin
+to a repository that previously used Java's no-build analysis does not update an
+existing default setup automatically. A successful APK build is separate from a
+successful CodeQL scan: the Android compilation must run after CodeQL initializes
+so its compiler tracing can observe the Kotlin sources.
