@@ -5,10 +5,12 @@ import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row as LayoutRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -21,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,42 +52,55 @@ fun NativeDateTimeField(
     val selected = runCatching { Instant.parse(value).atZone(zone) }
         .recoverCatching { ZonedDateTime.parse(value).withZoneSameInstant(zone) }
         .getOrElse { ZonedDateTime.now(zone).withSecond(0).withNano(0) }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        LayoutRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(modifier = Modifier.weight(1f), onClick = {
-                DatePickerDialog(
-                    context,
-                    { _, year, month, day ->
-                        TimePickerDialog(
-                            context,
-                            { _, hour, minute ->
-                                val date = LocalDate.of(year, month + 1, day)
-                                val time = LocalTime.of(hour, minute)
-                                onChange(ZonedDateTime.of(date, time, zone).toInstant().toString())
-                            },
-                            selected.hour,
-                            selected.minute,
-                            DateFormat.is24HourFormat(context),
-                        ).show()
-                    },
-                    selected.year,
-                    selected.monthValue - 1,
-                    selected.dayOfMonth,
-                ).show()
-            }) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge)
+        LayoutRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                onClick = {
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, day ->
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    val date = LocalDate.of(year, month + 1, day)
+                                    val time = LocalTime.of(hour, minute)
+                                    onChange(ZonedDateTime.of(date, time, zone).toInstant().toString())
+                                },
+                                selected.hour,
+                                selected.minute,
+                                DateFormat.is24HourFormat(context),
+                            ).show()
+                        },
+                        selected.year,
+                        selected.monthValue - 1,
+                        selected.dayOfMonth,
+                    ).show()
+                },
+            ) {
                 Text(if (value.isBlank()) "Choose date and time" else selected.format(
                     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
                 ))
             }
             if (allowClear && value.isNotBlank()) {
-                TextButton(onClick = { onChange("") }) { Text("Clear") }
+                TextButton(
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                    onClick = { onChange("") },
+                ) { Text("Clear") }
             }
         }
-        Text(zone.id, style = MaterialTheme.typography.bodySmall)
+        Text(zone.id, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall)
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TaskFields(
     values: JSONObject,
@@ -95,7 +111,7 @@ fun TaskFields(
     fun change(key: String, value: Any?) {
         onChange(JSONObject(values.toString()).put(key, value ?: JSONObject.NULL))
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = text("description"),
             onValueChange = { change("description", it) },
@@ -105,9 +121,14 @@ fun TaskFields(
             maxLines = 5,
         )
         Text("Priority", style = MaterialTheme.typography.labelLarge)
-        LayoutRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             listOf("low", "medium", "high").forEach { priority ->
                 FilterChip(
+                    modifier = Modifier.heightIn(min = 48.dp),
                     selected = text("priority").ifBlank { "medium" } == priority,
                     onClick = { change("priority", priority) },
                     label = { Text(priority.replaceFirstChar { it.uppercaseChar() }) },
@@ -117,12 +138,14 @@ fun TaskFields(
         Text("Category", style = MaterialTheme.typography.labelLarge)
         val categoryName = text("category")
         if (categories.isNotEmpty()) {
-            LayoutRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 categories.forEach { category ->
                     FilterChip(
+                        modifier = Modifier.heightIn(min = 48.dp),
                         selected = categoryName == category.text("name"),
                         onClick = {
                             onChange(JSONObject(values.toString())
@@ -167,13 +190,15 @@ fun TaskFields(
         )
         if (text("due_date").isNotBlank()) {
             Text("Reminder", style = MaterialTheme.typography.labelLarge)
-            LayoutRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 val current = if (values.isNull("reminder_minutes_before") && values.optJSONObject("reminder_recurrence") == null) null else values.optInt("reminder_minutes_before")
                 listOf("None" to null, "At due time" to 0, "15 min before" to 15, "1 hour before" to 60, "1 day before" to 1440).forEach { (label, minutes) ->
                     FilterChip(
+                        modifier = Modifier.heightIn(min = 48.dp),
                         selected = current == minutes,
                         onClick = {
                             val changed = JSONObject(values.toString())
@@ -208,12 +233,14 @@ fun TaskFields(
             }
         }
         Text("Repeat task after completion", style = MaterialTheme.typography.labelLarge)
-        LayoutRow(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             listOf("Never" to "", "Daily" to "daily", "Weekly" to "weekly", "Monthly" to "monthly").forEach { (label, recurrence) ->
                 FilterChip(
+                    modifier = Modifier.heightIn(min = 48.dp),
                     selected = text("task_recurrence") == recurrence,
                     onClick = {
                         val changed = JSONObject(values.toString())
@@ -264,6 +291,7 @@ private fun reanchorReminder(values: JSONObject): JSONObject {
         .put("reminder_snoozed_until", JSONObject.NULL)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReminderRecurrenceFields(values: JSONObject, onChange: (JSONObject) -> Unit) {
     val recurrence = values.optJSONObject("reminder_recurrence")
@@ -276,14 +304,16 @@ private fun ReminderRecurrenceFields(values: JSONObject, onChange: (JSONObject) 
         if (changed.isNull("reminder_minutes_before")) changed.put("reminder_minutes_before", 0)
         onChange(reanchorReminder(changed))
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Repeat reminder", style = MaterialTheme.typography.labelLarge)
-        LayoutRow(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             listOf("Once" to "once", "Daily" to "daily", "Weekly" to "weekly", "Monthly" to "monthly").forEach { (label, nextFrequency) ->
                 FilterChip(
+                    modifier = Modifier.heightIn(min = 48.dp),
                     selected = frequency == nextFrequency,
                     onClick = {
                         scheduleError = null
@@ -314,12 +344,14 @@ private fun ReminderRecurrenceFields(values: JSONObject, onChange: (JSONObject) 
                 val daysArray = recurrence?.optJSONArray("weekdays")
                 val weekdays = (0 until (daysArray?.length() ?: 0)).mapNotNull { index -> daysArray?.optInt(index)?.takeIf { it in 0..6 } }.toSet()
                 Text("Weekdays (optional)", style = MaterialTheme.typography.labelLarge)
-                LayoutRow(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEachIndexed { day, label ->
                         FilterChip(
+                            modifier = Modifier.heightIn(min = 48.dp),
                             selected = day in weekdays,
                             onClick = {
                                 val next = if (day in weekdays) weekdays - day else weekdays + day

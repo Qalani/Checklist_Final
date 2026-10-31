@@ -36,8 +36,8 @@ android {
         applicationId 'com.zenworkspace.app'
         minSdk 24
         targetSdk 36
-        versionCode 2
-        versionName '2.0-native'
+        versionCode 3
+        versionName '2.1-native'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField 'String', 'SUPABASE_URL', quoted(supabaseUrl)
         buildConfigField 'String', 'SUPABASE_PUBLISHABLE_KEY', quoted(supabaseKey)

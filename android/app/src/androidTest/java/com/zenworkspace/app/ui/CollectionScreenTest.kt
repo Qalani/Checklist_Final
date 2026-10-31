@@ -35,6 +35,7 @@ class CollectionScreenTest {
             }
         }
         compose.onNode(isToggleable()).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Actions for Shared task").performClick()
         compose.onNodeWithText("View").performClick()
         compose.onNodeWithText("View task").assertExists()
         compose.onNodeWithText("Save").assertDoesNotExist()
@@ -76,6 +77,7 @@ class CollectionScreenTest {
             }
         }
         compose.onNode(hasScrollToIndexAction()).performScrollToIndex(4)
+        compose.onNodeWithContentDescription("Actions for Second task").performClick()
         compose.onNodeWithContentDescription("Move Second task up").performClick()
         compose.runOnIdle {
             assertEquals(2, writes.size)

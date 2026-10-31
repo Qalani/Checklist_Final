@@ -70,7 +70,7 @@ or regenerate the Android directory from the web client.
 
 For distribution, build a signed release APK or AAB in Android Studio using the
 existing application's signing key. The application ID remains
-`com.zenworkspace.app`; this native version increases `versionCode` to 2. Increase
+`com.zenworkspace.app`; this native version increases `versionCode` to 3. Increase
 it beyond the highest version already distributed if necessary. An update can be
 installed over an existing app only when its signing certificate matches. CI debug
 APKs are for testing and are not Play Store release builds.
@@ -112,3 +112,20 @@ payloads without a shared delivery identifier, so complete cross-channel
 suppression requires a corresponding server change. Confirm notification timing,
 Google/email recovery redirects, shared-account permissions and upgrade signing
 on a real device before distributing a production release.
+
+
+## Bottom navigation and screen layouts
+
+Open **Settings → Bottom bar → Edit**, or **Workspace menu → Edit bottom bar**,
+to choose up to five shortcuts. Drag the handles or use the move arrows to change
+their order. Add/remove controls apply immediately; Reset defaults restores Home,
+Tasks, Lists and Notes. Hide bar removes the bottom navigation completely while
+the workspace menu keeps every page available. The selection and order are saved
+on this device separately for each account.
+
+Phone screens use compact content gutters, full-width controls and wrapping
+labels/actions. Overview and settings grids use extra columns on wide displays.
+Editors use the available safe viewport and scroll above the keyboard; the note
+editor expands into the remaining height. Bottom navigation hides while typing
+and keeps accessible touch targets. Large text can increase control height rather
+than clipping the label.

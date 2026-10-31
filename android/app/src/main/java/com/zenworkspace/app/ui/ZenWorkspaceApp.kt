@@ -1,36 +1,21 @@
 package com.zenworkspace.app.ui
 
 import android.app.Application
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.zenworkspace.app.BuildConfig
 import com.zenworkspace.app.util.CalendarImport
 import com.zenworkspace.app.data.NativeRepository
 import com.zenworkspace.app.data.Row as DataRow
@@ -78,12 +63,6 @@ private val dark = darkColorScheme(primary = Color(0xFF9AD3C8), onPrimary = Colo
     background = Color(0xFF141E28), surface = Color(0xFF1D2B38), surfaceVariant = Color(0xFF304251),
     onSurface = Color(0xFFE3EAF0))
 
-private data class Destination(val id: String, val label: String)
-private val destinations = listOf(Destination("home", "Home"), Destination("tasks", "Tasks"),
-    Destination("lists", "Lists"), Destination("notes", "Notes"), Destination("calendar_events", "Calendar"),
-    Destination("zen_reminders", "Reminders"), Destination("friends", "Friends"),
-    Destination("insights", "Insights"), Destination("categories", "Categories"), Destination("settings", "Settings"))
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
@@ -106,8 +85,12 @@ fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
         }
     }
     var section by rememberSaveable(state.userId) { mutableStateOf("home") }
-    var menu by remember { mutableStateOf(false) }
-    var sharing by remember { mutableStateOf<Pair<String, DataRow>?>(null) }
+    val navigationPreferences = remember { BottomNavigationPreferences(context) }
+    var bottomItems by remember(state.userId) {
+        mutableStateOf(state.userId?.let(navigationPreferences::load) ?: BottomNavigationPreferences.DEFAULT_ITEMS)
+    }
+    var editBottomBar by rememberSaveable(state.userId) { mutableStateOf(false) }
+    var sharing by remember(state.userId) { mutableStateOf<Pair<String, DataRow>?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val action: (suspend () -> Unit) -> Unit = model::action
     MaterialTheme(colorScheme = scheme) {
@@ -151,72 +134,43 @@ fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
             (model.error ?: state.message)?.let { snackbar.showSnackbar(it); model.dismissError() }
         }
         BackHandler(section != "home" && state.userId != null) { section = "home" }
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbar) },
-            topBar = { TopAppBar(title = { Column {
-                Text("Zen Workspace", style = MaterialTheme.typography.titleMedium)
-                Text(if (state.userId == null) "A little space to focus" else destinations.first { it.id == section }.label,
-                    style = MaterialTheme.typography.bodySmall)
-            } }, actions = {
-                if (state.userId != null) {
-                    IconButton(onClick = model::refresh, enabled = !state.busy) { Icon(Icons.Default.Refresh, "Sync workspace") }
-                    Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Default.Menu, "Workspace sections") }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            destinations.forEach { destination -> DropdownMenuItem(text = { Text(destination.label) }, onClick = {
-                                section = destination.id; menu = false
-                            }) }
-                        }
-                    }
-                }
-            }) },
-            bottomBar = {
-                if (state.userId != null) {
-                    NavigationBar {
-                        destinations.take(4).forEachIndexed { index, item ->
-                            NavigationBarItem(
-                                selected = section == item.id,
-                                onClick = { section = item.id },
-                                icon = {
-                                    Icon(when (index) {
-                                        0 -> Icons.Default.Home
-                                        1 -> Icons.Default.CheckCircle
-                                        2 -> Icons.AutoMirrored.Filled.List
-                                        else -> Icons.Default.EditNote
-                                    }, item.label)
-                                },
-                                label = { Text(item.label) }
-                            )
-                        }
-                    }
+        WorkspaceShell(
+            state = state,
+            section = section,
+            bottomItems = bottomItems,
+            onSection = { section = it },
+            onRefresh = model::refresh,
+            onEditNavigation = { editBottomBar = true },
+            snackbar = snackbar,
+        ) {
+            if (state.userId == null) {
+                AuthScreen(state, model)
+            } else {
+                when (section) {
+                    "home" -> HomeScreen(state) { section = it }
+                    "insights" -> InsightsScreen(state)
+                    "friends" -> FriendsScreen(state) { name, body -> action { model.repository.rpc(name, body) } }
+                    "settings" -> SettingsScreen(state, model, theme, { value ->
+                        theme = value
+                        preferences.edit().putString("theme", value).apply()
+                    }, requestNotifications, bottomItems, { editBottomBar = true })
+                    else -> CollectionScreen(section, state,
+                        onSave = { table, values -> action { model.repository.save(table, values) } },
+                        onDelete = { table, id -> action { model.repository.delete(table, id) } },
+                        onRpc = { name, body -> action { model.repository.rpc(name, body) } },
+                        onShare = { table, row -> sharing = table to row })
                 }
             }
-        ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
-                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if (state.pending > 0) {
-                    Text("${state.pending} change${if (state.pending == 1) "" else "s"} saved on this device · waiting to sync",
-                        Modifier.padding(horizontal = 20.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
-                }
-                if (state.userId == null) {
-                    AuthScreen(state, model)
-                } else {
-                    when (section) {
-                        "home" -> HomeScreen(state) { section = it }
-                        "insights" -> InsightsScreen(state)
-                        "friends" -> FriendsScreen(state) { name, body -> action { model.repository.rpc(name, body) } }
-                        "settings" -> SettingsScreen(state, model, theme, { value ->
-                            theme = value
-                            preferences.edit().putString("theme", value).apply()
-                        }, requestNotifications)
-                        else -> CollectionScreen(section, state,
-                            onSave = { table, values -> action { model.repository.save(table, values) } },
-                            onDelete = { table, id -> action { model.repository.delete(table, id) } },
-                            onRpc = { name, body -> action { model.repository.rpc(name, body) } },
-                            onShare = { table, row -> sharing = table to row })
-                    }
-                }
-            }
+        }
+        if (editBottomBar && state.userId != null) {
+            BottomNavigationEditor(
+                selectedIds = bottomItems,
+                onChange = { ids ->
+                    bottomItems = ids
+                    state.userId?.let { navigationPreferences.save(it, ids) }
+                },
+                onDismiss = { editBottomBar = false },
+            )
         }
         if (state.passwordRecovery) PasswordRecoveryDialog(model)
         sharing?.let { (table, row) -> SharingDialog(table, row, model.repository) { sharing = null } }
@@ -225,76 +179,22 @@ fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
 
 @Composable
 private fun AuthScreen(state: WorkspaceState, model: ZenViewModel) {
-    var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var create by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Spacer(Modifier.height(24.dp))
-        Text("Make room for what matters.", style = MaterialTheme.typography.headlineMedium)
-        Text("Your tasks, lists and notes, together in a calmer workspace.")
-        if (!state.configured) {
-            Card { Text("This build needs a Supabase project URL and publishable key. Build the APK with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to connect your workspace.", Modifier.padding(20.dp)) }
-        }
-        OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-        OutlinedTextField(password, { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-        Button(onClick = { model.action { if (create) model.repository.signUp(email.trim(), password) else model.repository.signIn(email.trim(), password) } },
-            enabled = state.configured && !state.busy && email.contains('@') && password.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
-            Text(if (create) "Create account" else "Sign in")
-        }
-        OutlinedButton(onClick = { model.action { androidx.browser.customtabs.CustomTabsIntent.Builder().build().launchUrl(context, model.repository.beginGoogleSignIn()) } },
-            enabled = state.configured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Continue with Google") }
-        TextButton(onClick = { create = !create }) { Text(if (create) "Already have an account? Sign in" else "Create an account") }
-        TextButton(onClick = { model.action { model.repository.resetPassword(email.trim()) } }, enabled = state.configured && email.contains('@')) { Text("Reset password") }
-    }
+    AuthContent(
+        configured = state.configured,
+        busy = state.busy,
+        onSubmit = { email, password, create -> model.action {
+            if (create) model.repository.signUp(email, password) else model.repository.signIn(email, password)
+        } },
+        onGoogle = { model.action {
+            androidx.browser.customtabs.CustomTabsIntent.Builder().build().launchUrl(context, model.repository.beginGoogleSignIn())
+        } },
+        onReset = { email -> model.action { model.repository.resetPassword(email) } },
+    )
 }
 
 @Composable
-private fun HomeScreen(state: WorkspaceState, navigate: (String) -> Unit) {
-    val tasks = state.table("tasks")
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            Text("A clearer day starts here.", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(8.dp))
-            Text("${tasks.count { !it.bool("completed") }} tasks to do. Take them one at a time.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        items(destinations.filter { it.id !in listOf("home", "settings", "categories") }) { destination ->
-            val count = when(destination.id) { "tasks" -> tasks.count { !it.bool("completed") }; "insights" -> tasks.count { it.bool("completed") }; else -> state.table(destination.id).size }
-            ElevatedCard(onClick = { navigate(destination.id) }, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(22.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(destination.label, style = MaterialTheme.typography.titleMedium)
-                    Text(count.toString(), color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InsightsScreen(state: WorkspaceState) {
-    val tasks = state.table("tasks")
-    val complete = tasks.count { it.bool("completed") }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        item {
-            Text("Your progress", style = MaterialTheme.typography.headlineMedium)
-            Text("$complete of ${tasks.size} tasks complete")
-            Spacer(Modifier.height(16.dp))
-            LinearProgressIndicator(progress = { if (tasks.isEmpty()) 0f else complete.toFloat() / tasks.size }, modifier = Modifier.fillMaxWidth())
-        }
-        items(tasks.groupBy { it.text("category").ifBlank { "Uncategorised" } }.toList()) { (category, rows) ->
-            Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) {
-                Text(category, style = MaterialTheme.typography.titleMedium)
-                Text("${rows.count { it.bool("completed") }} / ${rows.size} complete")
-            } }
-        }
-        item { Text("${state.table("notes").size} notes · ${state.table("lists").size} lists · ${state.table("zen_reminders").size} reminders") }
-    }
-}
-
-@Composable
-private fun SettingsScreen(state: WorkspaceState, model: ZenViewModel, theme: String, setTheme: (String) -> Unit, requestNotifications: () -> Unit) {
+private fun SettingsScreen(state: WorkspaceState, model: ZenViewModel, theme: String, setTheme: (String) -> Unit, requestNotifications: () -> Unit, bottomItems: List<String>, editNavigation: () -> Unit) {
     val context = LocalContext.current
     var signOut by remember { mutableStateOf(false) }
     var confirmImport by remember { mutableStateOf<Uri?>(null) }
@@ -322,31 +222,23 @@ private fun SettingsScreen(state: WorkspaceState, model: ZenViewModel, theme: St
     }
     val importCalendar = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> confirmCalendar = uri }
     val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> confirmImport = uri }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Your workspace", style = MaterialTheme.typography.headlineMedium)
-        Text(state.email)
-        Text("Appearance", style = MaterialTheme.typography.titleMedium)
-        listOf("system" to "Use device theme", "zen" to "Zen Light", "dawn" to "Dawn Light", "midnight" to "Midnight Dark", "forest" to "Forest Dark").forEach { (id, name) ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { setTheme(id) }) { Text(name) }
-                RadioButton(selected = theme == id, onClick = { setTheme(id) })
-            }
-        }
-        HorizontalDivider()
-        OutlinedButton(requestNotifications) { Text("Enable notifications") }
-        OutlinedButton(onClick = { export.launch("zen-workspace-${java.time.LocalDate.now()}.json") }) { Text("Export workspace backup") }
-        OutlinedButton(onClick = { import.launch(arrayOf("application/json", "text/plain")) }) { Text("Import workspace backup") }
-        OutlinedButton(onClick = { importCalendar.launch(arrayOf("text/calendar", "application/ics", "application/octet-stream", "text/plain")) }) { Text("Import calendar (.ics)") }
-        if (state.pending > 0) {
-            OutlinedButton(onClick = { exportPending.launch("zen-pending-changes.json") }) { Text("Export pending changes") }
-            TextButton(onClick = { discardChanges = true }) { Text("Discard pending changes") }
-        }
-        Text("Backups contain personal workspace data. Store them somewhere private. Imports create new copies.", style = MaterialTheme.typography.bodySmall)
-        HorizontalDivider()
-        Text("Zen Workspace ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
-        Text("Native Android · Kotlin and Jetpack Compose", style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = { signOut = true }) { Text("Sign out") }
-    }
+    SettingsContent(
+        email = state.email,
+        theme = theme,
+        setTheme = setTheme,
+        bottomItems = bottomItems,
+        pending = state.pending,
+        actions = SettingsActions(
+            editNavigation = editNavigation,
+            notifications = requestNotifications,
+            exportBackup = { export.launch("zen-workspace-${java.time.LocalDate.now()}.json") },
+            importBackup = { import.launch(arrayOf("application/json", "text/plain")) },
+            importCalendar = { importCalendar.launch(arrayOf("text/calendar", "application/ics", "application/octet-stream", "text/plain")) },
+            exportPending = { exportPending.launch("zen-pending-changes.json") },
+            discardPending = { discardChanges = true },
+            signOut = { signOut = true },
+        ),
+    )
     confirmCalendar?.let { uri -> AlertDialog(onDismissRequest = { confirmCalendar = null }, title = { Text("Import calendar?") },
         text = { Text("Add events from this iCalendar file to your workspace. Recurring events must be expanded by the calendar you export from.") },
         confirmButton = { TextButton(onClick = {
@@ -423,14 +315,15 @@ private fun SettingsScreen(state: WorkspaceState, model: ZenViewModel, theme: St
 
 @Composable
 private fun PasswordRecoveryDialog(model: ZenViewModel) {
-    var password by remember { mutableStateOf("") }
+    val context = LocalContext.current
     val state by model.repository.state.collectAsStateWithLifecycle()
-    AlertDialog(onDismissRequest = {}, title = { Text("Set your new password") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Choose a password of at least 6 characters.")
-            OutlinedTextField(password, { password = it }, label = { Text("New password") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        } }, confirmButton = { TextButton(enabled = password.length >= 6 && !state.busy,
-            onClick = { model.action { model.repository.updatePassword(password) } }) { Text("Update password") } })
+    PasswordRecoveryContent(
+        busy = state.busy,
+        message = state.message ?: model.error,
+        onUpdate = { password -> model.action { model.repository.updatePassword(password) } },
+        onCancel = { model.action {
+            PushNotifications.forgetLocalToken(context)
+            model.repository.signOut()
+        } },
+    )
 }
