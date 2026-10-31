@@ -1,7 +1,8 @@
 # Offline support
 
-Zen Workspace keeps previously synchronized account data and pending changes in
-IndexedDB. Sign in and let the first synchronization finish while connected before
+The web client keeps previously synchronized account data and pending changes in
+IndexedDB. The native Android client uses its own account-scoped SQLite cache and
+durable write queue. Sign in and let the first synchronization finish while connected before
 relying on a device offline. A new device cannot download account data or sign in
 without a connection.
 
@@ -25,24 +26,27 @@ HTTPS, or `localhost`.
 
 ## Android
 
-`npm run build:android` exports and bundles all workspace assets in the APK. The
-native app does not need a service worker to launch its bundled pages offline.
-Its local database and pending changes survive ordinary app termination and are
-replayed after it is reopened or resumed with connectivity.
+`npm run build:android` compiles the standalone Kotlin/Compose application. No
+browser engine or service worker is needed to launch native screens offline.
+Its account-scoped native database and pending writes survive ordinary app
+termination and replay when the app resumes with connectivity.
 
-Browser/WebView storage persistence is requested on startup but may be refused by
-the platform. Clearing application/browser data, uninstalling the app, private
-browsing, or storage eviction can remove locally stored data. Synchronize changes
-before clearing data or switching devices.
+Before upgrading from the previous Capacitor app, synchronize every pending change
+online. Its unsynchronized WebView IndexedDB data and login session are not
+imported into native storage. See [native Android builds](android-packaging.md).
+
+Clearing application/browser data, uninstalling the app, private browsing, or web
+storage eviction can remove locally stored data. Synchronize changes before
+clearing data or switching devices.
 
 ## Features requiring a server or operating-system support
 
 - New authentication and account recovery require connectivity.
 - Sharing permissions and friendships must be authorized by the server; a locally
   cached view does not grant access to other users' data.
-- FCM/Web Push delivery requires connectivity. Browser timers cannot guarantee
-  reminder delivery while the application is terminated; there is no native local
-  alarm scheduler in this repository.
+- FCM/Web Push delivery requires connectivity. Native Android reminders use
+  inexact local AlarmManager scheduling and can be delayed by battery-saving modes.
+  Browser timers cannot guarantee delivery while every browser page is closed.
 - Background Sync is optional. The worker asks an open authenticated page to replay
   the queue. It does not contain credentials and cannot replay account changes
   while every page is closed. Reopening/resuming the app is the portable fallback.
@@ -72,4 +76,4 @@ notes/tasks, and checks queue replay on reconnect. It never contacts a live proj
 Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` when using a system browser.
 
 Automated unit/browser checks supplement this matrix. They do not substitute for
-real Android WebView, iOS/Safari, storage-pressure or notification-delivery checks.
+real native Android, iOS/Safari, storage-pressure or notification-delivery checks.

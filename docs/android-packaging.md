@@ -1,77 +1,114 @@
-# Packaging Zen Workspace as an Android App
+# Native Android
 
-This guide covers two supported strategies for shipping the Next.js-based Zen Workspace experience on Android devices. Choose the approach that best fits how "native" you need the experience to feel and whether you must distribute it through the Play Store.
+The `android/` directory is a standalone Kotlin Android application. Jetpack
+Compose renders its screens; native Android storage, browser authentication and
+notifications provide platform services. The APK does not load a website or bundle
+Next.js, React, JavaScript, Electron, Capacitor or a WebView.
 
-## Option A – Wrap the web app with Capacitor (offline bundle)
+The Next.js application remains the browser client. Both clients use the existing
+Supabase database and its row-level security policies. Android changes do not
+require exporting or deploying the website.
 
-Capacitor lets you ship the compiled Next.js site inside a native Android WebView. This provides an installable APK/AAB that works offline (subject to the parts of the app that rely on Supabase or other network calls) and can access native plugins if needed.
+## Build locally
 
-### 1. Prepare the Next.js build for static export
+Install Android Studio, JDK 21, Android SDK Platform 36 and Build Tools 36.0.0.
+Open the repository's `android/` directory in Android Studio. Set `ANDROID_HOME`
+or create an untracked `android/local.properties` with `sdk.dir=/path/to/android-sdk`.
+The committed Gradle wrapper downloads the required Gradle version.
 
-1. Add `output: 'export'` to `next.config.js`:
-   ```js
-   /** @type {import('next').NextConfig} */
-   const nextConfig = {
-     reactStrictMode: true,
-     output: 'export',
-   }
+Supply the same public Supabase URL and client key used by the website:
 
-   module.exports = nextConfig
-   ```
-2. Update any dynamic routes or API calls so that they can run as static pages or in the browser. When using Supabase client-side, ensure authentication/session flows work without relying on Next.js server actions.
-3. Export the site:
-   ```bash
-   npm run build
-   npx next export
-   ```
-   The static assets will be emitted into the `out/` directory.
+```bash
+export SUPABASE_URL=https://your-project-ref.supabase.co
+export SUPABASE_PUBLISHABLE_KEY=your-publishable-or-legacy-anon-key
+cd android
+./gradlew testDebugUnitTest lintDebug assembleDebug
+```
 
-### 2. Add Capacitor to the project
+Alternatively, use Gradle properties `supabaseUrl` and `supabasePublishableKey` in
+an untracked user Gradle properties file or pass them with `-P`. Existing
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` environment variables
+are accepted as fallbacks. These public values are compiled into the APK. Never
+supply a Supabase service-role or secret key to an Android build.
 
-1. Install the CLI and Android platform inside this repository:
-   ```bash
-   npm install --save-dev @capacitor/cli
-   npm install --save @capacitor/core
-   npx cap init "Zen Workspace" com.example.zenworkspace --web-dir=out
-   npx cap add android
-   ```
-2. Copy the freshly exported `out/` directory into Capacitor's native project whenever you rebuild:
-   ```bash
-   npm run build && npx next export
-   npx cap copy android
-   ```
-3. Open the Android project in Android Studio for signing, emulator testing, and Play Store builds:
-   ```bash
-   npx cap open android
-   ```
+From the repository root, `npm run build:android` runs `assembleDebug` and
+`npm run test:android` runs native unit tests and lint. They are convenience wrappers
+around Gradle; neither command needs `npm install`, a Next.js export or Capacitor.
+On Windows use `gradlew.bat` from the Android directory.
 
-You now have an Android Studio project (`android/`) that you can customize. The WebView loads the static Next.js bundle by default. Use Capacitor plugins if you need deeper native integrations (push notifications, secure storage, etc.).
+The installable development APK is at
+`android/app/build/outputs/apk/debug/app-debug.apk`. Install it with Android Studio
+or `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`. Debug builds
+without Supabase configuration display setup information. Release builds require
+configuration.
 
-## Option B – Trusted Web Activity (TWA) for hosted deployment
+## Authentication and notifications
 
-If you prefer to host the app (e.g., on Vercel) and simply provide an Android install entry point, a Trusted Web Activity wraps your HTTPS Progressive Web App in a native shell.
+Keep `com.zenworkspace.app://auth-callback` in Supabase Authentication → URL
+Configuration → Redirect URLs. Google authentication opens the system browser in
+a Custom Tab and exchanges its callback using PKCE. Email/password sign-in and
+email account recovery use the same Supabase project.
 
-1. Ensure the hosted site meets PWA requirements: served over HTTPS, has a valid `manifest.json`, registers a service worker, and passes Lighthouse PWA checks.
-2. Install Google's Bubblewrap tooling:
-   ```bash
-   npm install -g @bubblewrap/cli
-   bubblewrap init --manifest https://your-domain.com/manifest.json
-   bubblewrap build
-   ```
-3. The build step outputs an Android project configured to open your hosted URL in full screen using Chrome Custom Tabs. Import it into Android Studio to configure signing and upload to the Play Store.
-4. Update Digital Asset Links so the TWA can verify ownership of the domain: upload the generated `assetlinks.json` to `https://your-domain.com/.well-known/assetlinks.json`.
+The existing `android/app/google-services.json` configures Firebase Cloud
+Messaging. Keep the Firebase application registered as `com.zenworkspace.app`.
+Allow notifications on Android 13 or later when prompted. Local reminder alarms
+use Android's inexact scheduling, so delivery may be delayed by battery saving or
+Doze. Remote FCM delivery still requires connectivity and the existing server
+reminder scheduler.
 
-This approach keeps all logic and hosting in the web stack while still letting users "install" from the Play Store.
+## CI and distribution
 
-## Distribution checklist
+The **Build Native Android APK** GitHub Actions workflow runs native unit tests,
+Android lint and `assembleDebug`, checks that the APK has no bundled web app, and
+uploads `zen-workspace-native-debug-apk`. Configure repository secrets
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` with public client
+configuration for a connected build. Fork pull requests cannot access repository
+secrets and build an unconfigured debug APK for compilation checks.
 
-- [ ] Create release keystore and configure signing in Android Studio.
-- [ ] Turn on Play App Signing when uploading to Google Play Console.
-- [ ] Configure environment variables (Supabase keys, etc.) via remote config or by consuming them from the bundled `.env` during the web build.
-- [ ] Test authentication and Supabase network flows on real devices—Capacitor/TWA shells rely on the device WebView/Chrome implementation.
+The old Capacitor synchronization workflow has been removed. Do not run `cap sync`
+or regenerate the Android directory from the web client.
 
-## Recommended next steps
+For distribution, build a signed release APK or AAB in Android Studio using the
+existing application's signing key. The application ID remains
+`com.zenworkspace.app`; this native version increases `versionCode` to 2. Increase
+it beyond the highest version already distributed if necessary. An update can be
+installed over an existing app only when its signing certificate matches. CI debug
+APKs are for testing and are not Play Store release builds.
 
-1. Decide whether you need offline support or deep native integration (use Capacitor) versus a quick wrapper around the hosted site (use TWA).
-2. Automate the `npm run build && npx next export && npx cap copy android` flow inside a CI job so your Android project stays in sync with the Next.js source.
-3. Add platform-specific UI tweaks (e.g., splash screen, status bar colors) inside the generated Android project before publishing.
+## Upgrading from the WebView app
+
+Synchronize all changes in the old app while online before installing the native
+update. Android cannot directly import the old wrapper's unsynchronized browser
+IndexedDB queue into its native database. The native app downloads synchronized
+account records after sign-in; it does not automatically migrate unsynchronized
+WebView data or its login session. Do not clear the old application's storage or
+uninstall it before confirming its changes have synchronized.
+
+Native data is cached per account and queued writes persist across app restarts.
+New authentication, collaboration changes and account recovery need connectivity.
+Use the device checks in `docs/offline-support.md` before shipping. Automated
+compilation and unit tests do not verify live OAuth, remote FCM delivery, background
+alarm timing or signing compatibility with an installed production APK.
+
+## Native interaction and sync
+
+The native client includes tasks, categories, shared lists and list items, a native
+rich-text note editor, calendar agenda and iCalendar import, reminders, friends,
+collaborator roles, public list links, progress statistics and four themes. Task
+and list ordering use accessible move buttons. Calendar navigation uses Android's
+date picker and a day agenda. Workspace JSON backup and restore use Android's
+system document picker; exported files contain personal data, never auth tokens.
+
+The client refreshes when resumed and every 30 seconds while visible. It also
+sends queued edits after a write. This uses the existing REST API and RLS; the
+native client does not currently subscribe to Supabase Realtime WebSockets.
+Unsent writes are retained in account-specific SQLite transactions. Settings can
+export pending changes and explicitly discard them before reloading the server
+copy when a permanent permission or validation error blocks sync.
+
+Device alarms and the existing remote notification scheduler can occasionally
+both deliver the same reminder. The server currently sends notification-only FCM
+payloads without a shared delivery identifier, so complete cross-channel
+suppression requires a corresponding server change. Confirm notification timing,
+Google/email recovery redirects, shared-account permissions and upgrade signing
+on a real device before distributing a production release.

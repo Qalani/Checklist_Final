@@ -143,7 +143,7 @@ With those pieces in place the in-app experience will match production: users cr
 5. **Keep Google’s publishing status in mind** – When your OAuth consent screen is in *Testing* mode, only the accounts you list under **Test users** can complete the sign-in flow. Move the app to *Production* (or explicitly add each tester) before inviting other people to log in, otherwise Google will show them an `app_not_configured_for_user`/`access_denied` error page.
 6. **Remember who bypasses the tester list** – Project owners/editors and anyone who previously granted consent keep access even if they are not listed under **Test users**. Remove them from the Google account’s _Third-party apps with account access_ page (or revoke the OAuth client) to force a fresh consent prompt, then retest with the account removed.
 7. **Troubleshoot `redirect_uri_mismatch`** – If Google still blocks the flow, open your OAuth client and verify that both the Supabase callback (`https://<PROJECT_REF>.supabase.co/auth/v1/callback`) and every domain you pass via `NEXT_PUBLIC_SITE_URL` (e.g. `http://localhost:3000`, `https://your-production-domain.com`) appear under **Authorized redirect URIs**. Google must list each value exactly as Supabase sends it.
-8. **Android / Capacitor** – The native app opens Google sign-in in a Chrome Custom Tab and redirects back via the deep-link scheme `com.zenworkspace.app://auth-callback`. Add `com.zenworkspace.app://auth-callback` to _Authentication → URL Configuration → Redirect URLs_ in your Supabase project so Supabase accepts the redirect. No changes to `NEXT_PUBLIC_SITE_URL` or the Google Cloud Console are required for this; the native OAuth flow is handled automatically when the app detects it is running as a Capacitor build.
+8. **Native Android** – The Kotlin app opens Google sign-in in a browser Custom Tab with PKCE and redirects back via the deep-link scheme `com.zenworkspace.app://auth-callback`. Add `com.zenworkspace.app://auth-callback` to _Authentication → URL Configuration → Redirect URLs_ in your Supabase project so Supabase accepts the redirect. No changes to `NEXT_PUBLIC_SITE_URL` or the Google Cloud Console are required for this; the native OAuth flow is handled by the Android application.
 
 ### Updating an existing project
 
@@ -163,7 +163,7 @@ constraints, and creates an index to speed up queries that filter upcoming tasks
 
 ### Android Packaging
 
-Need a Play Store-ready build? Follow the step-by-step guide in [`docs/android-packaging.md`](docs/android-packaging.md) to wrap the app with Capacitor for an offline bundle or ship it as a Trusted Web Activity that points at your hosted deployment.
+The `android/` project is a standalone Kotlin application with Jetpack Compose screens, native storage and notifications. Its APK contains no Next.js bundle, WebView, Capacitor or Electron runtime. See [`docs/android-packaging.md`](docs/android-packaging.md) for local builds, CI artifacts, signing and the upgrade migration notes.
 
 ### Environment Variables for Production
 
@@ -174,7 +174,8 @@ Set these in your deployment platform:
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript
+- **Android**: Kotlin, Jetpack Compose Material 3, native SQLite and Android notifications
+- **Web frontend**: Next.js 15, React 19, TypeScript
 - **Styling**: Tailwind CSS with custom design system
 - **Animations**: Framer Motion
 - **Drag & Drop**: @dnd-kit
