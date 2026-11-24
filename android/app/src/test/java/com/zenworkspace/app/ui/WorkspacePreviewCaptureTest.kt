@@ -1,13 +1,13 @@
 package com.zenworkspace.app.ui
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.util.Base64
+import androidx.activity.ComponentActivity
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import com.zenworkspace.app.data.Row
 import com.zenworkspace.app.data.WorkspaceState
 import org.json.JSONObject
@@ -19,14 +19,13 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
 import java.io.ByteArrayOutputStream
-import java.util.Base64
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w400dp-h780dp-mdpi")
 @LooperMode(LooperMode.Mode.PAUSED)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WorkspacePreviewCaptureTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val state = WorkspaceState(
         userId = "fixture",
@@ -71,11 +70,16 @@ class WorkspacePreviewCaptureTest {
     private fun record(name: String) {
         // Inspect only the synthetic workspace above. Keep the diagnostic small.
         runCatching {
-            val captured = compose.onRoot().captureToImage().asAndroidBitmap()
+            val captured = compose.runOnIdle {
+                val decor = compose.activity.window.decorView
+                Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888).also {
+                    decor.draw(Canvas(it))
+                }
+            }
             val thumbnail = Bitmap.createScaledBitmap(captured, 280, (captured.height.toDouble() * 280 / captured.width).toInt(), true)
             val output = ByteArrayOutputStream()
             thumbnail.compress(Bitmap.CompressFormat.JPEG, 66, output)
-            println("ZEN_PREVIEW_$name " + Base64.getEncoder().encodeToString(output.toByteArray()))
+            println("ZEN_PREVIEW_$name " + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP))
         }.onFailure { println("Preview capture unavailable: ${it.javaClass.simpleName}") }
     }
 

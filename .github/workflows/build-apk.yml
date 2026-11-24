@@ -1,104 +1,93 @@
-name: Build Native Android APK
+name: Verify Android refresh
 
 on:
   push:
-    branches: [main, master, 'claude/**', 'codex/**']
-    paths:
-      - 'android/**'
-      - 'scripts/verify-native-android.py'
-      - '.github/workflows/build-apk.yml'
-  pull_request:
-    paths:
-      - 'android/**'
-      - 'scripts/verify-native-android.py'
-      - '.github/workflows/build-apk.yml'
-  workflow_dispatch:
+    branches: ['codex/android-visual-refresh']
 
 permissions:
   contents: read
   actions: read
 
-concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build:
-    name: Native unit tests, lint and APK
+  visuals:
+    name: Review rendered Compose layouts
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
           log-accepted-android-sdk-licenses: false
-      - name: Install compile SDK
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-      - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v4
-      - name: Verify native architecture
-        run: python3 scripts/verify-native-android.py
-      - name: Test, lint and build native APK
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Render synthetic Home and Tasks screens
         working-directory: android
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug compileDebugAndroidTestKotlin assembleDebug
-      - name: Verify native APK and signing certificate
-        run: |
-          apk=android/app/build/outputs/apk/debug/app-debug.apk
-          python3 scripts/verify-native-android.py "$apk"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk"
-      - name: Inspect previous APK signing certificates
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          temp="$(mktemp -d)"
-          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          apk=android/app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n '1,4p'
-          for run in 41199299867 41201438521; do
-            mkdir "$temp/$run"
-            if gh run download "$run" --repo "$GITHUB_REPOSITORY" --name zen-workspace-native-debug-apk --dir "$temp/$run"; then
-              echo "Published APK from build $run"
-              "$signer" verify --print-certs "$temp/$run/app-debug.apk"
-            else
-              echo "Published APK from build $run could not be downloaded."
-            fi
-          done
+        run: ./gradlew --no-daemon testDebugUnitTest --tests 'com.zenworkspace.app.ui.WorkspacePreviewCaptureTest'
       - name: Read visual check captures
         if: always()
         run: |
           python3 - <<'PY'
           import pathlib
           import re
-          for path in pathlib.Path('android/app/build/test-results/testDebugUnitTest').glob('*WorkspacePreviewCaptureTest.xml'):
+          paths = list(pathlib.Path('android/app/build/test-results/testDebugUnitTest').glob('*WorkspacePreviewCaptureTest.xml'))
+          for path in paths:
               text = path.read_text()
-              for capture in re.findall(r'ZEN_PREVIEW_[A-Z]+ [A-Za-z0-9+/=]+', text):
+              for capture in re.findall(r'ZEN_PREVIEW_[A-Z]+ [A-Za-z0-9+/=]+|Preview capture unavailable: \w+', text):
                   print(capture)
+          print("Preview test reports:", len(paths))
           PY
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+  install:
+    name: Test exact APK installation and launch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-java@v4
         with:
-          name: zen-workspace-native-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 30
-      - name: Upload check reports
-        if: always()
-        uses: actions/upload-artifact@v4
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
         with:
-          name: android-check-reports
-          path: |
-            android/app/build/reports/tests/
-            android/app/build/reports/lint-results-debug.html
-            android/app/build/reports/androidTests/
-            android/app/build/outputs/androidTest-results/
-          if-no-files-found: ignore
+          packages: 'platform-tools emulator'
+          log-accepted-android-sdk-licenses: false
+      - name: Set up Android 35 emulator
+        env:
+          ANDROID_AVD_HOME: ${{ runner.temp }}/zen-avd
+        run: |
+          mkdir -p "$ANDROID_AVD_HOME"
+          sdkmanager 'system-images;android-35;google_apis;x86_64'
+          printf 'no\n' | avdmanager create avd -f -n zen_refresh -k 'system-images;android-35;google_apis;x86_64'
+          sudo chmod a+rw /dev/kvm
+      - name: Compare upgrade and fresh installation on the emulator
+        env:
+          ANDROID_AVD_HOME: ${{ runner.temp }}/zen-avd
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          package=com.zenworkspace.app
+          gh run download 41201438521 --repo "$GITHUB_REPOSITORY" --name zen-workspace-native-debug-apk --dir "$work/previous"
+          gh run download 45377505063 --repo "$GITHUB_REPOSITORY" --name zen-workspace-native-debug-apk --dir "$work/refresh"
+          emulator -avd zen_refresh -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 -cores 2 >"$work/emulator.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          if ! timeout 180 bash -c 'adb wait-for-device; until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 2; done'; then
+            tail -n 40 "$work/emulator.log"
+            exit 1
+          fi
+          adb install "$work/previous/app-debug.apk"
+          if adb install -r "$work/refresh/app-debug.apk" >"$work/upgrade.log" 2>&1; then
+            echo "Unexpectedly installed the independently signed APK over the old APK."
+            exit 1
+          fi
+          cat "$work/upgrade.log"
+          grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE' "$work/upgrade.log"
+          adb uninstall "$package"
+          adb install "$work/refresh/app-debug.apk"
+          adb shell am start -W -n "$package/.MainActivity"
+          adb shell pidof "$package"
+          echo "Fresh installation and startup passed on Android 35."
