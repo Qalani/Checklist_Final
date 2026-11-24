@@ -36,8 +36,8 @@ android {
         applicationId 'com.zenworkspace.app'
         minSdk 24
         targetSdk 36
-        versionCode 3
-        versionName '2.1-native'
+        versionCode 4
+        versionName '2.2-native'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField 'String', 'SUPABASE_URL', quoted(supabaseUrl)
         buildConfigField 'String', 'SUPABASE_PUBLISHABLE_KEY', quoted(supabaseKey)
@@ -67,6 +67,7 @@ dependencies {
     implementation platform('androidx.compose:compose-bom:2025.05.01')
     implementation 'androidx.activity:activity-compose:1.10.1'
     implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.animation:animation'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.material:material-icons-extended'

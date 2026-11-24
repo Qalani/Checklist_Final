@@ -4,10 +4,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -30,10 +35,19 @@ internal fun AuthContent(
                 Text("This build needs a Supabase project URL and publishable key. Build the APK with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to connect your workspace.", Modifier.padding(12.dp))
             }
         }
-        OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-        OutlinedTextField(password, { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+        OutlinedTextField(
+            email, { email = it }, label = { Text("Email") },
+            leadingIcon = { Icon(Icons.Default.Email, null) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+        )
+        OutlinedTextField(
+            password, { password = it }, label = { Text("Password") },
+            leadingIcon = { Icon(Icons.Default.Lock, null) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        )
         Button(onClick = { onSubmit(email.trim(), password, create) },
             enabled = configured && !busy && email.contains('@') && password.isNotEmpty(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(if (create) "Create account" else "Sign in")
@@ -45,23 +59,43 @@ internal fun AuthContent(
         TextButton(onClick = { onReset(email.trim()) }, enabled = configured && email.contains('@'), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Reset password") }
     }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("auth-content")) {
+        val compact = maxHeight < 360.dp
         if (maxWidth >= 600.dp) {
             Row(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                Column(Modifier.weight(0.8f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Make room for what matters.", style = MaterialTheme.typography.headlineSmall)
-                    Text("Tasks, lists and notes in one workspace.", style = MaterialTheme.typography.bodyMedium)
-                }
+                SignInBanner(Modifier.weight(0.8f))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), content = form)
             }
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Make room for what matters.", style = MaterialTheme.typography.headlineSmall)
+                if (compact) {
+                    Text(if (create) "Create an account" else "Welcome back", style = MaterialTheme.typography.titleMedium)
+                } else {
+                    SignInBanner(Modifier.fillMaxWidth())
+                }
                 form()
             }
         }
     }
 }
 
+
+@Composable
+private fun SignInBanner(modifier: Modifier = Modifier) {
+    WorkspaceBanner(modifier) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            WorkspaceMark(Modifier.size(44.dp), onBanner = true)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Make room for what matters.", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                Text("Tasks, lists and notes in one workspace.", style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.88f))
+            }
+        }
+    }
+}
 
 @Composable
 internal fun PasswordRecoveryContent(
