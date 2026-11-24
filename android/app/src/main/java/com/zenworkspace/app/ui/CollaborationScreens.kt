@@ -1,14 +1,17 @@
 package com.zenworkspace.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,6 +37,7 @@ import org.json.JSONObject
 fun FriendsScreen(state: WorkspaceState, onRpc: (String, JSONObject) -> Unit) {
     var email by rememberSaveable { mutableStateOf("") }
     var remove by remember { mutableStateOf<DataRow?>(null) }
+    val tone = workspaceTone("friends")
     val incoming = state.table("friend_requests").filter { it.text("target_id") == state.userId && it.text("status") == "pending" }
     val outgoing = state.table("friend_requests").filter { it.text("requester_id") == state.userId && it.text("status") == "pending" }
     fun sendRequest() {
@@ -49,16 +53,22 @@ fun FriendsScreen(state: WorkspaceState, onRpc: (String, JSONObject) -> Unit) {
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().background(tone.fill, MaterialTheme.shapes.large).padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     OutlinedTextField(
                         email, { email = it }, modifier = Modifier.weight(1f),
                         label = { Text("Friend's email") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = { sendRequest() }),
                     )
-                    Button(onClick = ::sendRequest, enabled = email.contains('@'),
-                        modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 16.dp)) { Text("Send") }
+                    Button(
+                        onClick = ::sendRequest, enabled = email.contains('@'),
+                        modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = tone.ink, contentColor = tone.onInk),
+                    ) { Text("Send") }
                 }
             }
         }
@@ -70,16 +80,23 @@ fun FriendsScreen(state: WorkspaceState, onRpc: (String, JSONObject) -> Unit) {
         }
         if (state.table("friends").isNotEmpty()) item { CollaborationSectionTitle("Friends") }
         items(state.table("friends"), key = { "friend:${it.id}" }) { friend ->
-            Column {
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                Modifier.fillMaxWidth().animateItem(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AccentIcon(Icons.Default.Person, tone, size = 34.dp)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (friend.text("friend_name").isNotBlank()) Text(friend.text("friend_name"), style = MaterialTheme.typography.titleSmall)
                         Text(friend.text("friend_email"), style = MaterialTheme.typography.bodyMedium)
                     }
                     TextButton(onClick = { remove = friend }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Remove") }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))
             }
         }
         if (outgoing.isNotEmpty()) item { CollaborationSectionTitle("Waiting for a reply") }
@@ -105,13 +122,14 @@ fun FriendsScreen(state: WorkspaceState, onRpc: (String, JSONObject) -> Unit) {
 
 @Composable
 private fun CollaborationSectionTitle(title: String) {
-    Text(title, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.titleSmall)
+    Text(title, Modifier.padding(top = 4.dp), color = workspaceTone("friends").ink, style = MaterialTheme.typography.titleSmall)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FriendRequestRow(request: DataRow, onAccept: () -> Unit, onDecline: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val tone = workspaceTone("friends")
+    BoxWithConstraints(Modifier.fillMaxWidth().background(tone.fill, MaterialTheme.shapes.large).padding(horizontal = 10.dp, vertical = 6.dp)) {
         val wide = maxWidth >= 440.dp
         val identity: @Composable (Modifier) -> Unit = { modifier ->
             Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -132,7 +150,6 @@ private fun FriendRequestRow(request: DataRow, onAccept: () -> Unit, onDecline: 
             } else Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 identity(Modifier.fillMaxWidth()); actions()
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))
         }
     }
 }
@@ -236,12 +253,18 @@ internal fun SharingPanel(
     fun invite() {
         if (!view.busy && email.contains('@')) onInvite(email.trim(), role)
     }
-    Surface(modifier.testTag("sharing-panel"), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
+    val tone = workspaceTone("friends")
+    Surface(modifier.testTag("sharing-panel"), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().testTag("sharing-header").padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().testTag("sharing-header").background(tone.fill)
+                    .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AccentIcon(Icons.Default.Share, tone.copy(fill = MaterialTheme.colorScheme.surface), size = 34.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Share ${if (view.isTask) "task" else "list"}", style = MaterialTheme.typography.titleLarge)
+                    Text("Share ${if (view.isTask) "task" else "list"}", style = MaterialTheme.typography.titleLarge, color = tone.ink)
                     Text(view.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

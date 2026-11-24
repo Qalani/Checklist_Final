@@ -1,5 +1,6 @@
 package com.zenworkspace.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,9 +88,13 @@ fun BottomNavigationEditor(
             color = MaterialTheme.colorScheme.surface,
         ) {
             Column {
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Bottom bar", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Done") }
+                val tone = workspaceTone("settings")
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).background(tone.fill).padding(start = 12.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Bottom bar", style = MaterialTheme.typography.titleLarge, color = tone.ink, modifier = Modifier.weight(1f))
+                    FilledTonalButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Done") }
                 }
                 LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("bottom-nav-editor-content"), contentPadding = PaddingValues(bottom = 8.dp)) {
                     item(key = "help") {
@@ -105,10 +111,13 @@ fun BottomNavigationEditor(
                     }
                     itemsIndexed(selected, key = { _, id -> "selected:$id" }) { index, id ->
                         val destination = WorkspaceDestinations.find(id)!!
+                        val itemTone = workspaceTone(id)
                         var height by remember(id) { mutableFloatStateOf(56f) }
                         var distance by remember(id) { mutableFloatStateOf(0f) }
                         Row(
-                            Modifier.fillMaxWidth().heightIn(min = 56.dp).onSizeChanged { height = it.height.toFloat() }
+                            Modifier.fillMaxWidth().animateItem(fadeInSpec = null, fadeOutSpec = null)
+                                .heightIn(min = 56.dp).onSizeChanged { height = it.height.toFloat() }
+                                .background(itemTone.fill, MaterialTheme.shapes.medium)
                                 .padding(horizontal = 8.dp).testTag("bottom-nav-selected:$id"),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -141,8 +150,8 @@ fun BottomNavigationEditor(
                             }, contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.DragHandle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(destination.label, Modifier.weight(1f).testTag("bottom-nav-label:$id"), style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(destination.label, Modifier.weight(1f).testTag("bottom-nav-label:$id"), style = MaterialTheme.typography.titleSmall,
+                                color = itemTone.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             IconButton(onClick = { move(id, -1) }, enabled = index > 0, modifier = Modifier.size(48.dp)) {
                                 Icon(Icons.Default.ArrowUpward, "Move ${destination.label} up")
                             }
@@ -170,7 +179,7 @@ fun BottomNavigationEditor(
                     }
                     items(WorkspaceDestinations.all.filter { it.id !in selected }, key = { "available:${it.id}" }) { destination ->
                         Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(destination.icon, contentDescription = null, modifier = Modifier.size(20.dp))
+                            AccentIcon(destination.icon, workspaceTone(destination.id), size = 30.dp)
                             Spacer(Modifier.width(12.dp))
                             Text(destination.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             IconButton(onClick = {
