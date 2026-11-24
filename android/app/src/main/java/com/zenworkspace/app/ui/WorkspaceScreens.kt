@@ -7,6 +7,10 @@ import android.text.Html
 import android.text.TextWatcher
 import android.text.style.StyleSpan
 import android.widget.EditText
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Row as LayoutRow
@@ -19,16 +23,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -71,6 +78,7 @@ fun CollectionScreen(
     var deleting by remember(section) { mutableStateOf<Row?>(null) }
     var calendarDate by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     val title = sectionNames[section] ?: section
+    val tone = workspaceTone(section)
     val allRows = state.table(section)
     val filtered = allRows.filter { row ->
         val titleText = row.text(if (section == "lists" || section == "categories") "name" else "title")
@@ -93,26 +101,50 @@ fun CollectionScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                LayoutRow(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (section == "tasks") "${allRows.count { !it.bool("completed") }} active · ${allRows.count { it.bool("completed") }} completed"
-                        else "${allRows.size} ${if (section == "calendar_events") "events" else title.lowercase()}",
-                        modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    FilledTonalButton(onClick = { editorTable = section; creating = true },
-                        modifier = Modifier.heightIn(min = 48.dp).testTag("collection-add")) { Text("+ Add") }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = tone.fill,
+                    contentColor = tone.ink,
+                ) {
+                    LayoutRow(
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            if (section == "tasks") "${allRows.count { !it.bool("completed") }} active · ${allRows.count { it.bool("completed") }} completed"
+                            else "${allRows.size} ${if (section == "calendar_events") "events" else title.lowercase()}",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Button(
+                            onClick = { editorTable = section; creating = true },
+                            modifier = Modifier.heightIn(min = 48.dp).testTag("collection-add"),
+                            colors = ButtonDefaults.buttonColors(containerColor = tone.ink, contentColor = tone.onInk),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        ) { Text("+ Add") }
+                    }
                 }
             }
             item {
-                OutlinedTextField(query, { query = it }, label = { Text("Search $title") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("collection-search"))
+                OutlinedTextField(
+                    query, { query = it }, label = { Text("Search $title") }, singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = tone.ink) },
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.fillMaxWidth().testTag("collection-search"),
+                )
             }
             if (section == "tasks") item {
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     listOf("Active", "Completed", "All").forEach { choice ->
-                        FilterChip(selected = taskFilter == choice, onClick = { taskFilter = choice }, label = { Text(choice) }, modifier = Modifier.heightIn(min = 48.dp))
+                        FilterChip(
+                            selected = taskFilter == choice,
+                            onClick = { taskFilter = choice },
+                            label = { Text(choice) },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = tone.fill, selectedLabelColor = tone.ink),
+                        )
                     }
                 }
             }
@@ -132,7 +164,7 @@ fun CollectionScreen(
                     RecordCard(table, row, state, onSave,
                         onEdit = { editorTable = table; editorId = row.id },
                         onDelete = { if (table == "calendar_events") deleting = row },
-                        onShare = { }, canManage = table == "calendar_events")
+                        onShare = { }, canManage = table == "calendar_events", modifier = Modifier.animateItem())
                 }
             } else {
                 if (filtered.isEmpty()) item {
@@ -142,7 +174,7 @@ fun CollectionScreen(
                 items(filtered, key = { it.id }) { row ->
                     RecordCard(section, row, state, onSave,
                         onEdit = { if (section == "lists") selectedList = row.id else { editorTable = section; editorId = row.id } },
-                        onDelete = { deleting = row }, onShare = { onShare(section, row) })
+                        onDelete = { deleting = row }, onShare = { onShare(section, row) }, modifier = Modifier.animateItem())
                 }
             }
         }
@@ -169,9 +201,14 @@ fun CollectionScreen(
 
 @Composable
 private fun EmptyCollection(title: String, body: String) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 
@@ -180,23 +217,44 @@ private fun RecordCard(
     section: String, row: Row, state: WorkspaceState,
     onSave: (String, JSONObject) -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onShare: () -> Unit,
     canManage: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     val editable = row.text("access_role") != "viewer" && canManage
     val owner = row.text("user_id").let { it.isBlank() || it == state.userId }
     val title = row.text(if (section == "lists" || section == "categories") "name" else "title").ifBlank { "Untitled" }
     var menu by remember(row.id) { mutableStateOf(false) }
     val description = if (section == "notes") plainNote(row.text("content")) else row.text("description")
-    ElevatedCard(Modifier.fillMaxWidth().testTag("record:$section:${row.id}").clickable(onClick = onEdit)) {
+    val tone = workspaceTone(section)
+    val completed = section == "tasks" && row.bool("completed")
+    val cardColor by animateColorAsState(
+        targetValue = if (completed) tone.fill else MaterialTheme.colorScheme.surface,
+        animationSpec = tween(durationMillis = 260),
+        label = "task card completion",
+    )
+    OutlinedCard(
+        onClick = onEdit,
+        modifier = modifier.fillMaxWidth().testTag("record:$section:${row.id}"),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.outlinedCardColors(containerColor = cardColor),
+    ) {
         Column(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             LayoutRow(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (section == "tasks") Checkbox(row.bool("completed"), enabled = editable, modifier = Modifier.size(48.dp),
-                    onCheckedChange = { onSave("tasks", JSONObject().put("id", row.id).put("completed", it)) })
+                if (section == "tasks") {
+                    WorkspaceCompletionToggle(row.bool("completed"), enabled = editable, tone = tone,
+                        onCheckedChange = { onSave("tasks", JSONObject().put("id", row.id).put("completed", it)) })
+                } else {
+                    WorkspaceDestinations.find(section)?.let { destination ->
+                        AccentIcon(destination.icon, tone, size = 36.dp, modifier = Modifier.padding(start = 4.dp, end = 6.dp))
+                    }
+                }
                 Column(Modifier.weight(1f).padding(start = if (section == "tasks") 0.dp else 4.dp, top = 4.dp, bottom = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        textDecoration = if (completed) TextDecoration.LineThrough else null,
+                    )
                     val summary = recordSummary(section, row, state)
-                    if (summary.isNotBlank()) Text(summary, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (summary.isNotBlank()) Text(summary, style = MaterialTheme.typography.bodySmall, color = tone.ink)
                 }
                 if (canManage) Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.MoreVert, "Actions for $title") }
@@ -224,7 +282,7 @@ private fun RecordCard(
             }
             if (description.isNotBlank()) Text(description, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = if (section == "tasks") 48.dp else 4.dp, end = 4.dp, bottom = 4.dp))
+                modifier = Modifier.padding(start = 48.dp, end = 6.dp, bottom = 4.dp))
         }
     }
 }
@@ -239,6 +297,7 @@ private fun RecordEditor(section: String, row: Row?, state: WorkspaceState, onDi
     var noteTitleMode by rememberSaveable { mutableStateOf(false) }
     val editable = row?.text("access_role") != "viewer"
     val nameKey = if (section in listOf("lists", "categories")) "name" else "title"
+    val tone = workspaceTone(section)
     fun update(key: String, value: Any) {
         draftText = JSONObject(draft.toString()).put(key, value).toString()
         dirty = true
@@ -249,8 +308,11 @@ private fun RecordEditor(section: String, row: Row?, state: WorkspaceState, onDi
             BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.TopCenter) {
             val compactNote = section == "notes" && maxHeight < 360.dp
             Column(Modifier.widthIn(max = 960.dp).fillMaxWidth().fillMaxHeight().testTag("record-editor")) {
-                LayoutRow(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
+                LayoutRow(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .background(tone.fill, MaterialTheme.shapes.large).padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     TextButton(onClick = close, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }
                     if (compactNote && editable) TextButton(onClick = { noteTitleMode = !noteTitleMode },
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("note-title-toggle")
@@ -258,11 +320,19 @@ private fun RecordEditor(section: String, row: Row?, state: WorkspaceState, onDi
                         Text(if (noteTitleMode) "Done" else draft.field("title").ifBlank { "Add title" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     } else Text("${if (row == null) "New" else if (editable) "Edit" else "View"} ${singular(section).lowercase()}",
                         Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (editable) Button(modifier = Modifier.heightIn(min = 48.dp), onClick = {
-                        val validation = validateDraft(section, draft)
-                        if (validation != null) { error = validation; if (section == "notes" && draft.field("title").isBlank()) noteTitleMode = true }
-                        else onSave(writablePatch(section, draft, row?.id))
-                    }) { Text("Save") }
+                    if (editable) Button(
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = tone.ink, contentColor = tone.onInk),
+                        onClick = {
+                            val validation = validateDraft(section, draft)
+                            if (validation != null) {
+                                error = validation
+                                if (section == "notes" && draft.field("title").isBlank()) noteTitleMode = true
+                            } else {
+                                onSave(writablePatch(section, draft, row?.id))
+                            }
+                        },
+                    ) { Text("Save") }
                 }
                 if (section == "notes") {
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
@@ -347,6 +417,9 @@ private fun NativeNoteField(value: String, editable: Boolean, modifier: Modifier
     var editor by remember { mutableStateOf<EditText?>(null) }
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+    val paper = MaterialTheme.colorScheme.surface
+    val paperBorder = MaterialTheme.colorScheme.outlineVariant
+    val paperShape = MaterialTheme.shapes.large
     BoxWithConstraints(modifier) {
     val noteHeight = maxHeight
     val showFormatting = noteHeight >= 150.dp
@@ -391,7 +464,9 @@ private fun NativeNoteField(value: String, editable: Boolean, modifier: Modifier
                     inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                     contentDescription = "Note content"
                     isEnabled = editable
-                    setPadding(8, 8, 8, 8)
+                    background = null
+                    val inset = (12 * resources.displayMetrics.density).toInt()
+                    setPadding(inset, inset, inset, inset)
                     addTextChangedListener(object : TextWatcher {
                         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
@@ -403,7 +478,8 @@ private fun NativeNoteField(value: String, editable: Boolean, modifier: Modifier
                 }
             },
             update = { it.setTextColor(textColor); it.setHintTextColor(hintColor); it.isEnabled = editable },
-            modifier = Modifier.fillMaxWidth().weight(1f).testTag("note-content")
+            modifier = Modifier.fillMaxWidth().weight(1f).clip(paperShape)
+                .background(paper).border(1.dp, paperBorder, paperShape).testTag("note-content")
         )
     }
     }
@@ -420,13 +496,18 @@ private fun ListDetail(
     var listMenu by remember { mutableStateOf(false) }
     val editable = list.text("access_role") != "viewer"
     val owner = list.text("user_id") == state.userId
+    val tone = workspaceTone("lists")
     val entries = state.table("list_items").filter { it.text("list_id") == list.id }.sortedWith(compareBy<Row> { it.number("position") }.thenBy { it.id })
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.TopCenter) {
                 val compactHeight = maxHeight < 400.dp
                 Column(Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight().testTag("list-detail-root")) {
-                    LayoutRow(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LayoutRow(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).background(tone.fill, MaterialTheme.shapes.large)
+                            .padding(horizontal = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Back") }
                         Text(list.text("name"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (owner) Box {
@@ -446,19 +527,32 @@ private fun ListDetail(
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 if (list.text("description").isNotBlank()) Text(list.text("description"), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text("${entries.count { it.bool("completed") }} of ${entries.size} complete", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodySmall)
+                                val complete = entries.count { it.bool("completed") }
+                                Text("$complete of ${entries.size} complete", color = tone.ink, style = MaterialTheme.typography.labelLarge)
+                                LinearProgressIndicator(
+                                    progress = { if (entries.isEmpty()) 0f else complete.toFloat() / entries.size },
+                                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                                    color = tone.ink,
+                                    trackColor = tone.fill,
+                                )
                             }
                         }
                         items(entries, key = { it.id }) { item ->
                             var itemMenu by remember(item.id) { mutableStateOf(false) }
-                            ElevatedCard(Modifier.fillMaxWidth().testTag("list-item:${item.id}")
-                                .clickable(enabled = editable) { editingItemId = item.id }) {
+                            OutlinedCard(
+                                modifier = Modifier.fillMaxWidth().animateItem().testTag("list-item:${item.id}")
+                                    .clickable(enabled = editable) { editingItemId = item.id },
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            ) {
                                 LayoutRow(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(item.bool("completed"), modifier = Modifier.size(48.dp), onCheckedChange = {
+                                    WorkspaceCompletionToggle(item.bool("completed"), enabled = editable, tone = tone) {
                                         onSave("list_items", JSONObject().put("id", item.id).put("completed", it))
-                                    }, enabled = editable)
-                                    Text(item.text("content").ifBlank { "Empty item" }, modifier = Modifier.weight(1f))
+                                    }
+                                    Text(
+                                        item.text("content").ifBlank { "Empty item" }, modifier = Modifier.weight(1f),
+                                        textDecoration = if (item.bool("completed")) TextDecoration.LineThrough else null,
+                                    )
                                     if (editable) Box {
                                         IconButton(onClick = { itemMenu = true }, modifier = Modifier.size(48.dp).testTag("list-item-actions:${item.id}")) {
                                             Icon(Icons.Default.MoreVert, "Actions for ${item.text("content").ifBlank { "empty item" }}")
@@ -548,8 +642,12 @@ private fun CalendarDateField(label: String, value: String, onChange: (String) -
 private fun CalendarDaySelector(date: String, onChange: (String) -> Unit) {
     val context = LocalContext.current
     val selected = LocalDate.parse(date)
-    LayoutRow(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    val tone = workspaceTone("calendar_events")
+    LayoutRow(
+        Modifier.fillMaxWidth().background(tone.fill, MaterialTheme.shapes.large),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         IconButton(onClick = { onChange(selected.minusDays(1).toString()) }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.ChevronLeft, "Previous day") }
         OutlinedButton(modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "Choose calendar day" }, onClick = {
             DatePickerDialog(context, { _, year, month, day -> onChange(LocalDate.of(year, month + 1, day).toString()) },

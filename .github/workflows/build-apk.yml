@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: android-${{ github.ref }}
@@ -49,8 +50,40 @@ jobs:
       - name: Test, lint and build native APK
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug compileDebugAndroidTestKotlin assembleDebug
-      - name: Verify APK contains no web application
-        run: python3 scripts/verify-native-android.py android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify native APK and signing certificate
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          python3 scripts/verify-native-android.py "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk"
+      - name: Inspect previous APK signing certificates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          temp="$(mktemp -d)"
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n '1,4p'
+          for run in 41199299867 41201438521; do
+            mkdir "$temp/$run"
+            if gh run download "$run" --repo "$GITHUB_REPOSITORY" --name zen-workspace-native-debug-apk --dir "$temp/$run"; then
+              echo "Published APK from build $run"
+              "$signer" verify --print-certs "$temp/$run/app-debug.apk"
+            else
+              echo "Published APK from build $run could not be downloaded."
+            fi
+          done
+      - name: Read visual check captures
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          for path in pathlib.Path('android/app/build/test-results/testDebugUnitTest').glob('*WorkspacePreviewCaptureTest.xml'):
+              text = path.read_text()
+              for capture in re.findall(r'ZEN_PREVIEW_[A-Z]+ [A-Za-z0-9+/=]+', text):
+                  print(capture)
+          PY
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

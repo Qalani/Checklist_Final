@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.Lifecycle
@@ -56,13 +55,6 @@ class ZenViewModel(application: Application) : AndroidViewModel(application) {
     fun refresh() { action { repository.refresh() } }
 }
 
-private val light = lightColorScheme(primary = Color(0xFF286B65), onPrimary = Color.White,
-    secondary = Color(0xFF64627C), background = Color(0xFFF4F7F8), surface = Color(0xFFF9FBFB),
-    surfaceVariant = Color(0xFFE7EFEE), onSurface = Color(0xFF202F35))
-private val dark = darkColorScheme(primary = Color(0xFF9AD3C8), onPrimary = Color(0xFF123B35),
-    background = Color(0xFF141E28), surface = Color(0xFF1D2B38), surfaceVariant = Color(0xFF304251),
-    onSurface = Color(0xFFE3EAF0))
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
@@ -71,11 +63,6 @@ fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
     val preferences = remember { context.getSharedPreferences("native_appearance", 0) }
     var theme by rememberSaveable { mutableStateOf(preferences.getString("theme", "system") ?: "system") }
     val isDark = theme == "midnight" || theme == "forest" || (theme == "system" && androidx.compose.foundation.isSystemInDarkTheme())
-    val scheme = when (theme) {
-        "forest" -> dark.copy(background = Color(0xFF13241F), surface = Color(0xFF20382F), primary = Color(0xFFA5D6B1))
-        "dawn" -> light.copy(background = Color(0xFFFBF5EF), surface = Color(0xFFFFFBF6), primary = Color(0xFF805849))
-        else -> if (isDark) dark else light
-    }
     SideEffect {
         (context as? android.app.Activity)?.let { activity ->
             androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
@@ -93,7 +80,7 @@ fun ZenWorkspaceApp(model: ZenViewModel, requestNotifications: () -> Unit) {
     var sharing by remember(state.userId) { mutableStateOf<Pair<String, DataRow>?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val action: (suspend () -> Unit) -> Unit = model::action
-    MaterialTheme(colorScheme = scheme) {
+    WorkspaceTheme(appearance = theme, dark = isDark) {
         LifecycleResumeEffect(state.userId) {
             model.refresh()
             if (state.userId != null) model.action {

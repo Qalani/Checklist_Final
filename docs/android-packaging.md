@@ -70,7 +70,7 @@ or regenerate the Android directory from the web client.
 
 For distribution, build a signed release APK or AAB in Android Studio using the
 existing application's signing key. The application ID remains
-`com.zenworkspace.app`; this native version increases `versionCode` to 3. Increase
+`com.zenworkspace.app`; this native version increases `versionCode` to 4. Increase
 it beyond the highest version already distributed if necessary. An update can be
 installed over an existing app only when its signing certificate matches. CI debug
 APKs are for testing and are not Play Store release builds.

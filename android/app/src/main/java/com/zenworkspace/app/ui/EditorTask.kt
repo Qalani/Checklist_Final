@@ -11,9 +11,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row as LayoutRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -59,7 +64,7 @@ fun NativeDateTimeField(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(
+            FilledTonalButton(
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 onClick = {
@@ -84,9 +89,15 @@ fun NativeDateTimeField(
                     ).show()
                 },
             ) {
-                Text(if (value.isBlank()) "Choose date and time" else selected.format(
-                    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-                ))
+                LayoutRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(if (value.isBlank()) "Choose date and time" else selected.format(
+                        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+                    ))
+                }
             }
             if (allowClear && value.isNotBlank()) {
                 TextButton(
@@ -126,12 +137,14 @@ fun TaskFields(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            listOf("low", "medium", "high").forEach { priority ->
+            listOf("low" to "lists", "medium" to "tasks", "high" to "notes").forEach { (priority, section) ->
+                val tone = workspaceTone(section)
                 FilterChip(
                     modifier = Modifier.heightIn(min = 48.dp),
                     selected = text("priority").ifBlank { "medium" } == priority,
                     onClick = { change("priority", priority) },
                     label = { Text(priority.replaceFirstChar { it.uppercaseChar() }) },
+                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = tone.fill, selectedLabelColor = tone.ink),
                 )
             }
         }
