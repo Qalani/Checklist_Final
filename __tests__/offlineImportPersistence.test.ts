@@ -133,3 +133,23 @@ it('persists an offline category rename and its task updates together', async ()
   expect((await db.sync_queue.toArray()).map(entry => entry.table_name)).toEqual(['categories', 'tasks']);
   manager.dispose();
 });
+
+it('keeps a quick-created grocery list visible offline with its category overrides', async () => {
+  const { saveOfflineQuickList } = await import('@/features/lists/saveOfflineQuickList');
+  await saveOfflineQuickList({
+    id: 'quick-list', name: 'Groceries', description: null,
+    category_mode: 'grocery', user_id: 'alice', created_at: '2026-11-25T00:00:00Z',
+  }, [
+    { id: 'quick-item', list_id: '', content: ' Milk ', completed: false, position: 0, category: 'My dairy' },
+  ]);
+  db.close();
+  await db.open();
+  expect(await fetchLists('alice')).toMatchObject([{
+    name: 'Groceries', category_mode: 'grocery', access_role: 'owner',
+    items: [{ id: 'quick-item', content: 'Milk', category: 'My dairy' }],
+  }]);
+  expect(await fetchLists('bob')).toEqual([]);
+  expect((await db.sync_queue.toArray()).map(entry => [entry.user_id, entry.table_name, entry.operation])).toEqual([
+    ['alice', 'lists', 'INSERT'], ['alice', 'list_items', 'INSERT'],
+  ]);
+});

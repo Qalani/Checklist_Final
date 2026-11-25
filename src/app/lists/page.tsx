@@ -33,6 +33,7 @@ import ImportListsModal from '@/components/ImportListsModal';
 type FormState = {
   name: string;
   description: string;
+  category_mode: 'none' | 'manual' | 'grocery';
 };
 
 type ListSortOption = 'created-oldest' | 'created-newest' | 'name-asc' | 'name-desc';
@@ -63,6 +64,7 @@ const LIST_SORT_OPTIONS: Array<{ value: ListSortOption; label: string; descripti
 const INITIAL_FORM: FormState = {
   name: '',
   description: '',
+  category_mode: 'none',
 };
 
 type MemberRole = ListMember['role'];
@@ -208,6 +210,7 @@ export default function ListsPage() {
     handleOpenEdit,
     addNewListItem,
     updateNewListItemContent,
+    updateNewListItemCategory,
     toggleNewListItem,
     deleteNewListItem,
     reorderNewListItems,
@@ -228,6 +231,7 @@ export default function ListsPage() {
     handlePreviewShareLink,
     handleCreateListItem,
     handleUpdateListItemContent,
+    handleUpdateListItemCategory,
     handleToggleListItem,
     handleDeleteListItem,
     handleReorderListItems,
@@ -446,6 +450,7 @@ export default function ListsPage() {
               newListItems={newListItems}
               addNewListItem={addNewListItem}
               updateNewListItemContent={updateNewListItemContent}
+              updateNewListItemCategory={updateNewListItemCategory}
               toggleNewListItem={toggleNewListItem}
               deleteNewListItem={deleteNewListItem}
               reorderNewListItems={reorderNewListItems}
@@ -627,6 +632,14 @@ export default function ListsPage() {
                                 className="w-full rounded-xl border border-sage-300 bg-surface px-4 py-2.5 text-sm text-zen-900 shadow-soft focus:border-sage-500 focus:outline-none"
                               />
                             </div>
+                            <label className="space-y-2 text-sm font-medium text-zen-700">
+                              <span>Organize items</span>
+                              <select value={formState.category_mode} onChange={event => setFormState(prev => ({ ...prev, category_mode: event.target.value as FormState['category_mode'] }))} className="w-full rounded-xl border border-zen-200 bg-surface px-4 py-2.5 text-sm text-zen-900 focus:border-sage-400 focus:outline-none">
+                                <option value="none">Simple list</option>
+                                <option value="manual">Custom categories</option>
+                                <option value="grocery">Groceries (automatically categorize)</option>
+                              </select>
+                            </label>
                             <div className="space-y-2">
                               <label className="text-sm font-medium text-zen-700">Description</label>
                               <RichTextTextarea
@@ -646,6 +659,8 @@ export default function ListsPage() {
 
                           <ListItemsBoard
                             items={Array.isArray(list.items) ? list.items : []}
+                            categoryMode={formState.category_mode}
+                            onCategoryChange={canEditList ? (itemId, category) => handleUpdateListItemCategory(list.id, itemId, category) : undefined}
                             canEdit={canEditList}
                             editing={isEditingList}
                             onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}
@@ -729,6 +744,8 @@ export default function ListsPage() {
                             </div>
                             <ListItemsBoard
                               items={Array.isArray(list.items) ? list.items : []}
+                              categoryMode={list.category_mode ?? 'none'}
+                              onCategoryChange={canEditList ? (itemId, category) => handleUpdateListItemCategory(list.id, itemId, category) : undefined}
                               canEdit={canEditList}
                               editing={isEditingList}
                               onAddItem={canEditList ? () => handleCreateListItem(list.id) : undefined}

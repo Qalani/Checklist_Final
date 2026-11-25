@@ -23,6 +23,13 @@ import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { ListItem } from '@/types';
 import { SyncStatusBadge } from './SyncStatusBadge';
 import CompletionToggle from './CompletionToggle';
+import { categorizeGroceryItem, GROCERY_CATEGORIES } from '@/features/lists/groceryCategories';
+
+type CategoryMode = 'none' | 'manual' | 'grocery';
+
+function getItemCategory(item: ListItem, mode: CategoryMode): string {
+  return item.category?.trim() || (mode === 'grocery' ? categorizeGroceryItem(item.content) : 'Uncategorized');
+}
 
 interface ListItemsBoardProps {
   items: ListItem[];
@@ -33,6 +40,8 @@ interface ListItemsBoardProps {
   onContentCommit?: (itemId: string, content: string) => Promise<void> | void;
   onDeleteItem?: (itemId: string) => Promise<void> | void;
   onReorder?: (orderedIds: string[]) => Promise<void> | void;
+  categoryMode?: CategoryMode;
+  onCategoryChange?: (itemId: string, category: string | null) => Promise<void> | void;
   error?: string | null;
 }
 
@@ -45,6 +54,9 @@ interface SortableListItemProps {
   onDelete?: () => Promise<void> | void;
   autoFocus?: boolean;
   onFocusComplete?: () => void;
+  categoryMode: CategoryMode;
+  categoryOptions: string[];
+  onCategoryChange?: (category: string | null) => Promise<void> | void;
 }
 
 const LINK_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
@@ -143,6 +155,9 @@ function SortableListItem({
   onDelete,
   autoFocus,
   onFocusComplete,
+  categoryMode,
+  categoryOptions,
+  onCategoryChange,
 }: SortableListItemProps) {
   const {
     attributes,
@@ -166,12 +181,17 @@ function SortableListItem({
   );
 
   const [value, setValue] = useState(item.content);
+  const [categoryValue, setCategoryValue] = useState(item.category ?? '');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const renderedContent = useMemo(() => linkifyText(item.content), [item.content]);
 
   useEffect(() => {
     setValue(item.content);
   }, [item.content]);
+
+  useEffect(() => {
+    setCategoryValue(item.category ?? '');
+  }, [item.category]);
 
   useEffect(() => {
     if (autoFocus && textareaRef.current) {
@@ -253,6 +273,33 @@ function SortableListItem({
             )}
           </p>
         )}
+        {categoryMode !== 'none' && canEdit && editing && onCategoryChange && (
+          <div className="mt-2 flex items-center gap-2">
+            <label htmlFor={`category-${item.id}`} className="text-xs text-zen-500">Category</label>
+            <input
+              id={`category-${item.id}`}
+              list={`category-options-${item.id}`}
+              value={categoryValue}
+              onChange={event => setCategoryValue(event.target.value)}
+              onBlur={() => {
+                const next = categoryValue.trim() || null;
+                setCategoryValue(next ?? '');
+                if (next !== (item.category ?? null)) void onCategoryChange(next);
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+              }}
+              placeholder={categoryMode === 'grocery' ? `Automatic: ${categorizeGroceryItem(item.content)}` : 'Uncategorized'}
+              className="min-w-0 flex-1 rounded-lg border border-zen-200 bg-surface px-2 py-1 text-xs text-zen-700 focus:border-sage-400 focus:outline-none"
+            />
+            <datalist id={`category-options-${item.id}`}>
+              {categoryOptions.map(category => <option key={category} value={category} />)}
+            </datalist>
+          </div>
+        )}
         <div className="mt-1">
           <SyncStatusBadge tableName="list_items" id={item.id} />
         </div>
@@ -280,6 +327,8 @@ export default function ListItemsBoard({
   onContentCommit,
   onDeleteItem,
   onReorder,
+  categoryMode = 'none',
+  onCategoryChange,
   error,
 }: ListItemsBoardProps) {
   const sensors = useSensors(
@@ -296,6 +345,36 @@ export default function ListItemsBoard({
     setOrderedItems([...items].sort((a, b) => a.position - b.position));
   }, [items]);
 
+  const groups = useMemo(() => {
+    if (categoryMode === 'none') return [{ name: '', items: orderedItems }];
+    const grouped = new Map<string, ListItem[]>();
+    for (const item of orderedItems) {
+      const name = getItemCategory(item, categoryMode);
+      const group = grouped.get(name) ?? [];
+      group.push(item);
+      grouped.set(name, group);
+    }
+    return Array.from(grouped, ([name, groupItems]) => ({ name, items: groupItems }))
+      .sort((a, b) => {
+        const last = categoryMode === 'grocery' ? 'Other' : 'Uncategorized';
+        if (a.name === last) return b.name === last ? 0 : 1;
+        if (b.name === last) return -1;
+        if (categoryMode === 'grocery') {
+          const aIndex = GROCERY_CATEGORIES.findIndex(name => name === a.name);
+          const bIndex = GROCERY_CATEGORIES.findIndex(name => name === b.name);
+          if (aIndex !== -1 || bIndex !== -1) {
+            return (aIndex === -1 ? Infinity : aIndex) - (bIndex === -1 ? Infinity : bIndex);
+          }
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [categoryMode, orderedItems]);
+
+  const categoryOptions = useMemo(() => Array.from(new Set([
+    ...(categoryMode === 'grocery' ? GROCERY_CATEGORIES : []),
+    ...orderedItems.map(item => item.category?.trim()).filter((category): category is string => Boolean(category)),
+  ])), [categoryMode, orderedItems]);
+
   const handleDragEnd = (event: DragEndEvent) => {
     if (!canEdit || !editing || !onReorder) {
       return;
@@ -309,6 +388,12 @@ export default function ListItemsBoard({
     const oldIndex = orderedItems.findIndex(item => item.id === active.id);
     const newIndex = orderedItems.findIndex(item => item.id === over.id);
     if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    // Moving between groups would otherwise look like a successful drag while
+    // leaving the item's category unchanged. Use the category field to move it.
+    if (categoryMode !== 'none' && getItemCategory(orderedItems[oldIndex], categoryMode) !== getItemCategory(orderedItems[newIndex], categoryMode)) {
       return;
     }
 
@@ -335,8 +420,15 @@ export default function ListItemsBoard({
 
   return (
     <div className="space-y-4 w-full">
+      {categoryMode !== 'none' && canEdit && editing && onCategoryChange && (
+        <p className="text-xs text-zen-500">
+          {categoryMode === 'grocery'
+            ? 'Items are sorted automatically. Enter a category to change it, or clear the field to use automatic sorting.'
+            : 'Enter a category for each item, or leave it blank for Uncategorized.'}
+        </p>
+      )}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <SortableContext items={orderedItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={groups.flatMap(group => group.items.map(item => item.id))} strategy={verticalListSortingStrategy}>
           <div className="space-y-3 w-full">
             {orderedItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-zen-200 bg-surface/60 p-4 text-sm text-zen-500">
@@ -348,18 +440,26 @@ export default function ListItemsBoard({
                   : 'The creator has not added items yet.'}
               </div>
             ) : (
-              orderedItems.map(item => (
-                <SortableListItem
-                  key={item.id}
-                  item={item}
-                  canEdit={canEdit}
-                  editing={editing}
-                  onToggle={onToggleItem ? completed => onToggleItem(item.id, completed) : undefined}
-                  onContentCommit={onContentCommit ? content => onContentCommit(item.id, content) : undefined}
-                  onDelete={onDeleteItem ? () => onDeleteItem(item.id) : undefined}
-                  autoFocus={focusItemId === item.id}
-                  onFocusComplete={() => setFocusItemId(null)}
-                />
+              groups.map(group => (
+                <section key={group.name || 'all'} className="space-y-3">
+                  {categoryMode !== 'none' && <h4 className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-zen-500">{group.name}</h4>}
+                  {group.items.map(item => (
+                    <SortableListItem
+                      key={item.id}
+                      item={item}
+                      canEdit={canEdit}
+                      editing={editing}
+                      categoryMode={categoryMode}
+                      categoryOptions={categoryOptions}
+                      onCategoryChange={onCategoryChange ? category => onCategoryChange(item.id, category) : undefined}
+                      onToggle={onToggleItem ? completed => onToggleItem(item.id, completed) : undefined}
+                      onContentCommit={onContentCommit ? content => onContentCommit(item.id, content) : undefined}
+                      onDelete={onDeleteItem ? () => onDeleteItem(item.id) : undefined}
+                      autoFocus={focusItemId === item.id}
+                      onFocusComplete={() => setFocusItemId(null)}
+                    />
+                  ))}
+                </section>
               ))
             )}
           </div>

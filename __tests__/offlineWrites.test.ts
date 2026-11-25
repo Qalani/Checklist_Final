@@ -84,3 +84,19 @@ it('queues a reconnect edit behind an earlier offline note change instead of ove
   expect(queue[1].payload.title).toBe('Edited during reconnect');
   expect((await db.notes.get(noteId))?.title).toBe('Edited during reconnect');
 });
+
+it('preserves both a category change and item edit made together offline', async () => {
+  await db.lists.put({ id: 'list', user_id: 'alice', name: 'Groceries', category_mode: 'grocery' });
+  await db.list_members.put({ id: 'member', list_id: 'list', user_id: 'alice', role: 'owner' });
+  await db.list_items.put({ id: 'item', list_id: 'list', content: 'Milk', category: null, completed: false, position: 0 });
+  const get = await mount(() => useLists('alice'));
+  await act(async () => { await get().refresh(true); });
+  await act(async () => {
+    await Promise.all([
+      get().updateListItem('item', { content: 'Oat milk' }),
+      get().updateListItem('item', { category: 'Drinks' }),
+    ]);
+  });
+  expect(await db.list_items.get('item')).toMatchObject({ content: 'Oat milk', category: 'Drinks' });
+  expect(get().lists[0].items?.[0]).toMatchObject({ content: 'Oat milk', category: 'Drinks' });
+});

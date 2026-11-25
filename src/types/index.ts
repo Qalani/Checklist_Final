@@ -84,6 +84,7 @@ export interface ListItem extends Record<string, unknown> {
   content: string;
   completed: boolean;
   position: number;
+  category?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -101,6 +102,7 @@ export interface List {
   public_share_enabled?: boolean;
   items?: ListItem[];
   archived?: boolean;
+  category_mode?: 'none' | 'manual' | 'grocery';
 }
 
 export interface ListMember {
