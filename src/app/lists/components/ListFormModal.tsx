@@ -9,6 +9,7 @@ import type { List } from '@/types';
 type FormState = {
   name: string;
   description: string;
+  category_mode: 'none' | 'manual' | 'grocery';
 };
 
 interface ListFormModalProps {
@@ -22,6 +23,7 @@ interface ListFormModalProps {
   newListItems: List['items'];
   addNewListItem: () => Promise<string>;
   updateNewListItemContent: (itemId: string, content: string) => Promise<void>;
+  updateNewListItemCategory: (itemId: string, category: string | null) => Promise<void>;
   toggleNewListItem: (itemId: string, completed: boolean) => Promise<void>;
   deleteNewListItem: (itemId: string) => Promise<void>;
   reorderNewListItems: (orderedIds: string[]) => Promise<void>;
@@ -39,6 +41,7 @@ export default function ListFormModal({
   newListItems,
   addNewListItem,
   updateNewListItemContent,
+  updateNewListItemCategory,
   toggleNewListItem,
   deleteNewListItem,
   reorderNewListItems,
@@ -94,6 +97,14 @@ export default function ListFormModal({
                 className="w-full rounded-xl border border-zen-200 bg-surface/80 px-4 py-2.5 text-sm text-zen-900 shadow-soft focus:border-sage-400 focus:outline-none"
               />
             </div>
+            <label className="space-y-2 text-sm font-medium text-zen-700">
+              <span>Organize items</span>
+              <select value={formState.category_mode} onChange={event => setFormState(prev => ({ ...prev, category_mode: event.target.value as FormState['category_mode'] }))} className="w-full rounded-xl border border-zen-200 bg-surface/80 px-4 py-2.5 text-sm text-zen-900 focus:border-sage-400 focus:outline-none">
+                <option value="none">Simple list</option>
+                <option value="manual">Custom categories</option>
+                <option value="grocery">Groceries (automatically categorize)</option>
+              </select>
+            </label>
             <div className="space-y-2">
               <label className="text-sm font-medium text-zen-700">Description</label>
               <RichTextTextarea
@@ -112,6 +123,8 @@ export default function ListFormModal({
               </div>
               <ListItemsBoard
                 items={Array.isArray(newListItems) ? newListItems : []}
+                categoryMode={formState.category_mode}
+                onCategoryChange={updateNewListItemCategory}
                 canEdit
                 editing
                 onAddItem={addNewListItem}

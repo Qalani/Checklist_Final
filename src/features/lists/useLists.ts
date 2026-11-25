@@ -296,6 +296,7 @@ export function useLists(userId: string | null): UseListsResult {
             .map((item, index) => ({
               content: (item?.content ?? '').trim(),
               completed: Boolean(item?.completed),
+              category: item?.category ?? null,
               position:
                 typeof item?.position === 'number' && Number.isFinite(item.position)
                   ? item.position
@@ -312,6 +313,7 @@ export function useLists(userId: string | null): UseListsResult {
           id,
           name: input.name,
           description: input.description ?? null,
+          category_mode: input.category_mode ?? 'none',
           created_at: now,
           user_id: userId,
           owner_id: userId,
@@ -323,13 +325,13 @@ export function useLists(userId: string | null): UseListsResult {
         await db.transaction('rw', [db.lists, db.list_members, db.list_items, db.sync_queue], async () => {
           await db.lists.put(newList);
           await db.list_members.put({ id: crypto.randomUUID(), list_id: id, user_id: userId, role: 'owner', created_at: now });
-          await enqueue({ user_id: userId, table_name: 'lists', operation: 'INSERT', payload: { id, name: input.name, description: input.description ?? null, user_id: userId, created_at: now } });
+          await enqueue({ user_id: userId, table_name: 'lists', operation: 'INSERT', payload: { id, name: input.name, description: input.description ?? null, category_mode: input.category_mode ?? 'none', user_id: userId, created_at: now } });
 
           if (initialItems.length > 0) {
             const mappedItems: ListItem[] = [];
             for (const item of initialItems) {
               const itemId = crypto.randomUUID();
-              const newItem: ListItem = { id: itemId, list_id: id, content: item.content, completed: item.completed, position: item.position, created_at: now };
+              const newItem: ListItem = { id: itemId, list_id: id, content: item.content, completed: item.completed, position: item.position, category: item.category, created_at: now };
               await db.list_items.put(newItem);
               await enqueue({ user_id: userId, table_name: 'list_items', operation: 'INSERT', payload: newItem as Record<string, unknown> });
               mappedItems.push(newItem);
@@ -364,9 +366,10 @@ export function useLists(userId: string | null): UseListsResult {
           }
         }
 
-        const record: { name: string; description: string | null; user_id: string; created_at?: string } = {
+        const record: { name: string; description: string | null; category_mode: NonNullable<List['category_mode']>; user_id: string; created_at?: string } = {
           name: input.name,
           description: input.description ?? null,
+          category_mode: input.category_mode ?? 'none',
           user_id: userId,
         };
 
@@ -389,6 +392,7 @@ export function useLists(userId: string | null): UseListsResult {
             id: data.id,
             name: data.name,
             description: data.description,
+            category_mode: data.category_mode ?? 'none',
             created_at: data.created_at ?? undefined,
             user_id: data.user_id,
             owner_id: data.user_id,
@@ -409,9 +413,10 @@ export function useLists(userId: string | null): UseListsResult {
                   content: item.content,
                   completed: item.completed ?? false,
                   position: item.position,
+                  category: item.category,
                 })),
               )
-              .select('id, list_id, content, completed, position, created_at, updated_at');
+              .select('id, list_id, content, completed, position, category, created_at, updated_at');
 
             if (itemsError) {
               await supabase.from('lists').delete().eq('id', data.id);
@@ -473,15 +478,15 @@ export function useLists(userId: string | null): UseListsResult {
       }
 
       if (await shouldQueueWrite(userId)) {
-        const updated: List = { ...existing, name: input.name, description: input.description ?? null };
+        const updated: List = { ...existing, name: input.name, description: input.description ?? null, category_mode: input.category_mode ?? existing.category_mode ?? 'none' };
         await db.transaction('rw', [db.lists, db.sync_queue], async () => {
           await db.lists.put(updated);
-          await enqueue({ user_id: userId, table_name: 'lists', operation: 'UPDATE', payload: { id, name: input.name, description: input.description ?? null } });
+          await enqueue({ user_id: userId, table_name: 'lists', operation: 'UPDATE', payload: { id, name: input.name, description: input.description ?? null, category_mode: updated.category_mode } });
         });
         setState(prev => ({
           ...prev,
           lists: prev.lists.map(list =>
-            list.id === id ? { ...list, name: input.name, description: input.description ?? null } : list,
+            list.id === id ? { ...list, name: input.name, description: input.description ?? null, category_mode: updated.category_mode } : list,
           ),
         }));
         return;
@@ -493,6 +498,7 @@ export function useLists(userId: string | null): UseListsResult {
           .update({
             name: input.name,
             description: input.description ?? null,
+            ...(input.category_mode !== undefined ? { category_mode: input.category_mode } : {}),
           })
           .eq('id', id)
           .select('*')
@@ -512,6 +518,7 @@ export function useLists(userId: string | null): UseListsResult {
                     ...list,
                     name: data.name,
                     description: data.description,
+                    category_mode: data.category_mode ?? 'none',
                     created_at: data.created_at ?? list.created_at,
                     items: Array.isArray(list.items) ? [...list.items] : [],
                   }
@@ -673,6 +680,9 @@ export function useLists(userId: string | null): UseListsResult {
       if (typeof updates.completed === 'boolean') {
         payload.completed = updates.completed;
       }
+      if (updates.category !== undefined) {
+        payload.category = updates.category;
+      }
 
       if (!Object.keys(payload).length) {
         const existing = targetList.items?.find(item => item.id === itemId);
@@ -690,19 +700,24 @@ export function useLists(userId: string | null): UseListsResult {
       const optimisticItem: ListItem = { ...existingItem, ...payload, updated_at: now } as ListItem;
 
       if (await shouldQueueWrite(userId)) {
-        await db.transaction('rw', [db.list_items, db.sync_queue], async () => {
-          await db.list_items.put(optimisticItem);
-          await enqueue({ user_id: userId, table_name: 'list_items', operation: 'UPDATE', payload: optimisticItem as Record<string, unknown> });
+        // Read the cached row inside the write transaction: another offline
+        // edit may have committed since listsRef was last rendered.
+        const queuedItem = await db.transaction('rw', [db.list_items, db.sync_queue], async () => {
+          const current = (await db.list_items.get(itemId)) ?? existingItem;
+          const updated = { ...current, ...payload, updated_at: now } as ListItem;
+          await db.list_items.put(updated);
+          await enqueue({ user_id: userId, table_name: 'list_items', operation: 'UPDATE', payload: updated as Record<string, unknown> });
+          return updated;
         });
         setState(prev => ({
           ...prev,
           lists: prev.lists.map(list =>
-            list.id === optimisticItem.list_id
-              ? { ...list, items: (list.items ?? []).map(i => (i.id === itemId ? optimisticItem : i)) }
+            list.id === queuedItem.list_id
+              ? { ...list, items: (list.items ?? []).map(i => (i.id === itemId ? queuedItem : i)) }
               : list,
           ),
         }));
-        return { item: optimisticItem };
+        return { item: queuedItem };
       }
 
       setState(prev => ({
@@ -719,7 +734,7 @@ export function useLists(userId: string | null): UseListsResult {
           .from('list_items')
           .update(payload)
           .eq('id', itemId)
-          .select('id, list_id, content, completed, position, created_at, updated_at')
+          .select('id, list_id, content, completed, position, category, created_at, updated_at')
           .single();
 
         if (error) {

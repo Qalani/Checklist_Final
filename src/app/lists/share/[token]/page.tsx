@@ -34,6 +34,7 @@ type PublicListItem = {
   content: string;
   completed: boolean;
   position: number;
+  category: string | null;
 };
 
 type PublicListRecord = {
@@ -42,6 +43,7 @@ type PublicListRecord = {
   description: string | null;
   created_at: string | null;
   owner_email: string | null;
+  category_mode: 'none' | 'manual' | 'grocery';
   items: PublicListItem[];
 };
 
@@ -78,6 +80,7 @@ const fetchPublicList = cache(async (token: string): Promise<PublicListRecord | 
         content: typeof item.content === 'string' ? item.content : '',
         completed: Boolean(item.completed),
         position: typeof item.position === 'number' ? item.position : 0,
+        category: typeof item.category === 'string' ? item.category : null,
       } satisfies PublicListItem;
     })
     .filter((item): item is PublicListItem => item !== null)
@@ -89,6 +92,7 @@ const fetchPublicList = cache(async (token: string): Promise<PublicListRecord | 
     description: record.description,
     created_at: record.created_at,
     owner_email: record.owner_email,
+    category_mode: record.category_mode === 'grocery' || record.category_mode === 'manual' ? record.category_mode : 'none',
     items,
   };
 });
@@ -188,7 +192,7 @@ export default async function PublicListPage({ params }: { params: Promise<{ tok
                       </div>
                     ) : (
                       <>
-                        <SharedListItems token={token} items={list.items} />
+                        <SharedListItems token={token} items={list.items} categoryMode={list.category_mode} />
                         <p className="text-xs text-zen-400">
                           Ticking an item only updates progress on this device and does not change the owner&apos;s list.
                         </p>

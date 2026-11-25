@@ -55,6 +55,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
           created_at,
           user_id,
           archived,
+          category_mode,
           public_share:list_public_shares(token)
         )
       `,
@@ -83,6 +84,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
         owner_id: list.user_id,
         access_role: record.role,
         archived: list.archived ?? false,
+        category_mode: list.category_mode ?? 'none',
         public_share_token: shareRecord?.token ?? null,
         public_share_enabled: Boolean(shareRecord?.token),
         items: [],
@@ -101,7 +103,7 @@ export async function fetchLists(userId: string): Promise<List[]> {
 
   const { data: itemsData, error: itemsError } = await supabase
     .from('list_items')
-    .select('id, list_id, content, completed, position, created_at, updated_at')
+    .select('id, list_id, content, completed, position, category, created_at, updated_at')
     .in('list_id', listIds)
     .order('position', { ascending: true })
     .order('created_at', { ascending: true })

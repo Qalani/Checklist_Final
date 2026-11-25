@@ -4,16 +4,19 @@ import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { CheckSquare, Square } from 'lucide-react';
 import { useActionFeedback } from '@/components/ActionFeedback';
+import { categorizeGroceryItem, GROCERY_CATEGORIES } from '@/features/lists/groceryCategories';
 
 export type SharedListItem = {
   id: string;
   content: string;
   completed: boolean;
+  category: string | null;
 };
 
 type SharedListItemsProps = {
   token: string;
   items: SharedListItem[];
+  categoryMode: 'none' | 'manual' | 'grocery';
 };
 
 const STORAGE_PREFIX = 'zen-shared-list-progress';
@@ -39,7 +42,7 @@ type StoredValue = {
   overrides: Overrides;
 };
 
-export default function SharedListItems({ token, items }: SharedListItemsProps) {
+export default function SharedListItems({ token, items, categoryMode }: SharedListItemsProps) {
   const celebrate = useActionFeedback();
   const [overrides, setOverrides] = useState<Overrides>({});
   const [isHydrated, setIsHydrated] = useState(false);
@@ -114,6 +117,28 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
       }),
     [items, overrides],
   );
+
+  const groups = useMemo(() => {
+    if (categoryMode === 'none') return [{ name: '', items: displayedItems }];
+    const grouped = new Map<string, typeof displayedItems>();
+    for (const item of displayedItems) {
+      const name = item.category?.trim() || (categoryMode === 'grocery' ? categorizeGroceryItem(item.content) : 'Uncategorized');
+      const group = grouped.get(name) ?? [];
+      group.push(item);
+      grouped.set(name, group);
+    }
+    return Array.from(grouped, ([name, groupItems]) => ({ name, items: groupItems })).sort((a, b) => {
+      const last = categoryMode === 'grocery' ? 'Other' : 'Uncategorized';
+      if (a.name === last) return b.name === last ? 0 : 1;
+      if (b.name === last) return -1;
+      if (categoryMode === 'grocery') {
+        const aIndex = GROCERY_CATEGORIES.findIndex(name => name === a.name);
+        const bIndex = GROCERY_CATEGORIES.findIndex(name => name === b.name);
+        if (aIndex !== -1 || bIndex !== -1) return (aIndex === -1 ? Infinity : aIndex) - (bIndex === -1 ? Infinity : bIndex);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [categoryMode, displayedItems]);
 
   const handleToggle = (id: string, element: HTMLElement) => {
     const currentItem = displayedItems.find(item => item.id === id);
@@ -214,7 +239,10 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
 
   return (
     <div className="space-y-3">
-      {displayedItems.map(item => {
+      {groups.map(group => (
+        <section key={group.name || 'all'} className="space-y-3">
+          {categoryMode !== 'none' && <h2 className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-zen-500">{group.name}</h2>}
+          {group.items.map(item => {
         const Icon = item.completed ? CheckSquare : Square;
         const textClasses = item.completed ? 'line-through text-zen-400' : 'text-zen-700';
         const iconClasses = item.completed ? 'text-sage-600' : 'text-sage-400';
@@ -235,7 +263,9 @@ export default function SharedListItems({ token, items }: SharedListItemsProps) 
             </p>
           </div>
         );
-      })}
+          })}
+        </section>
+      ))}
     </div>
   );
 }

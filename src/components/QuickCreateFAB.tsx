@@ -12,6 +12,7 @@ import { enqueue } from '@/lib/sync-queue';
 import { isOnline } from '@/lib/network-status';
 import type { Category, ListItem } from '@/types';
 import ListItemsBoard from '@/components/ListItemsBoard';
+import { saveOfflineQuickList } from '@/features/lists/saveOfflineQuickList';
 
 type PageMode = 'task' | 'list' | 'note' | 'reminder';
 
@@ -82,6 +83,7 @@ export function QuickCreateFAB() {
 
   // List items (for list mode)
   const [listItems, setListItems] = useState<ListItem[]>([]);
+  const [listCategoryMode, setListCategoryMode] = useState<'none' | 'manual' | 'grocery'>('none');
 
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +112,7 @@ export function QuickCreateFAB() {
     setDueDate('');
     setReminderMinutes('');
     setListItems([]);
+    setListCategoryMode('none');
     setError(null);
   }, []);
 
@@ -123,6 +126,10 @@ export function QuickCreateFAB() {
 
   const updateListItemContent = useCallback(async (itemId: string, content: string) => {
     setListItems(prev => prev.map(item => item.id === itemId ? { ...item, content } : item));
+  }, []);
+
+  const updateListItemCategory = useCallback(async (itemId: string, category: string | null) => {
+    setListItems(prev => prev.map(item => item.id === itemId ? { ...item, category } : item));
   }, []);
 
   const toggleListItem = useCallback(async (itemId: string, completed: boolean) => {
@@ -218,13 +225,11 @@ export function QuickCreateFAB() {
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const listRecord = { id, name: trimmed, description: description.trim() || null, user_id: user.id, created_at: now };
+    const listRecord = { id, name: trimmed, description: description.trim() || null, category_mode: listCategoryMode, user_id: user.id, created_at: now };
     const itemsToSave = listItems.filter(item => item.content.trim());
 
     if (!isOnline()) {
-      const localItems = itemsToSave.map((item, idx) => ({ ...item, list_id: id, position: idx }));
-      await db.lists.put({ ...listRecord, owner_id: user.id, access_role: 'owner' as const, public_share_token: null, public_share_enabled: false, items: localItems });
-      await enqueue({ table_name: 'lists', operation: 'INSERT', payload: listRecord });
+      await saveOfflineQuickList(listRecord, itemsToSave);
     } else {
       const { error: insertError } = await supabase.from('lists').insert(listRecord);
       if (insertError) throw new Error(insertError.message);
@@ -235,6 +240,7 @@ export function QuickCreateFAB() {
           content: item.content.trim(),
           completed: item.completed,
           position: idx,
+          category: item.category ?? null,
           created_at: now,
           updated_at: now,
         }));
@@ -243,7 +249,7 @@ export function QuickCreateFAB() {
       }
     }
     showSuccessToast('List created');
-  }, [title, description, listItems, user, showSuccessToast]);
+  }, [title, description, listItems, listCategoryMode, user, showSuccessToast]);
 
   const handleSubmitNote = useCallback(async () => {
     const trimmed = title.trim();
@@ -515,12 +521,26 @@ export function QuickCreateFAB() {
                     className="w-full resize-none rounded-xl border border-zen-200/80 bg-zen-50/50 px-3 py-2.5 text-sm text-zen-900 placeholder:text-zen-400 focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-300/40 dark:border-zen-700/50 dark:bg-zen-900/40 dark:text-zen-100"
                     aria-label="List description"
                   />
+                  <label className="flex items-center gap-2">
+                    <span className="shrink-0 text-xs font-medium text-zen-500">Categories</span>
+                    <select
+                      value={listCategoryMode}
+                      onChange={(event) => setListCategoryMode(event.target.value as 'none' | 'manual' | 'grocery')}
+                      className="flex-1 rounded-xl border border-zen-200/80 bg-zen-50/50 px-2.5 py-1.5 text-xs text-zen-700 focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-300/40 dark:border-zen-700/50 dark:bg-zen-900/40 dark:text-zen-200"
+                    >
+                      <option value="none">No categories</option>
+                      <option value="manual">Custom categories</option>
+                      <option value="grocery">Groceries (automatic)</option>
+                    </select>
+                  </label>
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-zen-500">List items</p>
                     <ListItemsBoard
                       items={listItems}
                       canEdit
                       editing
+                      categoryMode={listCategoryMode}
+                      onCategoryChange={updateListItemCategory}
                       onAddItem={addListItem}
                       onToggleItem={toggleListItem}
                       onContentCommit={updateListItemContent}

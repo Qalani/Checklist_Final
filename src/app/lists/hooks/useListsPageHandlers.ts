@@ -10,11 +10,13 @@ type MemberRole = ListMember['role'];
 type FormState = {
   name: string;
   description: string;
+  category_mode: 'none' | 'manual' | 'grocery';
 };
 
 const INITIAL_FORM: FormState = {
   name: '',
   description: '',
+  category_mode: 'none',
 };
 
 function orderMembers(members: ListMember[]): ListMember[] {
@@ -180,6 +182,7 @@ export function useListsPageHandlers({
     setFormState({
       name: list.name,
       description: list.description ?? '',
+      category_mode: list.category_mode ?? 'none',
     });
     setFormError(null);
     setNewListItems([]);
@@ -208,6 +211,10 @@ export function useListsPageHandlers({
         item.id === itemId ? { ...item, content: content.trim() } : item,
       ),
     );
+  };
+
+  const updateNewListItemCategory = async (itemId: string, category: string | null) => {
+    setNewListItems(prev => (Array.isArray(prev) ? prev : []).map(item => item.id === itemId ? { ...item, category } : item));
   };
 
   const toggleNewListItem = async (itemId: string, completed: boolean) => {
@@ -253,6 +260,7 @@ export function useListsPageHandlers({
     const payload = {
       name: formState.name.trim(),
       description: formState.description.trim(),
+      category_mode: formState.category_mode,
       items:
         editingList === null
           ? (Array.isArray(newListItems) ? newListItems : [])
@@ -261,6 +269,7 @@ export function useListsPageHandlers({
               .map(item => ({
                 content: item.content.trim(),
                 completed: item.completed,
+                category: item.category ?? null,
                 position: item.position ?? 0,
               }))
           : undefined,
@@ -613,6 +622,15 @@ export function useListsPageHandlers({
     setListItemError(listId, null);
   };
 
+  const handleUpdateListItemCategory = async (listId: string, itemId: string, category: string | null) => {
+    const result = await updateListItem(itemId, { category });
+    if (!result || isErrorResult(result)) {
+      setListItemError(listId, result?.error ?? 'Unable to update item category.');
+      return;
+    }
+    setListItemError(listId, null);
+  };
+
   const handleToggleListItem = async (listId: string, itemId: string, completed: boolean) => {
     try {
       const result = await updateListItem(itemId, { completed });
@@ -651,6 +669,7 @@ export function useListsPageHandlers({
     handleOpenEdit,
     addNewListItem,
     updateNewListItemContent,
+    updateNewListItemCategory,
     toggleNewListItem,
     deleteNewListItem,
     reorderNewListItems,
@@ -671,6 +690,7 @@ export function useListsPageHandlers({
     handlePreviewShareLink,
     handleCreateListItem,
     handleUpdateListItemContent,
+    handleUpdateListItemCategory,
     handleToggleListItem,
     handleDeleteListItem,
     handleReorderListItems,

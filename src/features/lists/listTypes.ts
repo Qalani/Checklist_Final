@@ -19,18 +19,18 @@ export interface ErrorResult {
   error: string;
 }
 
-export type CreateListItemInput = Partial<Pick<ListItem, 'content' | 'completed' | 'position'>>;
+export type CreateListItemInput = Partial<Pick<ListItem, 'content' | 'completed' | 'position' | 'category'>>;
 
 export interface UseListsResult extends ListsState {
   createList: (
-    input: { name: string; description?: string; createdAt?: string | Date; items?: CreateListItemInput[] },
+    input: { name: string; description?: string; category_mode?: List['category_mode']; createdAt?: string | Date; items?: CreateListItemInput[] },
   ) => Promise<void | ErrorResult>;
-  updateList: (id: string, input: { name: string; description?: string }) => Promise<void | ErrorResult>;
+  updateList: (id: string, input: { name: string; description?: string; category_mode?: List['category_mode'] }) => Promise<void | ErrorResult>;
   deleteList: (id: string) => Promise<void | ErrorResult>;
   createListItem: (listId: string, content?: string) => Promise<{ item: ListItem } | ErrorResult>;
   updateListItem: (
     itemId: string,
-    updates: { content?: string; completed?: boolean },
+    updates: { content?: string; completed?: boolean; category?: string | null },
   ) => Promise<{ item: ListItem } | ErrorResult>;
   deleteListItem: (itemId: string) => Promise<void | ErrorResult>;
   reorderListItems: (listId: string, orderedIds: string[]) => Promise<void | ErrorResult>;
@@ -59,6 +59,7 @@ export interface ListMembershipRow {
     created_at: string | null;
     user_id: string;
     archived: boolean | null;
+    category_mode: List['category_mode'] | null;
     public_share: { token: string }[] | null;
   } | null;
 }
@@ -69,6 +70,7 @@ export interface ListItemRow {
   content: string;
   completed: boolean;
   position: number;
+  category?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -96,6 +98,7 @@ export function mapListItem(row: ListItemRow): ListItem {
     content: row.content,
     completed: row.completed,
     position: row.position,
+    category: row.category ?? null,
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
   } satisfies ListItem;

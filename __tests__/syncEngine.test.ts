@@ -58,6 +58,22 @@ it('strips view-model fields from task and list writes', () => {
   expect(sanitizePayload('tasks', { id:'t1', title:'Task', access_role:'owner', unknown:'value' })).toEqual({ id:'t1', title:'Task' });
   expect(sanitizePayload('lists', { id:'l1', name:'List', owner_id:'u', items:[], access_role:'editor', public_share_enabled:true })).toEqual({ id:'l1', name:'List' });
 });
+
+it('replays list category choices made offline, including clearing an item category', async () => {
+  seed('sync_queue', [
+    queued(1, 'UPDATE', { id: 'l1', category_mode: 'grocery' }, { table_name: 'lists' }),
+    queued(2, 'UPDATE', { id: 'i1', category: null }, { table_name: 'list_items' }),
+  ]);
+  const listQuery = resultQuery({ data: [{ id: 'l1' }], error: null });
+  const itemQuery = resultQuery({ data: [{ id: 'i1' }], error: null });
+  mockFrom.mockImplementation((table: string) => table === 'lists' ? listQuery : itemQuery);
+
+  await pushQueue();
+
+  expect(listQuery.update).toHaveBeenCalledWith({ category_mode: 'grocery' });
+  expect(itemQuery.update).toHaveBeenCalledWith({ category: null });
+  expect(mockStores.sync_queue.size).toBe(0);
+});
 it('replays partial UPDATE using update instead of an insert/upsert', async () => {
   const query = resultQuery({ data: [{ id:'t1', completed:true }], error:null }); mockFrom.mockReturnValue(query);
   seed('sync_queue', [queued(1,'UPDATE',{id:'t1',completed:true,access_role:'owner',user_id:'owner'})]);
